@@ -9,7 +9,7 @@ import api from "./client";
  * DELETE /shop/files/:id/
  *
  * Réponse d'un upload : { id, url, ... }
- * → utiliser data.url pour passer l'image à category.icon ou product.image
+ * → utiliser data.url pour passer l'image à category.icon ou product.image etc.
  */
 class FilesAPI {
   /**

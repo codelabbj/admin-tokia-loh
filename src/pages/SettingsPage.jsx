@@ -1,95 +1,86 @@
-import React, { useState, useEffect } from 'react';
-import {
-    Megaphone,
-    MessageSquare, Truck, Info, Shield
-} from 'lucide-react';
+import React, { useEffect } from 'react';
+import { Megaphone, KeyRound, Shield } from 'lucide-react';
 import SettingsBannersManager from '../components/settings/SettingsBannersManager';
-import SettingsMessagesForm from '../components/settings/SettingsMessagesForm';
-import SettingsDeliveryForm from '../components/settings/SettingsDeliveryForm';
+import SettingsPasswordForm from '../components/settings/SettingsPasswordForm';
 import SettingsAdminsManager from '../components/settings/SettingsAdminsManager';
+import { useAdmin } from '../hooks/useAdmin';
 
-const SECTIONS = [
-    { key: 'banners', label: 'Bannières', icon: <Megaphone size={16} />, component: <SettingsBannersManager /> },
-    { key: 'messages', label: 'Messages auto', icon: <MessageSquare size={16} />, component: <SettingsMessagesForm /> },
-    { key: 'delivery', label: 'Livraison', icon: <Truck size={16} />, component: <SettingsDeliveryForm /> },
-    { key: 'admins', label: 'Administrateurs', icon: <Shield size={16} />, component: <SettingsAdminsManager /> },
-];
+const Section = ({ icon, title, children }) => (
+    <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-neutral-4 dark:border-neutral-4 bg-neutral-2 dark:bg-neutral-2">
+            <span className="text-primary-1">{icon}</span>
+            <h2 className="text-sm font-bold font-poppins text-neutral-8 dark:text-neutral-8">{title}</h2>
+        </div>
+        <div className="p-5">{children}</div>
+    </div>
+);
 
 const SettingsPage = () => {
-    const [activeSection, setActiveSection] = useState('messages');
+    const { currentUser } = useAdmin();
+    const [activeTab, setActiveTab] = React.useState('banners');
 
     useEffect(() => {
         document.title = 'Admin Tokia-Loh | Paramètres';
     }, []);
 
-    const current = SECTIONS.find(s => s.key === activeSection);
-
     return (
-        <div className="flex flex-col gap-6">
-
-            {/* ── En-tête ── */}
+        <div className="flex flex-col gap-6 w-full">
             <div>
-                <h1 className="text-h5 font-bold font-poppins text-neutral-8 dark:text-neutral-8">
-                    Paramètres
-                </h1>
-                <p className="text-xs font-poppins text-neutral-6 dark:text-neutral-6 mt-0.5">
-                    Configuration générale de Tokia-Loh
-                </p>
+                <h1 className="text-h5 font-bold font-poppins text-neutral-8 dark:text-neutral-8">Paramètres</h1>
+                <p className="text-xs font-poppins text-neutral-6 dark:text-neutral-6 mt-0.5">Configuration générale de Tokia-Loh</p>
             </div>
 
-            {/* ── Layout : nav latérale + contenu ── */}
-            <div className="flex flex-col lg:flex-row gap-6 items-start">
+            <div className="flex gap-2 border-b border-neutral-4 dark:border-neutral-4">
+                <button
+                    onClick={() => setActiveTab('banners')}
+                    className={`px-4 py-2 text-xs font-poppins rounded-t-2 transition-colors ${activeTab === 'banners'
+                        ? 'bg-neutral-0 border border-neutral-4 border-b-transparent text-primary-1'
+                        : 'text-neutral-6 hover:text-neutral-8'
+                        }`}
+                >
+                    Bannières
+                </button>
 
-                {/* Navigation latérale */}
-                <nav className="
-                    w-full lg:w-52 shrink-0
-                    bg-neutral-0 dark:bg-neutral-0
-                    border border-neutral-4 dark:border-neutral-4
-                    rounded-3 p-2 flex flex-col gap-1
-                    lg:sticky lg:top-6
-                ">
-                    {SECTIONS.map(section => (
-                        <button
-                            key={section.key}
-                            onClick={() => setActiveSection(section.key)}
-                            className={`
-                                flex items-center gap-3 px-3 py-2.5 rounded-2 w-full text-left
-                                text-xs font-medium font-poppins
-                                transition-all duration-200 cursor-pointer
-                                ${activeSection === section.key
-                                    ? 'bg-primary-5 text-primary-1'
-                                    : 'text-neutral-7 dark:text-neutral-6 hover:bg-neutral-3 dark:hover:bg-neutral-3 hover:text-neutral-8 dark:hover:text-neutral-8'
-                                }
-                            `}
-                        >
-                            <span className="shrink-0">{section.icon}</span>
-                            {section.label}
-                        </button>
-                    ))}
+                <button
+                    onClick={() => setActiveTab('password')}
+                    className={`px-4 py-2 text-xs font-poppins rounded-t-2 transition-colors ${activeTab === 'password'
+                        ? 'bg-neutral-0 border border-neutral-4 border-b-transparent text-primary-1'
+                        : 'text-neutral-6 hover:text-neutral-8'
+                        }`}
+                >
+                    Mot de passe
+                </button>
 
-                    {/* Info version */}
-                    <div className="mt-3 pt-3 border-t border-neutral-4 dark:border-neutral-4 px-3">
-                        <div className="flex items-center gap-1.5 text-[11px] font-poppins text-neutral-5">
-                            <Info size={11} />
-                            Version 1.0.0
-                        </div>
-                    </div>
-                </nav>
-
-                {/* Contenu de la section active */}
-                <div className="flex-1 min-w-0">
-                    {/* Titre section */}
-                    <div className="flex items-center gap-2 mb-5">
-                        <span className="text-primary-1">{current?.icon}</span>
-                        <h2 className="text-sm font-bold font-poppins text-neutral-8 dark:text-neutral-8">
-                            {current?.label}
-                        </h2>
-                    </div>
-
-                    {/* Composant actif */}
-                    {current?.component}
-                </div>
+                {currentUser?.is_superuser && (
+                    <button
+                        onClick={() => setActiveTab('admins')}
+                        className={`px-4 py-2 text-xs font-poppins rounded-t-2 transition-colors ${activeTab === 'admins'
+                            ? 'bg-neutral-0 border border-neutral-4 border-b-transparent text-primary-1'
+                            : 'text-neutral-6 hover:text-neutral-8'
+                            }`}
+                    >
+                        Administrateurs
+                    </button>
+                )}
             </div>
+
+            {activeTab === 'banners' && (
+                <Section icon={<Megaphone size={16} />} title="Bannières">
+                    <SettingsBannersManager />
+                </Section>
+            )}
+
+            {activeTab === 'password' && (
+                <Section icon={<KeyRound size={16} />} title="Mot de passe">
+                    <SettingsPasswordForm />
+                </Section>
+            )}
+
+            {activeTab === 'admins' && currentUser?.is_superuser && (
+                <Section icon={<Shield size={16} />} title="Gérer les administrateurs">
+                    <SettingsAdminsManager />
+                </Section>
+            )}
         </div>
     );
 };

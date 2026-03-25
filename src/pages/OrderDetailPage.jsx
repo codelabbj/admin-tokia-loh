@@ -139,14 +139,16 @@ const OrderDetailPage = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {order.items?.map((item, i) => (
-                                    <tr key={i} className="border-b border-neutral-4 dark:border-neutral-4 last:border-0">
-                                        <td className="px-4 py-3 font-medium text-neutral-8 dark:text-neutral-8">{item.name}</td>
-                                        <td className="px-4 py-3 text-center text-neutral-7 dark:text-neutral-7">{item.quantity}</td>
-                                        <td className="px-4 py-3 text-neutral-7 dark:text-neutral-7">{formatPrice(item.unitPrice)}</td>
-                                        <td className="px-4 py-3 font-semibold text-neutral-8 dark:text-neutral-8">{formatPrice(item.quantity * item.unitPrice)}</td>
-                                    </tr>
-                                ))}
+                                {console.log(order)}
+                                {
+                                    order.items?.map((item, i) => (
+                                        <tr key={i} className="border-b border-neutral-4 dark:border-neutral-4 last:border-0">
+                                            <td className="px-4 py-3 font-medium text-neutral-8 dark:text-neutral-8">{item.name}</td>
+                                            <td className="px-4 py-3 text-center text-neutral-7 dark:text-neutral-7">{item.quantity}</td>
+                                            <td className="px-4 py-3 text-neutral-7 dark:text-neutral-7">{formatPrice(item.unitPrice)}</td>
+                                            <td className="px-4 py-3 font-semibold text-neutral-8 dark:text-neutral-8">{formatPrice(item.quantity * item.unitPrice)}</td>
+                                        </tr>
+                                    ))}
                             </tbody>
                         </table>
                         <div className="border-t border-neutral-4 dark:border-neutral-4 bg-neutral-2 dark:bg-neutral-2 px-5 py-3 flex flex-col gap-1.5">
@@ -188,7 +190,7 @@ const OrderDetailPage = () => {
                     <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 p-5 flex flex-col gap-3">
                         <p className="text-xs font-semibold font-poppins text-neutral-6 uppercase tracking-wide">Client</p>
                         <div className="flex flex-col gap-2">
-                            <InfoCard icon={<User size={14} />} label="Nom complet" value={`${order.client?.firstName ?? ''} ${order.client?.lastName ?? ''}`} />
+                            <InfoCard icon={<User size={14} />} label="Nom complet" value={`${order.client?.fullName ?? ''} ${order.client?.last_name ?? ''}`} />
                             <InfoCard icon={<Phone size={14} />} label="Téléphone" value={order.client?.phone} />
                             <InfoCard icon={<MapPin size={14} />} label="Ville" value={order.client?.city} />
                         </div>
@@ -200,7 +202,7 @@ const OrderDetailPage = () => {
                         <div className="flex flex-col gap-2">
                             <div className="flex justify-between text-xs font-poppins text-neutral-6">
                                 <span>N° commande</span>
-                                <span className="font-semibold text-primary-1">#{id}</span>
+                                <span className="font-semibold text-primary-1">{order.reference}</span>
                             </div>
                             <div className="flex justify-between text-xs font-poppins text-neutral-6">
                                 <span>Articles</span>

@@ -1,461 +1,197 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Shield, AlertCircle, ArrowLeft } from 'lucide-react';
-import Button from '../Button';
-import PhoneInputField from '../PhoneInputField';
-import InputField from '../InputField';
-import { auth } from '../../config/firebase.config';
-import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import React, { useState, useEffect } from "react";
+import { Plus, Trash2, Shield, AlertCircle, Eye, EyeOff } from "lucide-react";
+import Button from "../Button";
+import InputField from "../InputField";
+import { useAdmin } from "../../hooks/useAdmin";
 
 const SettingsAdminsManager = () => {
-    const [admins, setAdmins] = useState([]);
+    const {
+        admins,
+        adminsLoading: loading,
+        adminsError: error,
+        createAdmin,
+        deleteAdmin,
+        currentUser,
+    } = useAdmin();
     const [isAdding, setIsAdding] = useState(false);
-    const [step, setStep] = useState(1); // 1 = formulaire, 2 = validation OTP
-    const [newAdmin, setNewAdmin] = useState({
-        firstName: '',
-        lastName: '',
-        phone: '',
-    });
-    const [otpCode, setOtpCode] = useState('');
-    const [verificationId, setVerificationId] = useState('');
-    const [isValidPhone, setIsValidPhone] = useState(false);
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [form, setForm] = useState({ email: "", phone: "", password: "", is_admin: true, is_superuser: false });
+    const [formErrors, setFormErrors] = useState({});
+    const [localError, setLocalError] = useState("");
 
-    // Initialiser reCAPTCHA au montage
-    /* useEffect(() => {
-        if (!window.recaptchaVerifierAdmin) {
-            window.recaptchaVerifierAdmin = new RecaptchaVerifier(auth, 'recaptcha-container-admin', {
-                'size': 'invisible',
-                'callback': () => {
-                    console.log('reCAPTCHA résolu');
-                }
-            });
-        }
-
-        return () => {
-            if (window.recaptchaVerifierAdmin) {
-                window.recaptchaVerifierAdmin.clear();
-                window.recaptchaVerifierAdmin = null;
-            }
-        };
-    }, []); */
-
-
-    // Charger les admins au montage
-    useEffect(() => {
-        fetchAdmins();
-    }, []);
-
-    const fetchAdmins = async () => {
-        setLoading(true);
-        try {
-            const response = await fetch('/api/admins');
-            const data = await response.json();
-            setAdmins(data);
-        } catch (err) {
-            setError('Erreur lors du chargement des administrateurs');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Validation du téléphone
-    const handlePhoneChange = (value, country) => {
-        const fullNumber = '+' + value;
-        setNewAdmin({ ...newAdmin, phone: fullNumber });
-
-        const phoneLength = value.length - country.dialCode.length;
-        const expectedLengths = {
-            'ci': 10,
-            'bj': 10,
-            'sn': 9,
-            'tg': 8,
-            'bf': 8
-        };
-
-        const expectedLength = expectedLengths[country.countryCode] || 8;
-        const valid = phoneLength === expectedLength;
-
-        setIsValidPhone(valid);
-    };
-
-    // Validation du code OTP
-    const validateOTP = (code) => /^\d{6}$/.test(code);
-
-    const handleOTPChange = (e) => {
-        const { value } = e.target;
-        if (value.length <= 6 && /^\d*$/.test(value)) {
-            setOtpCode(value);
-        }
-    };
-
-    // Étape 1 : Soumettre le formulaire et envoyer OTP
-    const handleSubmitForm = async (e) => {
+    const handleCreate = async (e) => {
         e.preventDefault();
-        setError('');
-
-        // Validation
-        if (!newAdmin.firstName || !newAdmin.lastName || !newAdmin.phone) {
-            setError('Tous les champs sont requis');
-            return;
-        }
-
-        if (!isValidPhone) {
-            setError('Numéro de téléphone invalide');
-            return;
-        }
+        if (!validate()) return;
 
         setSubmitting(true);
+        setLocalError("");
 
-        // TEMPORAIRE : Simulation sans Firebase
-        setTimeout(() => {
-            setVerificationId('fake-verification-id');
-            setStep(2); // Passer à la validation OTP
-            setSubmitting(false);
-        }, 1500);
+        const result = await createAdmin(form);
 
-        /* VERSION AVEC FIREBASE (décommenter quand la facturation est activée)
-        try {
-            // Envoyer l'OTP
-            const appVerifier = window.recaptchaVerifierAdmin;
-            const confirmationResult = await signInWithPhoneNumber(auth, newAdmin.phone, appVerifier);
-            
-            setVerificationId(confirmationResult.verificationId);
-            setStep(2); // Passer à la validation OTP
-            setSubmitting(false);
-        } catch (err) {
-            console.error('Erreur lors de l\'envoi du code:', err);
-            let errorMessage = 'Erreur lors de l\'envoi du code';
-            
-            if (err.code === 'auth/invalid-phone-number') {
-                errorMessage = 'Numéro de téléphone invalide';
-            } else if (err.code === 'auth/too-many-requests') {
-                errorMessage = 'Trop de tentatives. Réessayez plus tard';
-            }
-            
-            setError(errorMessage);
-            setSubmitting(false);
-        }
-        */
-    };
+        setSubmitting(false);
 
-    // Étape 2 : Vérifier OTP et créer l'admin
-    const handleVerifyOTP = async (e) => {
-        e.preventDefault();
-        setError('');
-
-        if (!otpCode || !validateOTP(otpCode)) {
-            setError('Le code doit contenir 6 chiffres');
-            return;
-        }
-
-        setSubmitting(true);
-
-        // TEMPORAIRE : Simulation sans Firebase
-        setTimeout(async () => {
-            try {
-                // Créer l'admin dans votre backend
-                const response = await fetch('/api/admins', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(newAdmin)
-                });
-
-                if (!response.ok) throw new Error('Erreur lors de la création');
-
-                const createdAdmin = await response.json();
-                setAdmins([...admins, createdAdmin]);
-
-                // Réinitialiser
-                setNewAdmin({ firstName: '', lastName: '', phone: '' });
-                setOtpCode('');
-                setStep(1);
-                setIsAdding(false);
-                setSubmitting(false);
-            } catch (err) {
-                setError(err.message);
-                setSubmitting(false);
-            }
-        }, 1000);
-
-        /* VERSION AVEC FIREBASE (décommenter quand la facturation est activée)
-        try {
-            // Vérifier le code OTP
-            const credential = auth.PhoneAuthProvider.credential(verificationId, otpCode);
-            await auth.signInWithCredential(credential);
-
-            // Si validé, créer l'admin dans votre backend
-            const response = await fetch('/api/admins', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newAdmin)
-            });
-
-            if (!response.ok) throw new Error('Erreur lors de la création');
-
-            const createdAdmin = await response.json();
-            setAdmins([...admins, createdAdmin]);
-            
-            // Réinitialiser
-            setNewAdmin({ firstName: '', lastName: '', phone: '' });
-            setOtpCode('');
-            setStep(1);
+        if (result.ok) {
+            setForm({ email: "", phone: "", password: "", is_admin: true, is_superuser: false });
             setIsAdding(false);
-            setSubmitting(false);
-        } catch (err) {
-            console.error('Erreur lors de la vérification:', err);
-            let errorMessage = 'Code invalide';
-            
-            if (err.code === 'auth/invalid-verification-code') {
-                errorMessage = 'Code incorrect. Veuillez réessayer';
-            } else if (err.code === 'auth/code-expired') {
-                errorMessage = 'Le code a expiré. Demandez un nouveau code';
-            }
-            
-            setError(errorMessage);
-            setSubmitting(false);
+        } else {
+            setLocalError(result.data?.message || "Erreur lors de la creation");
         }
-        */
     };
 
-    const handleDeleteAdmin = async (adminId) => {
-        if (!confirm('Êtes-vous sûr de vouloir supprimer cet administrateur ?')) return;
+    const handleDeleteAdmin = async (id) => {
+        if (!window.confirm("Supprimer cet administrateur ?")) return;
 
-        try {
-            const response = await fetch(`/api/admins/${adminId}`, {
-                method: 'DELETE'
-            });
+        const result = await deleteAdmin(id);
 
-            if (!response.ok) throw new Error('Erreur lors de la suppression');
-
-            setAdmins(admins.filter(a => a.id !== adminId));
-        } catch (err) {
-            setError(err.message);
+        if (!result.ok) {
+            setLocalError(result.data?.message || "Erreur lors de la suppression");
         }
     };
 
     const handleCancel = () => {
         setIsAdding(false);
-        setStep(1);
-        setNewAdmin({ firstName: '', lastName: '', phone: '' });
-        setOtpCode('');
-        setError('');
+        setForm({ email: "", phone: "", password: "", is_admin: true, is_superuser: false });
+        setFormErrors({});
+        setLocalError("");
     };
 
-    const handleBackToForm = () => {
-        setStep(1);
-        setOtpCode('');
-        setError('');
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setForm(prev => ({ ...prev, [name]: value }));
+
+        if (formErrors[name]) {
+            setFormErrors(prev => ({ ...prev, [name]: "" }));
+        }
     };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <div className="text-neutral-6 text-sm font-poppins">Chargement...</div>
-            </div>
-        );
-    }
+    const validate = () => {
+        const e = {};
+
+        if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+            e.email = "Email invalide";
+        }
+
+        if (!form.phone) {
+            e.phone = "Telephone requis";
+        }
+
+        if (!form.password || form.password.length < 6) {
+            e.password = "Mot de passe trop court (6 caracteres min)";
+        }
+
+        setFormErrors(e);
+        return Object.keys(e).length === 0;
+    };
+
+    if (loading) return <div className="text-xs font-poppins text-neutral-6 py-4">Chargement...</div>;
 
     return (
         <div className="flex flex-col gap-4">
-            {/* Conteneur invisible pour reCAPTCHA */}
-            <div id="recaptcha-container-admin"></div>
-
-            {/* Message d'erreur */}
-            {error && (
+            {(error || localError) && (
                 <div className="bg-danger-2 border border-danger-1 rounded-2 p-3 flex items-start gap-2">
-                    <AlertCircle size={16} className="text-danger-1 shrink-0 mt-0.5" />
-                    <p className="text-xs font-poppins text-danger-1">{error}</p>
+                    <AlertCircle size={14} className="text-danger-1 shrink-0 mt-0.5" />
+                    <p className="text-xs font-poppins text-danger-1">{error || localError}</p>
                 </div>
             )}
 
-            {/* Bouton ajouter */}
             {!isAdding && (
-                <Button
-                    type="button"
-                    variant="primary"
-                    size="normal"
-                    className="mt-2 w-80"
-                    onClick={() => setIsAdding(true)}
-                >
-                    <Plus size={14} />
-                    Ajouter un administrateur
-                </Button>
-            )}
-
-            {/* Formulaire d'ajout */}
-            {isAdding && (
-                <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 p-5">
-
-                    {/* ÉTAPE 1 : Formulaire */}
-                    {step === 1 && (
-                        <>
-                            <h3 className="text-sm font-semibold font-poppins text-neutral-8 dark:text-neutral-8 mb-4">
-                                Nouvel administrateur
-                            </h3>
-
-                            <form onSubmit={handleSubmitForm} className="flex flex-col gap-4">
-                                {/* Nom */}
-                                <InputField
-                                    label="Nom"
-                                    name="lastName"
-                                    type="text"
-                                    value={newAdmin.lastName}
-                                    onChange={(e) => setNewAdmin({ ...newAdmin, lastName: e.target.value })}
-                                    placeholder="Ex: Dupont"
-                                    required
-                                />
-
-                                {/* Prénoms */}
-                                <InputField
-                                    label="Prénoms"
-                                    name="firstName"
-                                    type="text"
-                                    value={newAdmin.firstName}
-                                    onChange={(e) => setNewAdmin({ ...newAdmin, firstName: e.target.value })}
-                                    placeholder="Ex: Jean Marie"
-                                    required
-                                />
-
-                                {/* Téléphone */}
-                                <PhoneInputField
-                                    label="Numéro de téléphone"
-                                    name="phone"
-                                    value={newAdmin.phone}
-                                    onChange={handlePhoneChange}
-                                    placeholder="Entrez le numéro"
-                                    required
-                                />
-
-                                {/* Actions */}
-                                <div className="flex items-center gap-2 pt-2">
-                                    <Button
-                                        type="submit"
-                                        variant="primary"
-                                        size="normal"
-                                        loading={submitting}
-                                        disabled={!isValidPhone || submitting}
-                                        className="px-4"
-                                    >
-                                        {submitting ? 'Envoi du code...' : 'Continuer'}
-                                    </Button>
-
-                                    <Button
-                                        type="button"
-                                        variant="secondary"
-                                        size="normal"
-                                        onClick={handleCancel}
-                                    >
-                                        Annuler
-                                    </Button>
-                                </div>
-                            </form>
-                        </>
-                    )}
-
-                    {/* ÉTAPE 2 : Validation OTP */}
-                    {step === 2 && (
-                        <>
-                            <h3 className="text-sm font-semibold font-poppins text-neutral-8 dark:text-neutral-8 mb-2">
-                                Validation du numéro
-                            </h3>
-                            <p className="text-xs text-neutral-6 font-poppins mb-4">
-                                Un code a été envoyé au {newAdmin.phone.slice(0, 4)}****{newAdmin.phone.slice(-2)}
-                            </p>
-
-                            <form onSubmit={handleVerifyOTP} className="flex flex-col gap-4">
-                                {/* Code OTP */}
-                                <InputField
-                                    label="Code de vérification"
-                                    name="otp"
-                                    type="text"
-                                    value={otpCode}
-                                    onChange={handleOTPChange}
-                                    placeholder="000000"
-                                    maxLength={6}
-                                    required
-                                />
-
-                                {/* Actions */}
-                                <div className="flex items-center gap-2 pt-2">
-                                    <Button
-                                        type="submit"
-                                        variant="primary"
-                                        size="normal"
-                                        loading={submitting}
-                                        className="px-4"
-                                    >
-                                        {submitting ? 'Vérification...' : 'Valider et créer'}
-                                    </Button>
-
-                                    <Button
-                                        type="button"
-                                        variant="secondary"
-                                        size="normal"
-                                        onClick={handleBackToForm}
-                                    >
-                                        <ArrowLeft size={14} />
-                                        Retour
-                                    </Button>
-                                </div>
-
-                                {/* Renvoyer le code */}
-                                <button
-                                    type="button"
-                                    onClick={handleSubmitForm}
-                                    disabled={submitting}
-                                    className="text-primary-1 hover:text-primary-2 text-xs font-poppins underline disabled:opacity-50"
-                                >
-                                    Renvoyer le code
-                                </button>
-                            </form>
-                        </>
-                    )}
+                <div>
+                    <Button type="button" variant="primary" size="normal" onClick={() => setIsAdding(true)}>
+                        <Plus size={14} />
+                        Ajouter un administrateur
+                    </Button>
                 </div>
             )}
 
-            {/* Liste des admins */}
-            <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 overflow-hidden">
+            {isAdding && (
+                <div className="bg-neutral-2 dark:bg-neutral-2 border border-neutral-4 dark:border-neutral-4 rounded-2 p-4 flex flex-col gap-4">
+                    <p className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">Nouvel administrateur</p>
+                    <form onSubmit={handleCreate} className="flex flex-col gap-4">
+                        <InputField label="Email" name="email" type="email" value={form.email} onChange={handleChange} placeholder="admin@exemple.com" error={formErrors.email} required />
+                        <InputField label="Telephone" name="phone" type="tel" value={form.phone} onChange={handleChange} placeholder="+22999000000" error={formErrors.phone} required />
+                        <div className="relative">
+                            <InputField label="Mot de passe" name="password" type={showPassword ? "text" : "password"} value={form.password} onChange={handleChange} placeholder="Mot de passe" error={formErrors.password} required />
+                            <button type="button" onClick={() => setShowPassword(v => !v)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-5 hover:text-neutral-7 transition-colors" tabIndex={-1}>
+                            </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="is_superuser"
+                                name="is_superuser"
+                                checked={form.is_superuser}
+                                onChange={(e) =>
+                                    setForm(prev => ({
+                                        ...prev,
+                                        is_superuser: e.target.checked
+                                    }))
+                                }
+                                className="w-4 h-4"
+                            />
+                            <label htmlFor="is_superuser" className="text-xs font-poppins text-neutral-7">
+                                Super administrateur
+                            </label>
+                        </div>
+                        <div className="flex items-center gap-2 pt-1">
+                            <Button type="submit" variant="primary" size="normal" loading={submitting} disabled={submitting}>
+                                {submitting ? "Creation..." : "Creer l administrateur"}
+                            </Button>
+                            <Button type="button" variant="secondary" size="normal" onClick={handleCancel}>Annuler</Button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            <div className="flex flex-col divide-y divide-neutral-4 dark:divide-neutral-4 border border-neutral-4 dark:border-neutral-4 rounded-2 overflow-hidden">
                 {admins.length === 0 ? (
                     <div className="p-8 text-center">
-                        <Shield size={32} className="mx-auto mb-3 text-neutral-5" />
-                        <p className="text-sm font-poppins text-neutral-6">
-                            Aucun administrateur
-                        </p>
+                        <Shield size={28} className="mx-auto mb-2 text-neutral-5" />
+                        <p className="text-xs font-poppins text-neutral-5">Aucun administrateur</p>
                     </div>
-                ) : (
-                    <div className="divide-y divide-neutral-4 dark:divide-neutral-4">
-                        {admins.map(admin => (
-                            <div
-                                key={admin.id}
-                                className="flex items-center justify-between gap-4 p-4 hover:bg-neutral-2 dark:hover:bg-neutral-2 transition-colors duration-200"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-full bg-primary-5 flex items-center justify-center shrink-0">
-                                        <Shield size={16} className="text-primary-1" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
-                                            {admin.firstName} {admin.lastName}
-                                        </p>
-                                        <p className="text-[11px] font-poppins text-neutral-6 dark:text-neutral-6">
-                                            {admin.phone}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={() => handleDeleteAdmin(admin.id)}
-                                    className="p-2 rounded-2 text-danger-1 hover:bg-danger-2 transition-all duration-200 cursor-pointer"
-                                    title="Supprimer"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
+                ) : admins.map(admin => (
+                    <div key={admin.id}
+                        className={`flex items-center justify-between gap-4 px-4 py-3 transition-colors ${admin.id === currentUser?.id
+                            ? "bg-primary-5/20 border-l-4 border-primary-1"
+                            : "hover:bg-neutral-2 dark:hover:bg-neutral-2"
+                            }`}
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary-5 flex items-center justify-center shrink-0">
+                                <Shield size={14} className="text-primary-1" />
                             </div>
-                        ))}
+                            <div>
+                                <p className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">{admin.email}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                    <p className="text-[11px] font-poppins text-neutral-6">
+                                        {admin.phone}
+                                    </p>
+
+                                    {currentUser?.is_superuser ? (
+                                        <span className="px-1.5 py-0.5 rounded-full bg-primary-5 text-primary-1 text-[10px] font-semibold font-poppins">
+                                            Super Admin
+                                        </span>
+                                    ) : (
+                                        <span className="px-1.5 py-0.5 rounded-full bg-neutral-3 text-neutral-6 text-[10px] font-semibold font-poppins">
+                                            Admin
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            disabled={admin.id === currentUser?.id}
+                            className={`p-2 rounded-2 transition-all ${admin.id === currentUser?.id
+                                ? "text-neutral-4 cursor-not-allowed"
+                                : "text-danger-1 hover:bg-danger-2 cursor-pointer"
+                                }`}
+                            onClick={() => handleDeleteAdmin(admin.id)}
+                        >
+                            <Trash2 size={13} />
+                        </button>
                     </div>
-                )}
+                ))}
             </div>
         </div>
     );

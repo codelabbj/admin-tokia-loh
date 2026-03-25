@@ -6,7 +6,7 @@ import { useNotifications } from '../hooks/useNotifications';
 
 const TABS = [
     { key: 'history', label: 'Historique', icon: Bell },
-    { key: 'settings', label: 'Configuration', icon: Settings },
+    /*{ key: 'settings', label: 'Configuration', icon: Settings },*/
 ];
 
 const NotificationsPage = () => {

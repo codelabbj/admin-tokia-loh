@@ -30,6 +30,7 @@ const normalizeOrder = (raw) => ({
   delivery_fee: raw.delivery_fee ?? 0,
   note: raw.specific_information ?? "",
   delivery_address: raw.delivery_address ?? null,
+  reference: raw.order_reference ?? "",
 
   // Items — format unifié pour OrderDetailPage
   items: (raw.items ?? []).map((i) => ({
@@ -43,11 +44,15 @@ const normalizeOrder = (raw) => ({
   // Les infos complètes viennent de /dashboard-orders/ (client_name, city)
   client: {
     id: raw.client ?? null,
-    fullName: raw.client_name ?? "",
-    city: raw.client_city ?? "",
-    phone: raw.client_phone ?? "",
+    fullName: raw.client_details
+      ? `${raw.client_details.first_name} ${raw.client_details.last_name}`
+      : (raw.client_name ?? ""),
+
+    city: raw.client_details?.city ?? raw.client_city ?? "",
+    phone: raw.client_details?.phone ?? raw.client_phone ?? "",
+
     address: raw.delivery_address ?? "",
-    // Coordonnées extraites du lien Google Maps si disponible
+
     latitude: extractLat(raw.delivery_address),
     longitude: extractLng(raw.delivery_address),
   },
