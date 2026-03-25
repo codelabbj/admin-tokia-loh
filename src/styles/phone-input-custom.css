@@ -1,0 +1,189 @@
+/* ============================================================
+   Styles personnalisés pour react-phone-number-input
+   Remplace phone-input-custom.css
+   ============================================================ */
+
+/* Variables CSS natives de la librairie - override ici */
+:root {
+    --PhoneInput-color--focus: var(--primary-1, #3b82f6);
+    --PhoneInputCountryFlag-height: 1em;
+    --PhoneInputCountryFlag-borderColor: var(--neutral-5, #e2e8f0);
+    --PhoneInputCountryFlag-borderColor--focus: var(--primary-1, #3b82f6);
+    --PhoneInputCountrySelectArrow-color: var(--neutral-6, #a0aec0);
+    --PhoneInputCountrySelectArrow-opacity: 1;
+    --PhoneInputCountrySelectArrow-width: 0.3em;
+    --PhoneInputCountrySelectArrow-borderWidth: 2px;
+    --PhoneInputCountrySelectArrow-color--focus: var(--primary-1, #3b82f6);
+}
+
+/* ── Wrapper principal ───────────────────────────────────── */
+.PhoneInput {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 42px;
+    background-color: var(--neutral-0, #ffffff);
+    border: 1px solid var(--neutral-5, #e2e8f0);
+    border-radius: 8px;
+    transition: all 0.2s ease-in-out;
+    font-family: 'Poppins', sans-serif;
+    overflow: hidden;
+}
+
+/* Focus sur le wrapper */
+.PhoneInput--focus {
+    border-color: var(--primary-1, #3b82f6) !important;
+    box-shadow: 0 0 0 2px var(--primary-5, rgba(59, 130, 246, 0.1)) !important;
+}
+
+/* Disabled */
+.PhoneInput--disabled {
+    background-color: var(--neutral-3, #f7fafc) !important;
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+}
+
+/* ── Sélecteur de pays ───────────────────────────────────── */
+.PhoneInputCountry {
+    display: flex;
+    align-items: center;
+    padding: 0 10px 0 12px;
+    border-right: 1px solid var(--neutral-5, #e2e8f0);
+    height: 100%;
+    background-color: transparent;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+    gap: 6px;
+}
+
+.PhoneInputCountry:hover {
+    background-color: var(--neutral-2, #f7fafc);
+}
+
+/* Le <select> natif de pays (invisible, par-dessus le drapeau) */
+.PhoneInputCountrySelect {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    z-index: 1;
+    border: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.PhoneInputCountrySelect:focus+.PhoneInputCountryIcon+.PhoneInputCountrySelectArrow {
+    color: var(--primary-1, #3b82f6);
+}
+
+/* ── Icône drapeau ───────────────────────────────────────── */
+.PhoneInputCountryIcon {
+    width: calc(var(--PhoneInputCountryFlag-height) * 1.5);
+    height: var(--PhoneInputCountryFlag-height);
+    font-size: 1.2em;
+}
+
+.PhoneInputCountryIcon--square {
+    width: var(--PhoneInputCountryFlag-height);
+}
+
+/* Drapeau SVG/image */
+.PhoneInputCountryIconImg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 1px solid var(--PhoneInputCountryFlag-borderColor);
+    border-radius: 2px;
+}
+
+/* Emoji de drapeau (fallback) */
+.PhoneInputCountryIcon--border {
+    background-color: var(--neutral-2, #f7fafc);
+    box-shadow: 0 0 0 1px var(--PhoneInputCountryFlag-borderColor);
+    border-radius: 2px;
+}
+
+/* ── Flèche dropdown ─────────────────────────────────────── */
+.PhoneInputCountrySelectArrow {
+    display: block;
+    width: var(--PhoneInputCountrySelectArrow-width);
+    height: var(--PhoneInputCountrySelectArrow-width);
+    margin-left: 2px;
+    border-style: solid;
+    border-color: var(--PhoneInputCountrySelectArrow-color);
+    border-top-width: 0;
+    border-bottom-width: var(--PhoneInputCountrySelectArrow-borderWidth);
+    border-left-width: 0;
+    border-right-width: var(--PhoneInputCountrySelectArrow-borderWidth);
+    transform: rotate(45deg);
+    opacity: var(--PhoneInputCountrySelectArrow-opacity);
+    transition: border-color 0.2s ease-in-out;
+}
+
+.PhoneInputCountrySelect:focus+.PhoneInputCountryIcon+.PhoneInputCountrySelectArrow {
+    border-color: var(--PhoneInputCountrySelectArrow-color--focus);
+    opacity: 1;
+}
+
+/* ── Champ input téléphone ───────────────────────────────── */
+.PhoneInputInput {
+    flex: 1;
+    height: 100%;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 400;
+    color: var(--neutral-8, #2d3748);
+    background-color: transparent;
+    border: none;
+    outline: none;
+    min-width: 0;
+}
+
+.PhoneInputInput::placeholder {
+    color: var(--neutral-6, #a0aec0);
+    opacity: 1;
+}
+
+.PhoneInputInput:disabled {
+    color: var(--neutral-6, #a0aec0);
+    cursor: not-allowed;
+}
+
+/* ── État d'erreur ───────────────────────────────────────── */
+.phone-input-error .PhoneInput {
+    border-color: var(--danger-1, #ef4444) !important;
+}
+
+.phone-input-error .PhoneInput--focus {
+    border-color: var(--danger-1, #ef4444) !important;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1) !important;
+}
+
+.phone-input-error .PhoneInputCountry {
+    border-right-color: var(--danger-1, #ef4444) !important;
+}
+
+/* ── Mode sombre ─────────────────────────────────────────── */
+.dark .PhoneInput {
+    background-color: var(--neutral-9, #1a202c);
+    border-color: var(--neutral-7, #4a5568);
+}
+
+.dark .PhoneInput--focus {
+    border-color: var(--primary-1, #3b82f6) !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+}
+
+.dark .PhoneInputCountry {
+    border-right-color: var(--neutral-7, #4a5568);
+}
+
+.dark .PhoneInputCountry:hover {
+    background-color: var(--neutral-8, #2d3748);
+}
+
+.dark .PhoneInputInput {
+    color: var(--neutral-1, #f7fafc);
+}

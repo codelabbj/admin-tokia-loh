@@ -1,0 +1,143 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /*================= POLICE ======================= */
+  --font-poppins: "Poppins", sans-serif;
+  --default-font-family: "Poppins", sans-serif;
+
+  /* ===== TAILLES DE TEXTE ===== */
+  --text-h1: 48px;
+  --text-h2: 40px;
+  --text-h3: 32px;
+  --text-h4: 24px;
+  --text-h5: 20px;
+  --text-h6: 18px;
+  --text-body: 16px;
+  --text-small: 14px;
+  --text-xs: 12px;
+
+  /* ===== TAILLES D'ARRONDI ===== */
+  --rounded-h1: 12px;
+  --rounded-h2: 8px;
+  --rounded-h3: 4px;
+
+  /* ================= COULEURS PRIMAIRES - SKY BLUE ======================= */
+  --color-primary-0: #0EA5E9;
+  /* Base                          */
+  --color-primary-1: #0EA5E9;
+  /* Boutons, liens actifs         */
+  --color-primary-2: #0EA5E9CC;
+  /* Hover boutons (80% opacité)   */
+  --color-primary-3: #0EA5E999;
+  /* Bordures, focus ring (60%)    */
+  --color-primary-4: #0EA5E966;
+  /* Fond badges (40%)             */
+  --color-primary-5: #0EA5E933;
+  /* Fond hover nav (20%)          */
+  --color-primary-6: #0284C7;
+  /* Foncé — pressed/active        */
+  --color-primary-7: #0369A1;
+  /* Très foncé — texte coloré     */
+
+  /* ================= COULEURS SECONDAIRES - VIOLET ======================= */
+  --color-secondary-0: #8B5CF6;
+  /* Base                          */
+  --color-secondary-1: #8B5CF6;
+  /* Accents, tags, graphiques     */
+  --color-secondary-2: #8B5CF6CC;
+  /* Hover (80% opacité)           */
+  --color-secondary-3: #8B5CF699;
+  /* Bordures, focus ring (60%)    */
+  --color-secondary-4: #8B5CF666;
+  /* Fond badges (40%)             */
+  --color-secondary-5: #8B5CF633;
+  /* Fond hover (20%)              */
+  --color-secondary-6: #7C3AED;
+  /* Foncé — pressed/active        */
+  --color-secondary-7: #6D28D9;
+  /* Très foncé — texte coloré     */
+
+  /* ================= COULEURS NEUTRES ======================= */
+  --color-neutral-0: #FFFFFF;
+  /* Blanc pur — cartes, modals    */
+  --color-neutral-1: #FFFFFF;
+  /* Fond inputs                   */
+  --color-neutral-2: #F8FAFC;
+  /* Fond app principal            */
+  --color-neutral-3: #F1F5F9;
+  /* Fond sidebar / panels         */
+  --color-neutral-4: #03172D33;
+  /* Dividers légers (20%)         */
+  --color-neutral-5: #03172D66;
+  /* Bordures inputs (40%)         */
+  --color-neutral-6: #03172D99;
+  /* Placeholder, icônes (60%)     */
+  --color-neutral-7: #03172DCC;
+  /* Texte secondaire (80%)        */
+  --color-neutral-8: #03172D;
+  /* Texte corps, titres           */
+  --color-neutral-9: #1E293B;
+  /* Titres importants — mode clair */
+
+  /* ================= COULEURS SÉMANTIQUES ======================= */
+  --color-success-1: #10B981;
+  /* Succès — base                 */
+  --color-success-2: #10B98133;
+  /* Succès — fond badge           */
+
+  --color-warning-1: #F59E0B;
+  /* Avertissement — base          */
+  --color-warning-2: #F59E0B33;
+  /* Avertissement — fond badge    */
+
+  --color-danger-1: #EF4444;
+  /* Erreur — base                 */
+  --color-danger-2: #EF444433;
+  /* Erreur — fond badge           */
+}
+
+.dark {
+  /* Neutres inversés */
+  --color-neutral-0: #0F172A;
+  /* Fond cartes / modals    */
+  --color-neutral-1: #0F172A;
+  /* Fond inputs             */
+  --color-neutral-2: #1E293B;
+  /* Fond app principal      */
+  --color-neutral-3: #334155;
+  /* Fond sidebar            */
+  --color-neutral-4: #FFFFFF1A;
+  /* Dividers                */
+  --color-neutral-5: #FFFFFF33;
+  /* Bordures inputs         */
+  --color-neutral-6: #FFFFFF66;
+  /* Placeholder, icônes     */
+  --color-neutral-7: #FFFFFFCC;
+  /* Texte secondaire        */
+  --color-neutral-8: #F1F5F9;
+  /* Texte corps             */
+  --color-neutral-9: #FFFFFF;
+  /* Titres                  */
+
+  --color-primary-5: #0EA5E91A;
+  --color-secondary-5: #8B5CF61A;
+}
+
+/* ===== SCROLLBAR PERSONNALISÉE ===== */
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary-1);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-6);
+}
+
+* {
+  scrollbar-color: var(--color-primary-1) var(--color-neutral-3);
+}

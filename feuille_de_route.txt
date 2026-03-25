@@ -1,0 +1,109 @@
+Voici les fonctionnalités structurées pour le backoffice
+
+--
+
+## 1. Dashboard
+- Cards de stats : commandes totales, en attente, livrées, CA du jour/semaine/mois
+- Tableau des **dernières commandes** (5-10 lignes)
+- Liste des **produits en rupture de stock**
+- Centre de notifications (cloche avec badge)
+
+---
+
+## 2. Gestion des Produits
+- Liste des produits (tableau avec recherche + filtres)
+- Formulaire création / modification (nom, description, images, prix, réduction, stock, statut, catégorie)
+- Activation / désactivation rapide (toggle)
+- Marquage "Produit vedette"
+- Alerte visuelle stock faible
+
+---
+
+## 3. Gestion des Catégories
+- Liste des catégories avec ordre d'affichage
+- Formulaire création / modification
+- Toggle actif / inactif
+
+---
+
+## 4. Gestion des Commandes
+- Tableau des commandes avec filtres par **statut**
+- Détail d'une commande (produits, client, ville, total, note du client)
+- Changement de statut : `En attente → Confirmée → En préparation → En livraison → Livrée / Annulée`
+- Génération **facture PDF** et **bon de livraison**
+
+---
+
+## 5. Gestion des Clients
+- Liste des clients (nom, prénom, ville, téléphone, date inscription)
+- Fiche client avec historique des commandes
+- Actions : désactiver, bloquer, supprimer
+
+---
+
+## 6. Gestion des Admins
+- Liste des administrateurs avec leurs rôles
+- Formulaire création d'un admin (email + mot de passe + rôle)
+- Rôles : Super Admin, Gestionnaire Produits, Gestionnaire Commandes, Support Client
+- Journal d'activité (qui a fait quoi + date)
+
+---
+
+## 7. Gestion des Villes
+- Liste des villes livrables
+- Frais de livraison par ville
+- Toggle actif / inactif par ville
+
+---
+
+## 8. Notifications
+- Historique des notifications reçues
+- Configuration des emails de réception
+- Toggle activer / désactiver les types de notifications
+
+---
+
+## 9. Rapports & Analytiques
+- Graphiques ventes par période (jour / semaine / mois)
+- Ventes par catégorie et par produit
+- Export CSV et PDF
+
+
+## 10. Paramètres
+- Infos générales (nom app, emails admins)
+- Modification logo et couleurs
+- Gestion bannières promotionnelles
+- Textes automatiques (messages clients)
+- Paramètres de livraison
+
+
+## Pages à créer (ordre de priorité)
+
+Priorité
+
+Indispensable 
+    Dashboard, Commandes, Produits
+
+Important
+    Catégories, Clients, Villes
+
+Utile
+    Admins, Notifications, Rapports
+
+Secondaire 
+    Paramètres
+
+
+
+
+Bonsoir Monsieur,
+J'espère que vous allez bien?!
+
+Aujourd'hui, j'ai principalement travaillé sur tokia-loh-backoffice
+
+J'ai intégré l'API pour la page de notification (elle est fonctionnel à 100%)
+J'ai intégré l'API pour la page de commande (elle est fonctionnel à 100%)
+
+J'ai travaillé sur le menu Rapports
+
+Actuellement, il reste le menu Paramètre dont l'endpoint n'est pas encore disponible.
