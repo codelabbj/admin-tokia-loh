@@ -1,6 +1,6 @@
 # admin-tokia-Loh
 
-Admin interface for Tokia-Loh making with React, Vite and TailwindCSS
+Admin interface for Tokia-Loh developing with React, Vite and TailwindCSS
 
 ## How to clone ?
 
