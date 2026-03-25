@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { TrendingUp, ShoppingCart, Package, BarChart2, Loader2, AlertCircle } from 'lucide-react';
 import StatCard from '../components/dashboard/StatCard';
 import ReportFilters from '../components/reports/ReportFilters';
@@ -6,6 +6,7 @@ import SalesByCategoryChart from '../components/reports/SalesByCategoryChart';
 import SalesByProductTable from '../components/reports/SalesByProductTable';
 import ReportExporter from '../components/reports/ReportExporter';
 import { useReports } from '../hooks/useReports';
+import { useToast } from '../components/ui/ToastProvider';
 
 const formatPrice = (p) => `${Number(p).toLocaleString('fr-FR')} F`;
 
@@ -17,16 +18,28 @@ const ReportsPage = () => {
     const [period, setPeriod] = useState('month');
     const [dateFrom, setDateFrom] = useState(weekAgo);
     const [dateTo, setDateTo] = useState(today);
+    const { toast } = useToast();
 
     const { report, products, loading, error, fetch } = useReports();
+    const lastErrorRef = useRef(null);
 
-    // Chargement initial et à chaque changement de filtre
     useEffect(() => {
         document.title = 'Admin Tokia-Loh | Rapports';
         fetch({ period });
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        if (error && error !== lastErrorRef.current) {
+            if (error === "This date interval is invalid.")
+                toast.error("La plage de dates est invalide.");
+            else
+                toast.error(error);
+            lastErrorRef.current = error;
+        }
+    }, [error]);
 
     const handlePeriodChange = (p) => {
+        lastErrorRef.current = null;
         setPeriod(p);
         fetch({ period: p });
     };
@@ -34,24 +47,30 @@ const ReportsPage = () => {
     const handleDateChange = ({ from, to }) => {
         setDateFrom(from);
         setDateTo(to);
+
         if (from && to) {
-            // Passe en mode plage personnalisée
+            lastErrorRef.current = null;
             setPeriod(null);
             fetch({ dateFrom: from, dateTo: to });
         }
     };
 
-    // ── États ─────────────────────────────────────────────────
     if (loading) return (
-        <div className="flex items-center justify-center h-48">
-            <Loader2 size={24} className="animate-spin text-primary-1" />
-        </div>
-    );
+        <div className="flex flex-col gap-6">
+            {/* Garder l'en-tête visible */}
+            <div>
+                <h1 className="text-h5 font-bold font-poppins text-neutral-8 dark:text-neutral-8">
+                    Rapports & Analytiques
+                </h1>
+                <p className="text-xs font-poppins text-neutral-6 dark:text-neutral-6 mt-0.5">
+                    Analysez les performances de Tokia-Loh
+                </p>
+            </div>
 
-    if (error) return (
-        <div className="flex flex-col items-center justify-center gap-3 h-48 text-danger-1">
-            <AlertCircle size={32} />
-            <p className="text-sm font-poppins font-medium">{error}</p>
+            {/* Loader centré */}
+            <div className="flex items-center justify-center h-48">
+                <Loader2 size={24} className="animate-spin text-primary-1" />
+            </div>
         </div>
     );
 
@@ -120,7 +139,7 @@ const ReportsPage = () => {
             </div>
 
             {/* ── Graphiques ── */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 xl:grid-cols-1 gap-4">
                 <SalesByCategoryChart data={salesByCategory} />
                 <SalesByProductTable data={products} />
             </div>
@@ -131,6 +150,7 @@ const ReportsPage = () => {
                 categories={exportCategories}
                 period={period ?? 'custom'}
             />
+
         </div>
     );
 };

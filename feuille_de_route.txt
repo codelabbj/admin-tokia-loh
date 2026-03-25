@@ -94,16 +94,141 @@ Secondaire
     Paramètres
 
 
+Prompt : 
 
 
-Bonsoir Monsieur,
-J'espère que vous allez bien?!
 
-Aujourd'hui, j'ai principalement travaillé sur tokia-loh-backoffice
 
-J'ai intégré l'API pour la page de notification (elle est fonctionnel à 100%)
-J'ai intégré l'API pour la page de commande (elle est fonctionnel à 100%)
+C'est l'ancienne page de paramètre que j'avais.
 
-J'ai travaillé sur le menu Rapports
+Maintenant, je veux vraiment faire simple.
 
-Actuellement, il reste le menu Paramètre dont l'endpoint n'est pas encore disponible.
+Je veux que les blocs (composants) s'aligne l'un après l'autre verticalement (un peu comme la page paramètre/réglage de wordpress).
+
+Et actuellement, on ne veux garder que :
+
+- Bannières (Banners):
+
+- Gérer votre mot de passe: Ici, l'utilisateur courant aura la possibilité de changer son mot de pas. Il ne doit pas avoir la possibilité de modifier son email. L'email est non modifiable.
+
+- Gérer les Administrateurs : Pour ajouter, modifier ou supprimer un admin (sauf le super admin). Et le seul admin qui pourra supprimer ou modifier d'autre, c'est le super admin. De plus si le user n'est pas super admin, cette partie de "gestion des administrateur" ne sera pas afficher. 
+
+
+
+La route pour avoir les banières disponible est :GET /shop/banners/ 
+
+Exemple de sortie : 
+[
+    {
+        "id": "ce4936d8-cfbe-4f0e-bfc6-d1a7a4594e4f",
+        "image": null,
+        "is_active": true,
+        "created_at": "2026-03-25T09:46:32.927406Z",
+        "image_tablette_more": "https://cdn.thewirecutter.com/wp-content/media/2026/03/BG-IPHONE-5334-2X1.jpg?width=2048&quality=75&crop=2:1&auto=webp"
+    },
+    {
+        "id": "f9c9bb31-5b07-4962-bb53-c7157f2fffa5",
+        "image": null,
+        "is_active": true,
+        "created_at": "2026-03-25T09:18:04.784334Z",
+        "image_tablette_more": "https://cdn.thewirecutter.com/wp-content/media/2026/03/BG-IPHONE-5334-2X1.jpg?width=2048&quality=75&crop=2:1&auto=webp"
+    },
+    {
+        "id": "99c985ea-b23c-4796-ac17-217ce6585050",
+        "image": null,
+        "is_active": true,
+        "created_at": "2026-03-25T09:16:52.995660Z",
+        "image_tablette_more": null
+    },
+    {
+        "id": "73c4071f-9e32-40ce-880b-0ec0f516dd05",
+        "image": "https://api.tokia-loh.com/media/media/Screenshot_from_2026-03-17_15-42-37.png",
+        "is_active": true,
+        "created_at": "2026-03-17T14:43:25.880162Z",
+        "image_tablette_more": null
+    },
+    {
+        "id": "d60dd994-6d9b-4f0e-8e64-ee8478604754",
+        "image": "https://api.tokia-loh.com/media/media/Screenshot_from_2026-03-17_15-38-47.png",
+        "is_active": true,
+        "created_at": "2026-03-17T14:40:16.419696Z",
+        "image_tablette_more": null
+    },
+    {
+        "id": "446f668e-bc5c-4506-9aae-17e7da443bf8",
+        "image": "https://api.tokia-loh.com/media/media/Screenshot_from_2026-03-17_15-09-18.png",
+        "is_active": true,
+        "created_at": "2026-03-17T14:19:16.722715Z",
+        "image_tablette_more": null
+    },
+    {
+        "id": "535496a3-1d7c-41fb-bf49-910b5dc17606",
+        "image": "https://api.tokia-loh.com/media/media/Screenshot_from_2026-03-17_15-12-03.png",
+        "is_active": true,
+        "created_at": "2026-03-17T14:17:25.945228Z",
+        "image_tablette_more": null
+    }
+]
+
+
+Pour ajouter une banière, il faut utiliser la route suivante : POST /shop/banners/
+La route pour modifier une banière est : PUT /shop/banners/<uuid:pk>/
+Pour supprimer une banière, il faut utiliser la route suivante : DELETE /shop/banners/<uuid:pk>/
+
+---
+La route pour avoir la liste des admins est : 
+
+La route pour changer le mot de passe est : /accounts/admin/change_password/
+
+Voici quelques test : 
+
+{
+    "email": "sadeck@gmail.com",
+    "old_password": "1234",
+    "new_password": "5678bob",
+    "confirm_new_password": "5648bob"
+}
+
+---
+change_password_fail:
+
+{
+    "detail": "Authentication credentials were not provided."
+}
+
+---
+change_password_fail_field_missed:
+
+{
+
+    "success": false,
+
+    "message": {
+
+        "new_password": [
+
+            "This field is required."
+
+        ],
+
+        "confirm_new_password": [
+
+            "This field is required."
+
+        ]
+
+    }
+
+}
+
+---
+change_password_success:
+
+{
+
+    "success": true,
+
+    "message": "Password changed successfully."
+
+}
+

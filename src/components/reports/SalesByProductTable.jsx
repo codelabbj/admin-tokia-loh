@@ -46,7 +46,7 @@ const SalesByProductTable = ({ data = [] }) => {
                 <table className="w-full text-xs font-poppins">
                     <thead>
                         <tr className="bg-neutral-2 dark:bg-neutral-2 border-b border-neutral-4 dark:border-neutral-4">
-                            {['#', 'Produit', 'Catégorie', 'Qté vendue', 'CA généré', 'Tendance'].map(col => (
+                            {['#', 'Produit', 'Qté vendue', 'CA généré'].map(col => (
                                 <th key={col} className="text-left px-5 py-3 text-neutral-6 dark:text-neutral-6 font-semibold uppercase tracking-wide whitespace-nowrap">
                                     {col}
                                 </th>
@@ -72,18 +72,18 @@ const SalesByProductTable = ({ data = [] }) => {
                                         </span>
                                     </div>
                                 </td>
-                                <td className="px-5 py-3 text-neutral-6 dark:text-neutral-6 whitespace-nowrap">
+                                {/* <td className="px-5 py-3 text-neutral-6 dark:text-neutral-6 whitespace-nowrap">
                                     {row.category}
-                                </td>
+                                </td> */}
                                 <td className="px-5 py-3 font-semibold text-neutral-8 dark:text-neutral-8">
                                     {row.qty} unité{row.qty > 1 ? 's' : ''}
                                 </td>
                                 <td className="px-5 py-3 font-semibold text-primary-1 whitespace-nowrap">
                                     {formatPrice(row.ca)}
                                 </td>
-                                <td className="px-5 py-3">
+                                {/* <td className="px-5 py-3">
                                     <TrendIcon trend={row.trend} />
-                                </td>
+                                </td> */}
                             </tr>
                         ))}
                     </tbody>

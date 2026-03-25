@@ -22,7 +22,7 @@ const navSecondary = [
     { to: '/notifications', icon: Bell, label: 'Notifications' },
     { to: '/publish', icon: Rss, label: 'Publicité' },
     { to: '/reports', icon: BarChart2, label: 'Rapports' },
-    //{ to: '/settings', icon: Settings, label: 'Paramètres' },
+    { to: '/settings', icon: Settings, label: 'Paramètres' },
 ];
 
 // ── NavItem ───────────────────────────────────────────────────
