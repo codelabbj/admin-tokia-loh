@@ -1,93 +1,109 @@
 import React from 'react';
-import { Clock, CheckCircle, Package, Truck, Star, XCircle, ChevronRight } from 'lucide-react';
+import { Package, Star, XCircle, ChevronRight } from 'lucide-react';
 
-// Étapes dans l'ordre (hors cancelled)
+/**
+ * Étapes backend
+ */
 const STEPS = [
-    { status: 'pending', label: 'En attente', icon: <Clock size={16} /> },
-    { status: 'confirmed', label: 'Confirmée', icon: <CheckCircle size={16} /> },
-    { status: 'preparing', label: 'En préparation', icon: <Package size={16} /> },
-    { status: 'shipping', label: 'En livraison', icon: <Truck size={16} /> },
-    { status: 'delivered', label: 'Livrée', icon: <Star size={16} /> },
+    { status: 'in_progress', label: 'En cours', icon: Package },
+    { status: 'delivered', label: 'Livrée', icon: Star },
 ];
 
-const currentIndex = (status) => STEPS.findIndex(s => s.status === status);
+/**
+ * Calcul du progrès (%)
+ */
+const getProgress = (status) => {
+    if (status === 'delivered') return 100;
+    if (status === 'in_progress') return 50;
+    return 0;
+};
 
-/*
-  Props :
-  - status         : string — clé API (pending, confirmed, etc.)
-  - onStatusChange : (newStatus: string) => void
-  - disabled       : boolean
-*/
+const getCurrentIndex = (status) => {
+    return STEPS.findIndex(step => step.status === status);
+};
+
 const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
-    const isCancelled = status === 'cancelled';
-    const activeIndex = currentIndex(status);
-    const isFinished = status === 'delivered';
+    const isCanceled = status === 'canceled';
+    const isDelivered = status === 'delivered';
+
+    const activeIndex = getCurrentIndex(status);
     const nextStep = STEPS[activeIndex + 1] ?? null;
+    const progress = getProgress(status);
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
 
-            {/* ── Stepper visuel ── */}
-            {isCancelled ? (
+            {/* ── Cas annulé ── */}
+            {isCanceled ? (
                 <div className="flex items-center gap-2 px-4 py-3 rounded-2 bg-danger-2">
-                    <XCircle size={16} className="text-danger-1 shrink-0" />
+                    <XCircle size={16} className="text-danger-1" />
                     <span className="text-xs font-semibold font-poppins text-danger-1">
                         Commande annulée
                     </span>
                 </div>
             ) : (
-                <div className="flex items-center gap-1 overflow-x-auto pb-1">
-                    {STEPS.map((step, index) => {
-                        const isDone = index < activeIndex;
-                        const isActive = index === activeIndex;
-                        const isPending = index > activeIndex;
-                        return (
-                            <React.Fragment key={step.status}>
-                                <div className="flex flex-col items-center gap-1.5 min-w-18">
-                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300
-                                        ${isDone ? 'bg-success-1 text-white' : ''}
-                                        ${isActive ? 'bg-primary-1 text-white shadow-md' : ''}
-                                        ${isPending ? 'bg-neutral-3 dark:bg-neutral-3 text-neutral-5' : ''}
+                <>
+                    {/* 🔥 Progress bar animée */}
+                    <div className="w-full h-2 bg-neutral-3 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-primary-1 transition-all duration-500 ease-in-out"
+                            style={{ width: `${progress}%` }}
+                        />
+                    </div>
+
+                    {/* ── Stepper ── */}
+                    <div className="flex items-center justify-between">
+                        {STEPS.map((step, index) => {
+                            const Icon = step.icon;
+                            const isDone = index < activeIndex;
+                            const isActive = index === activeIndex;
+
+                            return (
+                                <div key={step.status} className="flex flex-col items-center gap-1">
+                                    <div className={`
+                                        w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300
+                                        ${isDone ? 'bg-success-1 text-white scale-95' : ''}
+                                        ${isActive ? 'bg-primary-1 text-white scale-110 shadow-md' : ''}
+                                        ${!isDone && !isActive ? 'bg-neutral-3 text-neutral-5' : ''}
                                     `}>
-                                        {step.icon}
+                                        <Icon size={16} />
                                     </div>
-                                    <span className={`text-[10px] font-poppins text-center leading-tight
+
+                                    <span className={`
+                                        text-[11px] font-poppins text-center
                                         ${isDone ? 'text-success-1 font-semibold' : ''}
                                         ${isActive ? 'text-primary-1 font-semibold' : ''}
-                                        ${isPending ? 'text-neutral-5 dark:text-neutral-6' : ''}
+                                        ${!isDone && !isActive ? 'text-neutral-5' : ''}
                                     `}>
                                         {step.label}
                                     </span>
                                 </div>
-                                {index < STEPS.length - 1 && (
-                                    <div className={`h-0.5 flex-1 min-w-5 rounded-full mb-4 transition-colors duration-300
-                                        ${index < activeIndex ? 'bg-success-1' : 'bg-neutral-4 dark:bg-neutral-4'}
-                                    `} />
-                                )}
-                            </React.Fragment>
-                        );
-                    })}
-                </div>
+                            );
+                        })}
+                    </div>
+                </>
             )}
 
-            {/* ── Boutons d'action ── */}
-            {!isCancelled && !isFinished && !disabled && (
+            {/* ── Actions ── */}
+            {!isCanceled && !isDelivered && !disabled && (
                 <div className="flex items-center gap-3 flex-wrap">
+
                     {nextStep && (
                         <button
                             onClick={() => onStatusChange?.(nextStep.status)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary-1 text-white text-xs font-semibold font-poppins hover:bg-primary-6 transition-colors shadow-sm cursor-pointer"
+                            className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary-1 text-white text-xs font-semibold font-poppins hover:bg-primary-6 transition-all duration-200 hover:scale-105"
                         >
                             Passer à : {nextStep.label}
                             <ChevronRight size={14} />
                         </button>
                     )}
+
                     <button
-                        onClick={() => onStatusChange?.('cancelled')}
-                        className="flex items-center gap-2 px-4 py-2 rounded-full border border-danger-1 text-danger-1 text-xs font-semibold font-poppins hover:bg-danger-2 transition-colors cursor-pointer"
+                        onClick={() => onStatusChange?.('canceled')}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full border border-danger-1 text-danger-1 text-xs font-semibold font-poppins hover:bg-danger-2 transition-all duration-200 hover:scale-105"
                     >
                         <XCircle size={14} />
-                        Annuler la commande
+                        Annuler
                     </button>
                 </div>
             )}

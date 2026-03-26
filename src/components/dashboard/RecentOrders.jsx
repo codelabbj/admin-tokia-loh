@@ -4,13 +4,20 @@ import { useNavigate } from 'react-router';
 
 // Correspondance statut API → label + couleur
 const STATUS_MAP = {
-    pending: { label: 'En attente', css: 'bg-warning-2 text-warning-1' },
-    confirmed: { label: 'Confirmée', css: 'bg-primary-5 text-primary-1' },
-    preparing: { label: 'En préparation', css: 'bg-secondary-5 text-secondary-1' },
-    shipping: { label: 'En livraison', css: 'bg-primary-4 text-primary-7' },
-    delivered: { label: 'Livrée', css: 'bg-success-2 text-success-1' },
-    cancelled: { label: 'Annulée', css: 'bg-danger-2 text-danger-1' },
+    in_progress: {
+        label: 'En cours',
+        css: 'bg-primary-5 text-primary-1'
+    },
+    delivered: {
+        label: 'Livrée',
+        css: 'bg-success-2 text-success-1'
+    },
+    canceled: {
+        label: 'Annulée',
+        css: 'bg-danger-2 text-danger-1'
+    },
 };
+
 
 const StatusBadge = ({ status }) => {
     const s = STATUS_MAP[status] ?? { label: status, css: 'bg-neutral-3 text-neutral-6' };
@@ -58,7 +65,7 @@ const RecentOrders = ({ orders = [] }) => {
                     onClick={() => navigate('/orders')}
                     className="flex items-center gap-1 text-xs font-poppins text-primary-1 hover:underline cursor-pointer"
                 >
-                    Voir tout <ArrowRight size={13} />
+                    Voir toutes les commandes <ArrowRight size={13} />
                 </button>
             </div>
 
@@ -92,7 +99,7 @@ const RecentOrders = ({ orders = [] }) => {
                                 "
                             >
                                 <td className="px-5 py-3 font-semibold text-primary-1">
-                                    #{String(order.id).replace('#', '')}
+                                    {order.reference}
                                 </td>
                                 <td className="px-5 py-3 text-neutral-8 dark:text-neutral-8 whitespace-nowrap">
                                     {order.client}

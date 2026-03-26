@@ -4,74 +4,55 @@ import { filesAPI } from "../api/files.api";
 
 /**
  * Résout une image avant envoi à l'API.
- * Accepte : null | string (URL) | File | { file: File, preview }
- * Réponse de /shop/files/ : { success: true, data: { id, file: "https://...", created_at } }
+ * Accepte :
+ * - string (URL)
+ * - File
+ * - { file: File, preview }
  */
 const resolveImageUrl = async (image) => {
   if (!image) return null;
 
-  // Déjà une URL string
+  // Déjà une URL
   if (typeof image === "string") return image;
 
   // File natif
   if (image instanceof File) {
-    console.log("[resolveImageUrl] Upload File natif:", image.name, image.size);
-    try {
-      const { data: response } = await filesAPI.upload(image);
-      console.log("[resolveImageUrl] Réponse brute:", JSON.stringify(response));
-      // { success: true, data: { id, file: "https://...", created_at } }
-      const url =
-        response?.data?.file ?? response?.file ?? response?.url ?? null;
-      console.log("[resolveImageUrl] URL extraite:", url);
-      return url;
-    } catch (err) {
-      console.error(
-        "[resolveImageUrl] Erreur:",
-        err?.response?.data ?? err.message,
-      );
-      throw err;
-    }
+    const { data: response } = await filesAPI.upload(image);
+    return response?.data?.file ?? response?.file ?? response?.url ?? null;
   }
 
-  // { file: File, preview: string } — format interne de ProductFormModal
+  // { file, preview }
   if (typeof image === "object" && image.file instanceof File) {
-    console.log(
-      "[resolveImageUrl] Upload {file, preview}:",
-      image.file.name,
-      image.file.size,
-    );
-    try {
-      const { data: response } = await filesAPI.upload(image.file);
-      console.log("[resolveImageUrl] Réponse brute:", JSON.stringify(response));
-      const url =
-        response?.data?.file ?? response?.file ?? response?.url ?? null;
-      console.log("[resolveImageUrl] URL extraite:", url);
-      return url;
-    } catch (err) {
-      console.error(
-        "[resolveImageUrl] Erreur:",
-        err?.response?.data ?? err.message,
-      );
-      throw err;
-    }
+    const { data: response } = await filesAPI.upload(image.file);
+    return response?.data?.file ?? response?.file ?? response?.url ?? null;
   }
 
-  console.warn("[resolveImageUrl] Format non reconnu:", typeof image, image);
   return null;
 };
+
+/**
+ * Normalise les données venant de l'API → format frontend
+ */
+const normalizeProduct = (p) => ({
+  ...p,
+  sale_price: p.sale_price ?? null,
+  status: p.status ?? true,
+  others_details: p.others_details ?? [],
+});
 
 export const useProducts = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // ── FETCH ─────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const { data } = await productsAPI.list();
-      // API v2 : { count, total_pages, current_page, next, previous, results: [...] }
-      setProducts(Array.isArray(data) ? data : (data.results ?? []));
+      const list = Array.isArray(data) ? data : (data.results ?? []);
+      setProducts(list.map(normalizeProduct));
     } catch (err) {
       setError(err.message ?? "Erreur lors du chargement des produits");
     } finally {
@@ -83,49 +64,44 @@ export const useProducts = () => {
     fetchAll();
   }, [fetchAll]);
 
-  // ── Créer ─────────────────────────────────────────────────
+  // ── CREATE ────────────────────────────────────────────
   const create = async (formData) => {
-    console.log("[useProducts.create] formData reçu:", {
-      ...formData,
-      mainImage: formData.mainImage ? "FILE_OR_URL" : null,
-    });
-
-    // 1. Upload image principale si c'est un File
     const imageUrl = await resolveImageUrl(
       formData.mainImage ?? formData.image,
     );
-    console.log("[useProducts.create] imageUrl résolu:", imageUrl);
 
-    // 2. Upload images secondaires
     const secondaryUrls = await Promise.all(
-      (formData.subImages ?? formData.secondary_images ?? []).map(
-        resolveImageUrl,
-      ),
+      (formData.subImages ?? []).map(resolveImageUrl),
     ).then((urls) => urls.filter(Boolean));
 
-    // 3. Payload propre pour l'API
     const payload = {
       name: formData.name,
       description: formData.description || null,
       category: formData.category,
       price: Number(formData.price),
+      sale_price: formData.sale_price ? Number(formData.sale_price) : null,
       stock: Number(formData.stock),
+
+      // ✅ IMPORTANT
       image: imageUrl,
       secondary_images: secondaryUrls,
-      others_details: formData.others_details ?? [],
-    };
-    if (formData.sale_price) payload.sale_price = Number(formData.sale_price);
 
-    console.log("[useProducts.create] payload final envoyé à l'API:", payload);
+      // ✅ FORMAT V2 (ne surtout pas transformer)
+      others_details: formData.others_details ?? [],
+
+      status: formData.status ?? true,
+      featured: formData.featured ?? false,
+    };
 
     const { data } = await productsAPI.create(payload);
-    setProducts((prev) => [...prev, data]);
+    setProducts((prev) => [...prev, normalizeProduct(data)]);
     return data;
   };
 
-  // ── Modifier ──────────────────────────────────────────────
+  // ── UPDATE ────────────────────────────────────────────
   const update = async (id, formData) => {
-    // Mise à jour optimiste immédiate
+    // Optimistic update
+    console.log("useProducts.update called", id, formData);
     setProducts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, ...formData } : p)),
     );
@@ -139,49 +115,56 @@ export const useProducts = () => {
       if (formData.category !== undefined) payload.category = formData.category;
       if (formData.price !== undefined) payload.price = Number(formData.price);
       if (formData.stock !== undefined) payload.stock = Number(formData.stock);
+
       if (formData.sale_price !== undefined)
         payload.sale_price = formData.sale_price
           ? Number(formData.sale_price)
           : null;
-      if (formData.is_active !== undefined)
-        payload.is_active = formData.is_active;
+
+      if (formData.status !== undefined) payload.status = formData.status;
+      //if (formData.status !== undefined) payload.status = formData.status;
+
       if (formData.featured !== undefined) payload.featured = formData.featured;
+
+      // ✅ CORRECTION IMPORTANTE
       if (formData.others_details !== undefined)
         payload.others_details = formData.others_details;
 
       // Image principale
-      const imageSource = formData.mainImage ?? formData.image;
-      if (imageSource !== undefined) {
-        payload.image = await resolveImageUrl(imageSource);
+      if (formData.mainImage !== undefined) {
+        payload.image = await resolveImageUrl(formData.mainImage);
       }
 
       // Images secondaires
-      const subSource = formData.subImages ?? formData.secondary_images;
-      if (subSource !== undefined) {
+      if (formData.subImages !== undefined) {
         payload.secondary_images = await Promise.all(
-          subSource.map(resolveImageUrl),
+          formData.subImages.map(resolveImageUrl),
         ).then((urls) => urls.filter(Boolean));
       }
 
-      console.log("[useProducts.update] payload final:", payload);
       const { data } = await productsAPI.update(id, payload);
-      setProducts((prev) => prev.map((p) => (p.id === id ? data : p)));
+
+      setProducts((prev) =>
+        prev.map((p) => (p.id === id ? normalizeProduct(data) : p)),
+      );
+
       return data;
     } catch (err) {
       setError(err.message ?? "Erreur mise à jour produit");
-      fetchAll();
+      fetchAll(); // rollback
       throw err;
     }
   };
 
-  // ── Supprimer ─────────────────────────────────────────────
+  // ── DELETE ────────────────────────────────────────────
   const remove = async (id) => {
     setProducts((prev) => prev.filter((p) => p.id !== id));
+
     try {
       await productsAPI.delete(id);
     } catch (err) {
       setError(err.message ?? "Erreur suppression produit");
-      fetchAll();
+      fetchAll(); // rollback
       throw err;
     }
   };

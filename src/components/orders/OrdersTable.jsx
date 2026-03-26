@@ -75,8 +75,8 @@ const OrdersTable = ({ orders = [], loading = false, onStatusChange }) => {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`flex items-center gap-1.5 px-4 py-3 text-xs font-poppins font-medium whitespace-nowrap border-b-2 transition-all duration-200 cursor-pointer ${activeTab === tab
-                                ? 'border-primary-1 text-primary-1'
-                                : 'border-transparent text-neutral-6 hover:text-neutral-8'
+                            ? 'border-primary-1 text-primary-1'
+                            : 'border-transparent text-neutral-6 hover:text-neutral-8'
                             }`}
                     >
                         {TAB_LABEL[tab] ?? STATUS_CONFIG[tab]?.label ?? tab}
@@ -121,7 +121,7 @@ const OrdersTable = ({ orders = [], loading = false, onStatusChange }) => {
                                 className="border-b border-neutral-4 dark:border-neutral-4 last:border-0 hover:bg-neutral-2 dark:hover:bg-neutral-2 transition-colors duration-150 cursor-pointer"
                             >
                                 <td className="px-4 py-3 font-semibold text-primary-1">
-                                    {order.id?.slice(0, 8).toUpperCase()}
+                                    #{order.reference}
                                 </td>
                                 <td className="px-4 py-3 text-neutral-8 dark:text-neutral-8 whitespace-nowrap">
                                     {order.client?.fullName || `${order.client?.firstName ?? ''} ${order.client?.lastName ?? ''}`.trim() || '—'}

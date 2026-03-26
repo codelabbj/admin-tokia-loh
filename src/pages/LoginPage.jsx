@@ -111,7 +111,7 @@ const LoginPage = () => {
                             required
                         />
 
-                        {/* Mot de passe oublié */}
+                        {/* Mot de passe oublié 
                         <div className="flex justify-end -mt-1">
                             <button
                                 type="button"
@@ -120,7 +120,7 @@ const LoginPage = () => {
                             >
                                 Mot de passe oublié ?
                             </button>
-                        </div>
+                        </div>*/}
 
                         <Button
                             type="submit"

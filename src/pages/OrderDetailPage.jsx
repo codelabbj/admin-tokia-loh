@@ -88,7 +88,7 @@ const OrderDetailPage = () => {
                     <div>
                         <div className="flex items-center gap-3">
                             <h1 className="text-h5 font-bold font-poppins text-neutral-8 dark:text-neutral-8">
-                                Commande #{id}
+                                Commande #{order.reference}
                             </h1>
                             <OrderStatusBadge status={order.status} />
                         </div>

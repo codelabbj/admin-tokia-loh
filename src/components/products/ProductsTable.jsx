@@ -1,14 +1,20 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Pencil, Trash2, Star, Eye, Loader2 } from 'lucide-react';
+import { Search, Pencil, Trash2, Eye, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import ProductStatusToggle from './ProductStatusToggle';
 import ProductBadge from './ProductBadge';
 
 const formatPrice = (p) => p ? `${Number(p).toLocaleString('fr-FR')} F` : '—';
 
-const calcDiscount = (price, salePrice) => {
-    if (!salePrice) return null;
-    return Math.round(((Number(price) - Number(salePrice)) / Number(price)) * 100);
+/**
+ * API : price = prix de vente, original_price = prix barré (avant réduction)
+ * Réduction = (original_price - price) / original_price
+ */
+const calcDiscount = (price, originalPrice) => {
+    if (!originalPrice) return null;
+    const p = Number(price), o = Number(originalPrice);
+    if (!p || !o || p >= o) return null;
+    return Math.round(((o - p) / o) * 100);
 };
 
 const getStockBadgeType = (stock) => {
@@ -37,7 +43,7 @@ const ProductAvatar = ({ name, image }) => {
   - categories : tableau issu de useCategories()
   - onEdit     : (product) => void
   - onDelete   : (product) => void
-  - onUpdate   : (id, payload) => Promise  — pour toggle statut/vedette
+  - onUpdate   : (id, payload) => Promise  — pour toggle statut
 */
 const ProductsTable = ({ products = [], loading = false, categories = [], onEdit, onDelete, onUpdate }) => {
     const navigate = useNavigate();
@@ -62,20 +68,21 @@ const ProductsTable = ({ products = [], loading = false, categories = [], onEdit
             const matchStock = stockFilter === 'all' ? true
                 : stockFilter === 'out' ? p.stock === 0
                     : p.stock <= 5 && p.stock > 0;
+            // API : "status" (bool) — était status
+            const isActive = p.status ?? true;
             const matchStatus = statusFilter === 'all' ? true
-                : statusFilter === 'active' ? p.is_active
-                    : !p.is_active;
+                : statusFilter === 'active' ? isActive
+                    : !isActive;
             return matchSearch && matchCat && matchStock && matchStatus;
         });
     }, [products, categories, search, catFilter, stockFilter, statusFilter]);
 
-    // ── Toggles (optimistic) ──────────────────────────────────
+    // ── Toggle statut (optimistic) ────────────────────────────
+    // On envoie "status" pour l'API — useProducts.update gère la rétro-compat status
     const handleToggleStatus = (product) => {
-        onUpdate?.(product.id, { is_active: !product.is_active });
-    };
-
-    const handleToggleFeatured = (product) => {
-        onUpdate?.(product.id, { featured: !product.featured });
+        const current = product.status ?? true;
+        console.log('payload envoyé →', { status: !current });
+        onUpdate?.(product.id, { status: !current });
     };
 
     return (
@@ -123,7 +130,7 @@ const ProductsTable = ({ products = [], loading = false, categories = [], onEdit
                 <table className="w-full text-xs font-poppins">
                     <thead>
                         <tr className="bg-neutral-2 dark:bg-neutral-2 border-b border-neutral-4 dark:border-neutral-4">
-                            {['Produit', 'Catégorie', 'Prix', 'Réduction', 'Stock', 'Statut', 'Vedette', 'Actions'].map(col => (
+                            {['Produit', 'Catégorie', 'Prix', 'Réduction', 'Stock', 'Statut', 'Actions'].map(col => (
                                 <th key={col} className="text-left px-4 py-3 text-neutral-6 dark:text-neutral-6 font-semibold uppercase tracking-wide whitespace-nowrap">
                                     {col}
                                 </th>
@@ -133,20 +140,22 @@ const ProductsTable = ({ products = [], loading = false, categories = [], onEdit
                     <tbody>
                         {loading ? (
                             <tr>
-                                <td colSpan={8} className="px-4 py-12 text-center">
+                                <td colSpan={7} className="px-4 py-12 text-center">
                                     <Loader2 size={20} className="animate-spin text-primary-1 mx-auto" />
                                 </td>
                             </tr>
                         ) : filtered.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="px-4 py-10 text-center text-neutral-6 dark:text-neutral-6">
+                                <td colSpan={7} className="px-4 py-10 text-center text-neutral-6 dark:text-neutral-6">
                                     Aucun produit trouvé
                                 </td>
                             </tr>
                         ) : filtered.map(product => {
                             const catName = categories.find(c => c.id === product.category)?.name ?? product.category ?? '—';
-                            const discount = calcDiscount(product.price, product.sale_price);
+                            // API : original_price = prix barré, price = prix de vente
+                            const discount = calcDiscount(product.price, product.original_price);
                             const stockBadge = getStockBadgeType(product.stock);
+                            const isActive = product.status ?? true; // ← retire product.status ??
 
                             return (
                                 <tr
@@ -167,12 +176,14 @@ const ProductsTable = ({ products = [], loading = false, categories = [], onEdit
 
                                     <td className="px-4 py-3 whitespace-nowrap">
                                         <div className="flex flex-col">
+                                            {/* Prix de vente affiché en premier */}
                                             <span className="font-semibold text-neutral-8 dark:text-neutral-8">
-                                                {formatPrice(product.sale_price ?? product.price)}
+                                                {formatPrice(product.price)}
                                             </span>
-                                            {product.sale_price && (
+                                            {/* original_price = prix barré */}
+                                            {product.original_price && (
                                                 <span className="line-through text-neutral-5 text-[11px]">
-                                                    {formatPrice(product.price)}
+                                                    {formatPrice(product.original_price)}
                                                 </span>
                                             )}
                                         </div>
@@ -196,19 +207,9 @@ const ProductsTable = ({ products = [], loading = false, categories = [], onEdit
 
                                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                                         <ProductStatusToggle
-                                            active={product.is_active}
+                                            active={isActive}
                                             onChange={() => handleToggleStatus(product)}
                                         />
-                                    </td>
-
-                                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                                        <button
-                                            onClick={() => handleToggleFeatured(product)}
-                                            title={product.featured ? 'Retirer des vedettes' : 'Mettre en vedette'}
-                                            className="cursor-pointer transition-colors duration-200"
-                                        >
-                                            <Star size={16} className={product.featured ? 'fill-warning-1 text-warning-1' : 'text-neutral-4'} />
-                                        </button>
                                     </td>
 
                                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>

@@ -51,7 +51,6 @@ const DashboardPage = () => {
         setDashParams({ start_date: toApi(start), end_date: toApi(end) });
     };
 
-    // ── Squelette chargement ──────────────────────────────────
     if (loading) return (
         <div className="flex flex-col gap-6 animate-pulse">
             <div className="h-8 w-48 bg-neutral-3 rounded-2" />

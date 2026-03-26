@@ -30,11 +30,7 @@ class DashboardAPI {
    *              sales_by_category, weekly_revenue, monthly_sales_by_week, mains_top_cities }
    */
   getStats(params = {}) {
-    // params : { period?, start_date?, end_date? }
-    if (Object.keys(params).length > 0) {
-      return api.get("/shop/dashboard", { params });
-    }
-    return api.get("/shop/dashboard-rapport/");
+    return api.get("/shop/dashboard/", { params });
   }
 
   /** Stats produits. */

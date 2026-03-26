@@ -24,7 +24,7 @@ const ProductsPage = () => {
     // ── Stats calculées depuis les vraies données ─────────────
     const stats = useMemo(() => {
         const total = products.length;
-        const active = products.filter(p => p.is_active).length;
+        const active = products.filter(p => p.status).length;
         const lowStock = products.filter(p => p.stock > 0 && p.stock <= 5).length;
         const outStock = products.filter(p => p.stock === 0).length;
         return { total, active, lowStock, outStock };

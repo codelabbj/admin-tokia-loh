@@ -623,13 +623,13 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
                                     </div>
                                     <ProductStatusToggle active={form.is_active} onChange={val => setForm(prev => ({ ...prev, is_active: val }))} />
                                 </div>
-                                <div className="flex items-center justify-between">
+                                {/* <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">Produit vedette ⭐</p>
                                         <p className="text-[11px] font-poppins text-neutral-6">Mis en avant sur la boutique</p>
                                     </div>
                                     <ProductStatusToggle active={form.featured} onChange={val => setForm(prev => ({ ...prev, featured: val }))} />
-                                </div>
+                                </div> */}
                             </div>
                         </div>
                     </form>

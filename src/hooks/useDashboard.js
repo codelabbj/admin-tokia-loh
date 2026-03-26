@@ -3,19 +3,16 @@ import { dashboardAPI } from "../api/dashboard.api";
 
 const USE_MOCK = false; // ← Branché sur la vraie API v3
 
-
 const normalizeStats = (raw) => ({
-  // ── StatCards ─────────────────────────────────────────────
   total_orders: raw.total_orders ?? 0,
   total_revenue: raw.turnover ?? 0,
   products_sold: raw.products_sold ?? 0,
   average_basket: raw.average_basket ?? 0,
 
-  // Champs non fournis par cette route — valeurs par défaut
-  total_clients: raw.total_clients ?? null,
-  pending_orders: raw.pending_orders ?? null,
-  delivered_orders: raw.delivered_orders ?? null,
-  cancelled_orders: raw.cancelled_orders ?? null,
+  total_clients: raw.client_count ?? 0,
+  pending_orders: raw.in_progress_orders ?? 0,
+  delivered_orders: raw.delivered_orders ?? 0,
+  cancelled_orders: raw.canceled_orders ?? 0,
 
   sales_chart: (raw.weekly_revenue ?? []).map((d) => ({
     date: d.day,
@@ -23,20 +20,31 @@ const normalizeStats = (raw) => ({
     revenue: d.revenue,
   })),
 
-  top_cities: (raw.mains_top_cities ?? []).map((c) => ({
+  top_cities: (raw.top_cities ?? []).map((c) => ({
     city: c.city,
     orders: c.total_orders,
-    total: c.total_revenue,
+    total: c.total_amount,
   })),
 
-  // ── Sales by category (pour ReportsPage) ─────────────────
-  sales_by_category: raw.sales_by_category ?? [],
+  recent_orders: (raw.latest_order ?? []).map((o) => ({
+    id: o.id,
+    reference: o.order_reference,
+    total: o.total,
+    client: o.client_name,
+    city: o.client_city,
+    status: o.status,
+    created_at: o.created_at,
+  })),
 
-  // ── Commandes récentes — non disponibles sur cet endpoint
-  recent_orders: raw.recent_orders ?? [],
+  recent_orders_list: raw.latest_order_list ?? [],
 
-  // ── Stock faible — non disponible sur cet endpoint
-  low_stock: raw.low_stock ?? [],
+  low_stock: (raw.low_stock_products ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    stock: p.stock,
+    price: p.price,
+    category: p.category__name,
+  })),
 });
 
 export const useDashboard = (params = {}) => {

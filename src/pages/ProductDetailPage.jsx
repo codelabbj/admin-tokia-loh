@@ -1,8 +1,10 @@
+// version 2.1.0
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import {
-    ArrowLeft, Pencil, Star, Tag,
-    Package, CheckCircle, XCircle, AlertTriangle, Loader2
+    ArrowLeft, Pencil, Tag,
+    Package, CheckCircle, XCircle, AlertTriangle, Loader2,
+    ChevronLeft, ChevronRight, Play, ImageOff
 } from 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
 import { useCategories } from '../hooks/useCategories';
@@ -10,30 +12,129 @@ import Button from '../components/Button';
 import ProductBadge from '../components/products/ProductBadge';
 import ProductFormModal from '../components/products/ProductFormModal';
 
+// ── Helpers ───────────────────────────────────────────────────
 const formatPrice = (p) => `${Number(p).toLocaleString('fr-FR')} F`;
 
-const calcDiscount = (price, salePrice) => {
-    if (!salePrice) return null;
-    return Math.round(((Number(price) - Number(salePrice)) / Number(price)) * 100);
+const calcDiscount = (price, originalPrice) => {
+    if (!originalPrice) return null;
+    const p = Number(price), o = Number(originalPrice);
+    if (!p || !o || p >= o) return null;
+    return Math.round(((o - p) / o) * 100);
 };
 
-const ProductAvatarLarge = ({ name }) => (
-    <div className="w-full h-full bg-secondary-5 flex items-center justify-center">
-        <span className="text-5xl font-bold font-poppins text-secondary-1 uppercase">
-            {name?.slice(0, 2) ?? '??'}
-        </span>
-    </div>
-);
+const getYouTubeId = (url) => {
+    if (!url) return null;
+    const match = url.match(/(?:youtu\.be\/|v=|embed\/)([^#&?]{11})/);
+    return match?.[1] ?? null;
+};
 
+const isVideoUrl = (url) =>
+    typeof url === 'string' && (
+        url.includes('youtube.com') ||
+        url.includes('youtu.be') ||
+        url.includes('vimeo.com') ||
+        /\.(mp4|webm|ogg|mov)$/i.test(url)
+    );
+
+// ── Miniature ─────────────────────────────────────────────────
+const MediaThumb = ({ url, active, onClick, index }) => {
+    const ytId = getYouTubeId(url);
+    const isVideo = isVideoUrl(url);
+    const thumbSrc = ytId
+        ? `https://img.youtube.com/vi/${ytId}/mqdefault.jpg`
+        : isVideo ? null : url;
+
+    return (
+        <button
+            onClick={onClick}
+            className={`relative w-14 h-14 rounded-2 overflow-hidden shrink-0 transition-all duration-200 cursor-pointer border-2
+                ${active
+                    ? 'border-primary-1 scale-105 shadow-md'
+                    : 'border-neutral-4 dark:border-neutral-4 hover:border-primary-3 opacity-70 hover:opacity-100'
+                }`}
+        >
+            {thumbSrc
+                ? <img src={thumbSrc} alt={`media-${index}`} className="w-full h-full object-cover" />
+                : (
+                    <div className="w-full h-full bg-neutral-3 dark:bg-neutral-3 flex items-center justify-center">
+                        <Play size={14} className="text-neutral-6" />
+                    </div>
+                )
+            }
+            {isVideo && (
+                <div className="absolute inset-0 bg-neutral-8/25 flex items-center justify-center">
+                    <div className="w-5 h-5 rounded-full bg-white/80 flex items-center justify-center">
+                        <Play size={8} className="text-neutral-8 fill-neutral-8 ml-0.5" />
+                    </div>
+                </div>
+            )}
+        </button>
+    );
+};
+
+// ── Visionneur principal ──────────────────────────────────────
+const MediaViewer = ({ url }) => {
+    if (!url) return (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-neutral-2 dark:bg-neutral-2">
+            <ImageOff size={32} className="text-neutral-5" />
+            <span className="text-xs font-poppins text-neutral-5">Aucune image</span>
+        </div>
+    );
+
+    const ytId = getYouTubeId(url);
+    if (ytId) return (
+        <iframe
+            src={`https://www.youtube.com/embed/${ytId}`}
+            className="w-full h-full"
+            allowFullScreen
+            title="YouTube video"
+        />
+    );
+
+    if (url.includes('vimeo.com')) {
+        const vimeoId = url.match(/vimeo.*\/(\d+)/i)?.[1];
+        if (vimeoId) return (
+            <iframe
+                src={`https://player.vimeo.com/video/${vimeoId}`}
+                className="w-full h-full"
+                allowFullScreen
+                title="Vimeo video"
+            />
+        );
+    }
+
+    if (/\.(mp4|webm|ogg|mov)$/i.test(url)) return (
+        <video src={url} controls className="w-full h-full object-contain bg-neutral-8" />
+    );
+
+    return <img src={url} alt="media" className="w-full h-full object-cover" />;
+};
+
+// ── Ligne info ────────────────────────────────────────────────
 const InfoRow = ({ label, children }) => (
     <div className="flex items-start justify-between gap-4 py-3 border-b border-neutral-4 dark:border-neutral-4 last:border-0">
-        <span className="text-xs font-poppins text-neutral-6 shrink-0 min-w-30">{label}</span>
-        <div className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8 text-right">
+        <span className="text-xs font-poppins text-neutral-6 shrink-0">{label}</span>
+        <div className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8 text-right flex items-center gap-1.5 flex-wrap justify-end">
             {children}
         </div>
     </div>
 );
 
+// ── Section wrapper ───────────────────────────────────────────
+const Section = ({ title, children }) => (
+    <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 overflow-hidden">
+        {title && (
+            <div className="px-5 py-3 border-b border-neutral-4 dark:border-neutral-4 bg-neutral-2 dark:bg-neutral-2">
+                <p className="text-[11px] font-semibold font-poppins text-neutral-6 uppercase tracking-wider">{title}</p>
+            </div>
+        )}
+        <div className="px-5 py-2">
+            {children}
+        </div>
+    </div>
+);
+
+// ── PAGE ──────────────────────────────────────────────────────
 const ProductDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -41,40 +142,64 @@ const ProductDetailPage = () => {
     const { categories } = useCategories();
 
     const [modalOpen, setModalOpen] = useState(false);
-    const [activeImage, setActiveImage] = useState(0);
+    const [activeIndex, setActiveIndex] = useState(0);
 
-    // Cherche le produit dans la liste déjà chargée
     const product = useMemo(() =>
         products.find(p => String(p.id) === String(id)) ?? null,
         [products, id]);
 
     useEffect(() => {
-        if (product) {
-            document.title = `Admin Tokia-Loh | ${product.name}`;
-        }
+        if (product) document.title = `Admin Tokia-Loh | ${product.name}`;
     }, [product]);
 
-    // Redirige si produit introuvable et chargement terminé
     useEffect(() => {
         if (!loading && products.length > 0 && !product) {
             navigate('/products', { replace: true });
         }
     }, [loading, products, product, navigate]);
 
-    // ── Chargement ────────────────────────────────────────────
+    useEffect(() => { setActiveIndex(0); }, [id]);
+
     if (loading) return (
-        <div className="flex items-center justify-center h-48">
+        <div className="flex items-center justify-center h-64">
             <Loader2 size={24} className="animate-spin text-primary-1" />
         </div>
     );
-
     if (!product) return null;
 
-    const catName = categories.find(c => c.id === product.category)?.name ?? product.category ?? '—';
-    const discount = calcDiscount(product.price, product.sale_price);
-    const allImages = [product.image].filter(Boolean);
-    const hasImages = allImages.length > 0;
+    // ── Données ───────────────────────────────────────────────
+    const catName = categories.find(c => c.id === product.category)?.name ?? '—';
+
+    // API : status (bool), original_price (prix barré)
+    const isActive = product.status ?? product.is_active ?? true;
+    const discount = calcDiscount(product.price, product.original_price);
     const stockBadge = product.stock === 0 ? 'out-of-stock' : product.stock <= 5 ? 'low-stock' : null;
+
+    // ✅ CONSTRUCTION GALERIE : image principale + images secondaires + vidéos
+    const secondaryImages = (product.secondary_images ?? []).filter(Boolean);
+
+    const videoUrls = (product.videos ?? [])
+        .map(v => typeof v === 'string' ? v : v?.video_url)
+        .filter(Boolean);
+
+    // Ordre : [image principale, ...images secondaires, ...vidéos]
+    const allMedia = [
+        product.image,
+        ...secondaryImages,
+        ...videoUrls
+    ].filter(Boolean);
+
+    const activeUrl = allMedia[activeIndex] ?? null;
+
+    const prev = () => setActiveIndex(i => (i - 1 + allMedia.length) % allMedia.length);
+    const next = () => setActiveIndex(i => (i + 1) % allMedia.length);
+
+    // others_details : string[]
+    const othersDetails = (product.others_details ?? []).filter(d => typeof d === 'string' && d.trim());
+
+    // Comptage des médias pour l'affichage
+    const imageCount = 1 + secondaryImages.length; // principale + secondaires
+    const videoCount = videoUrls.length;
 
     const handleSave = async (formData) => {
         await update(product.id, formData);
@@ -94,7 +219,7 @@ const ProductDetailPage = () => {
                         <ArrowLeft size={16} />
                     </button>
                     <div>
-                        <h1 className="text-h5 font-bold font-poppins text-neutral-8 dark:text-neutral-8">
+                        <h1 className="text-h5 font-bold font-poppins text-neutral-8 dark:text-neutral-8 leading-tight">
                             {product.name}
                         </h1>
                         <p className="text-xs font-poppins text-neutral-6 mt-0.5">Détail du produit</p>
@@ -105,114 +230,161 @@ const ProductDetailPage = () => {
                 </Button>
             </div>
 
-            {/* ── Contenu ── */}
+            {/* ── Grille principale ── */}
             <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
 
-                {/* Colonne gauche : image */}
+                {/* ── Galerie (col gauche) ── */}
                 <div className="xl:col-span-2 flex flex-col gap-3">
-                    <div className="aspect-square rounded-3 overflow-hidden bg-neutral-2 dark:bg-neutral-2 border border-neutral-4 dark:border-neutral-4">
-                        {hasImages
-                            ? <img src={allImages[activeImage]} alt={product.name} className="w-full h-full object-cover" />
-                            : <ProductAvatarLarge name={product.name} />
-                        }
-                    </div>
-                    {allImages.length > 1 && (
-                        <div className="flex gap-2 flex-wrap">
-                            {allImages.map((img, i) => (
-                                <button key={i} onClick={() => setActiveImage(i)}
-                                    className={`w-14 h-14 rounded-2 overflow-hidden border-2 transition-all cursor-pointer ${activeImage === i ? 'border-primary-1' : 'border-neutral-4 hover:border-primary-3'}`}>
-                                    <img src={img} alt={`img-${i}`} className="w-full h-full object-cover" />
+
+                    {/* Visionneur */}
+                    <div className="relative aspect-square rounded-3 overflow-hidden border border-neutral-4 dark:border-neutral-4 bg-neutral-2 dark:bg-neutral-2">
+                        <MediaViewer url={activeUrl} />
+
+                        {allMedia.length > 1 && (
+                            <>
+                                <button onClick={prev}
+                                    className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-neutral-0/85 dark:bg-neutral-0/85 border border-neutral-4 flex items-center justify-center text-neutral-7 hover:bg-neutral-0 hover:text-neutral-8 transition-colors cursor-pointer shadow-sm">
+                                    <ChevronLeft size={15} />
                                 </button>
+                                <button onClick={next}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-neutral-0/85 dark:bg-neutral-0/85 border border-neutral-4 flex items-center justify-center text-neutral-7 hover:bg-neutral-0 hover:text-neutral-8 transition-colors cursor-pointer shadow-sm">
+                                    <ChevronRight size={15} />
+                                </button>
+                                {/* Dots */}
+                                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+                                    {allMedia.map((_, i) => (
+                                        <button key={i} onClick={() => setActiveIndex(i)}
+                                            className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer
+                                                ${i === activeIndex ? 'w-4 bg-primary-1' : 'w-1.5 bg-neutral-0/60 hover:bg-neutral-0'}`}
+                                        />
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {/* Miniatures */}
+                    {allMedia.length > 1 && (
+                        <div className="flex gap-2 flex-wrap">
+                            {allMedia.map((url, i) => (
+                                <MediaThumb
+                                    key={i}
+                                    url={url}
+                                    index={i}
+                                    active={i === activeIndex}
+                                    onClick={() => setActiveIndex(i)}
+                                />
                             ))}
                         </div>
                     )}
                 </div>
 
-                {/* Colonne droite : infos */}
+                {/* ── Infos (col droite) ── */}
                 <div className="xl:col-span-3 flex flex-col gap-4">
 
-                    {/* Badges */}
+                    {/* Badges statut */}
                     <div className="flex flex-wrap gap-2">
-                        <ProductBadge type={product.is_active ? 'active' : 'inactive'} />
-                        {product.featured && <ProductBadge type="featured" />}
+                        <ProductBadge type={isActive ? 'active' : 'inactive'} />
                         {stockBadge && <ProductBadge type={stockBadge} />}
                     </div>
 
-                    {/* Prix */}
-                    <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 px-5 py-4 flex items-center gap-4 flex-wrap">
-                        <div className="flex flex-col">
-                            <span className="text-2xl font-bold font-poppins text-primary-1">
-                                {formatPrice(product.sale_price ?? product.price)}
-                            </span>
-                            {product.sale_price && (
-                                <span className="line-through text-sm font-poppins text-neutral-5">
+                    {/* Bloc prix */}
+                    <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 px-5 py-4">
+                        <div className="flex items-end gap-4 flex-wrap">
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[11px] font-poppins text-neutral-6 uppercase tracking-wide">Prix de vente</span>
+                                <span className="text-3xl font-bold font-poppins text-primary-1 leading-none">
                                     {formatPrice(product.price)}
+                                </span>
+                            </div>
+
+                            {product.original_price && (
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[11px] font-poppins text-neutral-6 uppercase tracking-wide">Prix original</span>
+                                    <span className="text-base font-semibold font-poppins text-neutral-5 line-through leading-none">
+                                        {formatPrice(product.original_price)}
+                                    </span>
+                                </div>
+                            )}
+
+                            {discount && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-success-2 text-success-1 text-xs font-bold font-poppins ml-auto">
+                                    <Tag size={11} /> -{discount}% de réduction
                                 </span>
                             )}
                         </div>
-                        {discount && (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-success-2 text-success-1 text-sm font-bold font-poppins">
-                                <Tag size={13} /> -{discount}%
-                            </span>
-                        )}
                     </div>
 
-                    {/* Tableau infos */}
-                    <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 px-5 py-2">
+                    {/* Infos générales */}
+                    <Section title="Informations">
                         <InfoRow label="Catégorie">
-                            <span className="inline-flex items-center gap-1.5">
-                                <Package size={12} className="text-primary-1" /> {catName}
-                            </span>
+                            <Package size={11} className="text-primary-1" />
+                            {catName}
                         </InfoRow>
                         <InfoRow label="Stock disponible">
-                            <span className={product.stock === 0 ? 'text-danger-1' : product.stock <= 5 ? 'text-warning-1' : 'text-success-1'}>
-                                {product.stock} unité{product.stock > 1 ? 's' : ''}
-                                {product.stock === 0 && ' — Rupture'}
-                                {product.stock > 0 && product.stock <= 5 && ' — Stock faible'}
+                            <span className={
+                                product.stock === 0 ? 'text-danger-1' :
+                                    product.stock <= 5 ? 'text-warning-1' :
+                                        'text-success-1'
+                            }>
+                                {product.stock} unité{product.stock !== 1 ? 's' : ''}
                             </span>
                         </InfoRow>
                         <InfoRow label="Statut">
-                            <span className={`inline-flex items-center gap-1 ${product.is_active ? 'text-success-1' : 'text-neutral-6'}`}>
-                                {product.is_active
-                                    ? <><CheckCircle size={12} /> Actif — visible sur la boutique</>
-                                    : <><XCircle size={12} /> Inactif — masqué</>
+                            <span className={`inline-flex items-center gap-1 ${isActive ? 'text-success-1' : 'text-neutral-6'}`}>
+                                {isActive
+                                    ? <><CheckCircle size={11} /> Actif — visible sur la boutique</>
+                                    : <><XCircle size={11} /> Inactif — masqué</>
                                 }
                             </span>
                         </InfoRow>
-                        <InfoRow label="Produit vedette">
-                            <span className={`inline-flex items-center gap-1 ${product.featured ? 'text-warning-1' : 'text-neutral-5'}`}>
-                                <Star size={12} className={product.featured ? 'fill-warning-1' : ''} />
-                                {product.featured ? 'Oui — mis en avant' : 'Non'}
-                            </span>
-                        </InfoRow>
-                        {product.sale_price && (
-                            <InfoRow label="Prix original">
-                                <span className="line-through text-neutral-5">{formatPrice(product.price)}</span>
+                        {allMedia.length > 0 && (
+                            <InfoRow label="Médias">
+                                {allMedia.length} fichier{allMedia.length > 1 ? 's' : ''}
+                                <span className="text-neutral-5 font-normal">
+                                    ({imageCount} image{imageCount > 1 ? 's' : ''}
+                                    {videoCount > 0 && `, ${videoCount} vidéo${videoCount > 1 ? 's' : ''}`})
+                                </span>
                             </InfoRow>
                         )}
-                    </div>
+                    </Section>
 
                     {/* Description */}
                     {product.description && (
-                        <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 px-5 py-4 flex flex-col gap-2">
-                            <p className="text-xs font-semibold font-poppins text-neutral-6 uppercase tracking-wide">Description</p>
-                            <p className="text-xs font-poppins text-neutral-7 dark:text-neutral-7 leading-relaxed">{product.description}</p>
-                        </div>
+                        <Section title="Description">
+                            <p className="text-xs font-poppins text-neutral-7 dark:text-neutral-7 leading-relaxed py-3 whitespace-pre-line">
+                                {product.description}
+                            </p>
+                        </Section>
+                    )}
+
+                    {/* Caractéristiques — others_details: string[] */}
+                    {othersDetails.length > 0 && (
+                        <Section title="Caractéristiques">
+                            <div className="flex flex-wrap gap-2 py-3">
+                                {othersDetails.map((detail, i) => (
+                                    <span key={i}
+                                        className="px-3 py-1.5 rounded-full bg-neutral-2 dark:bg-neutral-2 border border-neutral-4 dark:border-neutral-4 text-xs font-semibold font-poppins text-neutral-7 dark:text-neutral-7">
+                                        {detail}
+                                    </span>
+                                ))}
+                            </div>
+                        </Section>
                     )}
 
                     {/* Alertes stock */}
                     {product.stock > 0 && product.stock <= 5 && (
-                        <div className="flex items-center gap-2 bg-warning-2 border border-warning-1 rounded-3 px-4 py-3">
-                            <AlertTriangle size={14} className="text-warning-1 shrink-0" />
-                            <p className="text-xs font-poppins font-medium text-warning-1">
-                                Stock faible — seulement {product.stock} unité{product.stock > 1 ? 's' : ''} restante{product.stock > 1 ? 's' : ''}. Pensez à réapprovisionner.
+                        <div className="flex items-start gap-3 bg-warning-2 border border-warning-1 rounded-3 px-4 py-3">
+                            <AlertTriangle size={14} className="text-warning-1 shrink-0 mt-0.5" />
+                            <p className="text-xs font-poppins font-medium text-warning-1 leading-relaxed">
+                                Stock faible — il ne reste que <strong>{product.stock} unité{product.stock > 1 ? 's' : ''}</strong>. Pensez à réapprovisionner bientôt.
                             </p>
                         </div>
                     )}
                     {product.stock === 0 && (
-                        <div className="flex items-center gap-2 bg-danger-2 border border-danger-1 rounded-3 px-4 py-3">
-                            <AlertTriangle size={14} className="text-danger-1 shrink-0" />
-                            <p className="text-xs font-poppins font-medium text-danger-1">
+                        <div className="flex items-start gap-3 bg-danger-2 border border-danger-1 rounded-3 px-4 py-3">
+                            <AlertTriangle size={14} className="text-danger-1 shrink-0 mt-0.5" />
+                            <p className="text-xs font-poppins font-medium text-danger-1 leading-relaxed">
                                 Rupture de stock — ce produit n'est plus disponible à la commande.
                             </p>
                         </div>
