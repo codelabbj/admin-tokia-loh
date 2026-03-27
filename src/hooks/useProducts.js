@@ -79,17 +79,18 @@ export const useProducts = () => {
       description: formData.description || null,
       category: formData.category,
       price: Number(formData.price),
-      sale_price: formData.sale_price ? Number(formData.sale_price) : null,
+      original_price: formData.price ? Number(formData.price) : null,
+      price: formData.sale_price
+        ? Number(formData.sale_price)
+        : Number(formData.price),
       stock: Number(formData.stock),
 
-      // ✅ IMPORTANT
+      // Images
       image: imageUrl,
       secondary_images: secondaryUrls,
-
-      // ✅ FORMAT V2 (ne surtout pas transformer)
       others_details: formData.others_details ?? [],
 
-      status: formData.status ?? true,
+      status: formData.status ?? formData.is_active ?? true,
       featured: formData.featured ?? false,
     };
 
@@ -116,17 +117,32 @@ export const useProducts = () => {
       if (formData.price !== undefined) payload.price = Number(formData.price);
       if (formData.stock !== undefined) payload.stock = Number(formData.stock);
 
-      if (formData.sale_price !== undefined)
-        payload.sale_price = formData.sale_price
+      if (formData.stock !== undefined) payload.stock = Number(formData.stock);
+
+      if (formData.price !== undefined || formData.sale_price !== undefined) {
+        const initialPrice = Number(formData.price);
+        const salePrice = formData.sale_price
           ? Number(formData.sale_price)
           : null;
 
-      if (formData.status !== undefined) payload.status = formData.status;
-      //if (formData.status !== undefined) payload.status = formData.status;
+        if (salePrice) {
+          payload.price = salePrice; // prix affiché = prix réduit
+          payload.original_price = initialPrice; // prix barré = prix initial
+        } else {
+          payload.price = initialPrice; // pas de promo
+          payload.original_price = null;
+        }
+      }
+
+      if (formData.status !== undefined) {
+        payload.status = formData.status;
+      } else if (formData.is_active !== undefined) {
+        payload.status = formData.is_active;
+      }
 
       if (formData.featured !== undefined) payload.featured = formData.featured;
 
-      // ✅ CORRECTION IMPORTANTE
+      // ✅ FORMAT ACTUEL : string[] (déjà construit par buildOthersDetails)
       if (formData.others_details !== undefined)
         payload.others_details = formData.others_details;
 

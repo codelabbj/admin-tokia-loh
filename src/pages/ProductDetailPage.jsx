@@ -1,4 +1,4 @@
-// version 2.1.0
+// version 2.2.0 - Correction affichage others_details
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import {
@@ -194,8 +194,26 @@ const ProductDetailPage = () => {
     const prev = () => setActiveIndex(i => (i - 1 + allMedia.length) % allMedia.length);
     const next = () => setActiveIndex(i => (i + 1) % allMedia.length);
 
-    // others_details : string[]
-    const othersDetails = (product.others_details ?? []).filter(d => typeof d === 'string' && d.trim());
+    const allDetails = (product.others_details ?? [])
+        .filter(d => typeof d === 'string' && d.trim())
+        .map(d => d.trim());
+
+    const detailSizes = allDetails
+        .filter(d => d.startsWith('Taille:'))
+        .map(d => d.replace('Taille:', '').trim());
+
+    const detailColors = allDetails
+        .filter(d => d.startsWith('Couleur:'))
+        .map(d => {
+            const raw = d.replace('Couleur:', '').trim();
+            const hexMatch = raw.match(/#[0-9A-Fa-f]{6}/);
+            const hex = hexMatch ? hexMatch[0] : null;
+            const name = raw.replace(/\s*\(.*?\)/, '').trim();
+            return { name, hex };
+        });
+
+    const detailCustom = allDetails
+        .filter(d => !d.startsWith('Taille:') && !d.startsWith('Couleur:'));
 
     // Comptage des médias pour l'affichage
     const imageCount = 1 + secondaryImages.length; // principale + secondaires
@@ -358,17 +376,57 @@ const ProductDetailPage = () => {
                         </Section>
                     )}
 
-                    {/* Caractéristiques — others_details: string[] */}
-                    {othersDetails.length > 0 && (
+                    {(detailSizes.length > 0 || detailColors.length > 0 || detailCustom.length > 0) && (
                         <Section title="Caractéristiques">
-                            <div className="flex flex-wrap gap-2 py-3">
-                                {othersDetails.map((detail, i) => (
-                                    <span key={i}
-                                        className="px-3 py-1.5 rounded-full bg-neutral-2 dark:bg-neutral-2 border border-neutral-4 dark:border-neutral-4 text-xs font-semibold font-poppins text-neutral-7 dark:text-neutral-7">
-                                        {detail}
-                                    </span>
-                                ))}
-                            </div>
+
+                            {/* Tailles */}
+                            {detailSizes.length > 0 && (
+                                <div className="py-3 border-b border-neutral-4 dark:border-neutral-4">
+                                    <p className="text-[11px] font-semibold font-poppins text-neutral-5 uppercase tracking-wide mb-2">Tailles</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {detailSizes.map((size, i) => (
+                                            <span key={i} className="px-3 py-1.5 rounded-full bg-neutral-2 dark:bg-neutral-2 border border-neutral-4 dark:border-neutral-4 text-xs font-bold font-poppins text-neutral-8 dark:text-neutral-8">
+                                                {size}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Couleurs */}
+                            {detailColors.length > 0 && (
+                                <div className="py-3 border-b border-neutral-4 dark:border-neutral-4">
+                                    <p className="text-[11px] font-semibold font-poppins text-neutral-5 uppercase tracking-wide mb-2">Couleurs</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {detailColors.map((color, i) => (
+                                            <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-neutral-2 dark:bg-neutral-2 border border-neutral-4 dark:border-neutral-4">
+                                                {color.hex && (
+                                                    <div className="w-3.5 h-3.5 rounded-full border border-neutral-4 shrink-0"
+                                                        style={{ backgroundColor: color.hex }} />
+                                                )}
+                                                <span className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
+                                                    {color.name}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Autres caractéristiques */}
+                            {detailCustom.length > 0 && (
+                                <div className="py-3">
+                                    <p className="text-[11px] font-semibold font-poppins text-neutral-5 uppercase tracking-wide mb-2">Autres</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {detailCustom.map((detail, i) => (
+                                            <span key={i} className="px-3 py-1.5 rounded-full bg-neutral-2 dark:bg-neutral-2 border border-neutral-4 dark:border-neutral-4 text-xs font-semibold font-poppins text-neutral-7 dark:text-neutral-7">
+                                                {detail}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                         </Section>
                     )}
 

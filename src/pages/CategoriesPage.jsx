@@ -15,7 +15,6 @@ const CategoriesPage = () => {
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [deleteTarget, setDeleteTarget] = useState(null);
-    const [deleteLoading, setDeleteLoading] = useState(false);
 
     useEffect(() => {
         document.title = 'Admin Tokia-Loh | Catégories';
@@ -53,9 +52,7 @@ const CategoriesPage = () => {
 
     const handleConfirmDelete = async () => {
         if (!deleteTarget) return;
-        setDeleteLoading(true);
         await remove(deleteTarget.id);
-        setDeleteLoading(false);
         setDeleteTarget(null);
     };
 
@@ -137,7 +134,6 @@ const CategoriesPage = () => {
                 isOpen={!!deleteTarget}
                 onConfirm={handleConfirmDelete}
                 onCancel={() => setDeleteTarget(null)}
-                loading={deleteLoading}
                 mode={deleteTargetProductCount > 0 ? 'error' : 'confirm'}
                 title={deleteTargetProductCount > 0 ? 'Suppression impossible' : 'Supprimer la catégorie'}
                 message={

@@ -1,12 +1,5 @@
 import React from 'react';
 
-/*
-  Props :
-  - active   : boolean
-  - onChange : (newValue: boolean) => void
-  - disabled : boolean (optionnel)
-*/
-
 const ProductStatusToggle = ({ active, onChange, disabled = false }) => {
     return (
         <button

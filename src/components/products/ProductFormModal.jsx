@@ -3,6 +3,7 @@ import { X, Upload, Trash2, Plus } from 'lucide-react';
 import InputField from '../InputField';
 import Button from '../Button';
 import ProductStatusToggle from './ProductStatusToggle';
+import { useToast } from '../ui/ToastProvider';
 
 // ── Helpers vidéo ─────────────────────────────────────────────
 const getYouTubeThumbnail = (url) => {
@@ -79,16 +80,13 @@ const EMPTY_FORM = {
     is_active: true,
     featured: false,
     mainImage: null,
-    subImages: [],       // médias secondaires (File | URL string)
-
-    // ── Détails produit — format API v2 : [{ key, value }] ───
-    others_details: [],    // ex: [{ key: 'Couleur', value: 'Noir' }, { key: 'Taille', value: 'M' }]
+    subImages: [],
 
     // Helpers UI (non envoyés à l'API)
     hasSizes: false,
-    sizes: [],         // ['S', 'M', 'L'] → mappés vers others_details à la soumission
+    sizes: [],
     hasColors: false,
-    colors: [],         // [{ name, hex }] → mappés vers others_details à la soumission
+    colors: [],
 };
 
 const calcDiscount = (price, salePrice) => {
@@ -97,38 +95,56 @@ const calcDiscount = (price, salePrice) => {
     return Math.round(((p - s) / p) * 100);
 };
 
-/**
- * Reconstruit les helpers UI (sizes, colors) depuis others_details reçu de l'API.
- * API v2 : others_details = [{ key: "Taille", value: "M" }, { key: "Couleur", value: "Noir" }]
- */
 const parseOthersDetails = (others_details = []) => {
     const sizes = [];
     const colors = [];
-    const custom = []; // tout le reste
+    const custom = [];
 
-    others_details.forEach(({ key, value }) => {
-        if (key === 'Taille') {
-            sizes.push(value);
-        } else if (key === 'Couleur') {
-            const preset = PRESET_COLORS.find(c => c.name === value);
-            colors.push({ name: value, hex: preset?.hex ?? '#808080' });
+    others_details.forEach((detail) => {
+        if (typeof detail !== 'string') return;
+        const colonIndex = detail.indexOf(':');
+        if (colonIndex > 0) {
+            const key = detail.substring(0, colonIndex).trim();
+            const value = detail.substring(colonIndex + 1).trim();
+
+            if (key === 'Taille') {
+                sizes.push(value);
+            } else if (key === 'Couleur') {
+                const hexMatch = value.match(/#[0-9A-Fa-f]{6}/);
+                const hex = hexMatch ? hexMatch[0] : '#000000';
+                const name = value.replace(/\s*\(.*?\)/, '').trim();
+                colors.push({ name, hex });
+            } else {
+                custom.push({ key, value });
+            }
         } else {
-            custom.push({ key, value });
+            custom.push({ key: detail.trim(), value: '' });
         }
     });
 
     return { sizes, colors, custom };
 };
 
-/**
- * Construit le tableau others_details à envoyer à l'API v2
- * depuis les helpers UI sizes, colors et custom.
- */
 const buildOthersDetails = (sizes, colors, custom) => {
     const result = [];
-    sizes.forEach(s => result.push({ key: 'Taille', value: s }));
-    colors.forEach(c => result.push({ key: 'Couleur', value: c.name }));
-    custom.forEach(d => { if (d.key?.trim() && d.value?.trim()) result.push({ key: d.key.trim(), value: d.value.trim() }); });
+
+    sizes.forEach((size) => {
+        if (size?.trim()) result.push(`Taille: ${size.trim()}`);
+    });
+
+    colors.forEach(({ name, hex }) => {
+        if (name?.trim()) result.push(`Couleur: ${name.trim()} (${hex})`);
+    });
+
+    custom.forEach(({ key, value }) => {
+        if (!key?.trim()) return;
+        if (value?.trim()) {
+            result.push(`${key.trim()}: ${value.trim()}`);
+        } else {
+            result.push(key.trim());
+        }
+    });
+
     return result;
 };
 
@@ -147,6 +163,8 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
     const [showImageUrlModal, setShowImageUrlModal] = useState(false);
     const [tempImageUrl, setTempImageUrl] = useState('');
     const [tempImageType, setTempImageType] = useState('main');
+
+    const { toast } = useToast();
 
     // État séparé pour les détails personnalisés (hors tailles/couleurs)
     const [customDetails, setCustomDetails] = useState([]); // [{ key, value }]
@@ -167,13 +185,12 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
                     name: product.name ?? '',
                     description: product.description ?? '',
                     category: product.category ?? '',
-                    price: product.price ?? '',
-                    sale_price: product.sale_price ?? '',
+                    price: product.original_price ?? product.price ?? '',
+                    sale_price: product.original_price ? product.price ?? '' : '',
                     stock: product.stock ?? '',
-                    is_active: product.is_active ?? true,
+                    is_active: product.is_active ?? product.status ?? true,
                     featured: product.featured ?? false,
                     mainImage: product.image ?? null,
-                    // Mappe secondary_images (URLs API) → subImages (format interne)
                     subImages: (product.secondary_images ?? []).map(url => url),
                     hasSizes: sizes.length > 0,
                     sizes,
@@ -246,7 +263,7 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
 
     // ── Détails personnalisés ─────────────────────────────────
     const handleAddCustomDetail = () => {
-        if (!newDetailKey.trim() || !newDetailVal.trim()) return;
+        if (!newDetailKey.trim()) return;
         setCustomDetails(prev => [...prev, { key: newDetailKey.trim(), value: newDetailVal.trim() }]);
         setNewDetailKey('');
         setNewDetailVal('');
@@ -278,18 +295,7 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
         if (!validate()) return;
         setLoading(true);
         try {
-            /**
-             * Payload API v2
-             *
-             * others_details : [{ key, value }]
-             *   — tailles  → { key: 'Taille',  value: 'M' }
-             *   — couleurs → { key: 'Couleur', value: 'Noir' }
-             *   — custom   → { key: 'Matière', value: 'Coton' }
-             *
-             * secondary_images : string[]  (URLs)
-             *   — les fichiers File doivent d'abord être uploadés via filesAPI.upload()
-             *     et on passe ensuite l'URL retournée
-             */
+
             const payload = {
                 name: form.name,
                 description: form.description || null,
@@ -300,19 +306,35 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
                 is_active: form.is_active,
                 featured: form.featured,
 
-                // On passe mainImage tel quel (File, {file,preview} ou URL string).
-                // useProducts.create/update appelle resolveImageUrl() qui gère l'upload.
+                // Images
                 mainImage: form.mainImage,
-
-                // Idem pour les médias secondaires.
                 subImages: form.subImages,
 
-                // ⚠️  v2 : format [{ key, value }]
+                // ✅ Format actuel de l'API : tableau de strings
                 others_details: buildOthersDetails(form.sizes, form.colors, customDetails),
             };
 
             await onSave?.(payload);
-        } finally {
+            toast.success(
+                isEdit
+                    ? 'Produit mis à jour avec succès'
+                    : 'Produit créé avec succès',
+            );
+            onClose();
+
+        }
+        catch (err) {
+            if (err.response?.data?.file?.[0].includes('filename has at most 100 characters')) {
+                toast.error('Le nom du fichier ne doit pas contenir plus de 100 caractères. Vérifier vos nom de fichiers.');
+            }
+            else if (err.response?.data?.file) {
+                toast.error('Une erreur est survenue lors de la sauvegarde d\'image : ' + err.response?.data?.file);
+            }
+            else {
+                toast.error('Une erreur est survenue, veullez réessayer.');
+            }
+        }
+        finally {
             setLoading(false);
         }
     };
@@ -428,7 +450,6 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
                             <div className="flex flex-col gap-2">
                                 <label className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
                                     Images secondaires
-                                    {/* ⚠️  v2 : renommé "secondary_images" dans le payload */}
                                     <span className="text-neutral-6 font-normal ml-1">({form.subImages.length})</span>
                                 </label>
                                 <div className="flex flex-wrap gap-3">
@@ -545,15 +566,12 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
                         </div>
 
                         {/* ── Détails personnalisés ── */}
-                        {/* ⚠️  v2 : format others_details = [{ key, value }]               */}
-                        {/* Tailles et couleurs sont converties automatiquement à la soumission */}
-                        {/* Ce bloc gère les autres attributs libres (Matière, Poids, etc.)  */}
                         <div className="flex flex-col gap-4">
                             <p className="text-xs font-semibold font-poppins text-neutral-6 uppercase tracking-wide">
                                 Autres caractéristiques
                             </p>
                             <p className="text-[11px] font-poppins text-neutral-5 -mt-2">
-                                Ajoutez des attributs libres : Matière, Poids, Dimension, etc.
+                                ✅ Format accepté : "Clé: Valeur" (ex: "Matière: Coton") ou juste une valeur (ex: "Edite")
                             </p>
 
                             {/* Liste des détails existants */}
@@ -573,7 +591,7 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
                                                 type="text"
                                                 value={detail.value}
                                                 onChange={e => handleCustomDetailChange(i, 'value', e.target.value)}
-                                                placeholder="Valeur"
+                                                placeholder="Valeur (optionnel)"
                                                 className="flex-1 rounded-full border border-neutral-4 bg-neutral-2 px-3 py-1.5 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:bg-neutral-0 focus:ring-2 focus:ring-primary-5 transition-all"
                                             />
                                             <button type="button" onClick={() => handleRemoveCustomDetail(i)}
@@ -586,29 +604,36 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
                             )}
 
                             {/* Ajout d'un nouveau détail */}
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="text"
-                                    value={newDetailKey}
-                                    onChange={e => setNewDetailKey(e.target.value)}
-                                    placeholder="Ex: Matière"
-                                    className="w-32 shrink-0 rounded-full border border-neutral-4 bg-neutral-0 px-3 py-1.5 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 transition-all"
-                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomDetail(); } }}
-                                />
-                                <span className="text-neutral-5 text-xs">:</span>
-                                <input
-                                    type="text"
-                                    value={newDetailVal}
-                                    onChange={e => setNewDetailVal(e.target.value)}
-                                    placeholder="Ex: Coton 100%"
-                                    className="flex-1 rounded-full border border-neutral-4 bg-neutral-0 px-3 py-1.5 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 transition-all"
-                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomDetail(); } }}
-                                />
-                                <button type="button" onClick={handleAddCustomDetail}
-                                    disabled={!newDetailKey.trim() || !newDetailVal.trim()}
-                                    className="w-7 h-7 flex items-center justify-center rounded-full bg-primary-1 text-white hover:bg-primary-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shrink-0">
-                                    <Plus size={13} />
-                                </button>
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        value={newDetailKey}
+                                        onChange={e => setNewDetailKey(e.target.value)}
+                                        placeholder="Ex: Matière"
+                                        className="w-32 shrink-0 rounded-full border border-neutral-4 bg-neutral-0 px-3 py-1.5 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 transition-all"
+                                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomDetail(); } }}
+                                    />
+                                    <span className="text-neutral-5 text-xs">:</span>
+                                    <input
+                                        type="text"
+                                        value={newDetailVal}
+                                        onChange={e => setNewDetailVal(e.target.value)}
+                                        placeholder="Ex: Coton 100% (optionnel)"
+                                        className="flex-1 rounded-full border border-neutral-4 bg-neutral-0 px-3 py-1.5 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 transition-all"
+                                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomDetail(); } }}
+                                    />
+                                    <button type="button" onClick={handleAddCustomDetail}
+                                        disabled={!newDetailKey.trim()}
+                                        className="w-7 h-7 flex items-center justify-center rounded-full bg-primary-1 text-white hover:bg-primary-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shrink-0">
+                                        <Plus size={13} />
+                                    </button>
+                                </div>
+                                {newDetailKey.trim() && (
+                                    <p className="text-[11px] font-poppins text-warning-1 pl-1">
+                                        ⚠️ Cliquez sur <strong>+</strong> pour confirmer l'ajout, sinon la caractéristique ne sera pas enregistrée.
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -623,13 +648,6 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
                                     </div>
                                     <ProductStatusToggle active={form.is_active} onChange={val => setForm(prev => ({ ...prev, is_active: val }))} />
                                 </div>
-                                {/* <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">Produit vedette ⭐</p>
-                                        <p className="text-[11px] font-poppins text-neutral-6">Mis en avant sur la boutique</p>
-                                    </div>
-                                    <ProductStatusToggle active={form.featured} onChange={val => setForm(prev => ({ ...prev, featured: val }))} />
-                                </div> */}
                             </div>
                         </div>
                     </form>

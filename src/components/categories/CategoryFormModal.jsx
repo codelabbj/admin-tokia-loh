@@ -3,6 +3,7 @@ import { X, Upload, Trash2 } from 'lucide-react';
 import InputField from '../InputField';
 import Button from '../Button';
 import ProductStatusToggle from '../products/ProductStatusToggle';
+import { useToast } from '../ui/ToastProvider';
 
 const EMPTY_FORM = {
     name: '',
@@ -26,6 +27,8 @@ const CategoryFormModal = ({ open, onClose, category = null, onSave }) => {
     const [loading, setLoading] = useState(false);
     const [showUrlModal, setShowUrlModal] = useState(false);
     const [tempUrl, setTempUrl] = useState('');
+
+    const { toast } = useToast();
 
     const isEdit = !!category;
 
@@ -103,7 +106,7 @@ const CategoryFormModal = ({ open, onClose, category = null, onSave }) => {
         setTempUrl('');
         setShowUrlModal(false);
     };
-    
+
     const handleRemoveImage = () => {
         setForm(prev => ({ ...prev, icon: null, iconPreview: null }));
     };
@@ -131,9 +134,24 @@ const CategoryFormModal = ({ open, onClose, category = null, onSave }) => {
                 icon: form.icon, // On passe l'objet tel quel, useCategories s'occupe de l'upload
             };
             await onSave?.(payload);
+
+            toast.success(
+                isEdit
+                    ? 'Catégorie mise à jour avec succès'
+                    : 'Catégorie ajoutée avec succès'
+            );
+
             onClose();
         } catch (error) {
-            console.error("Erreur lors de la sauvegarde:", error);
+            if (err.response?.data?.file?.[0].includes('filename has at most 100 characters')) {
+                toast.error('Le nom du fichier ne doit pas contenir plus de 100 caractères. Vérifier vos nom de fichiers.');
+            }
+            else if (err.response?.data?.file) {
+                toast.error('Une erreur est survenue lors de la sauvegarde d\'image : ' + err.response?.data?.file);
+            }
+            else {
+                toast.error('Une erreur est survenue, veullez réessayer.');
+            }
             setErrors(prev => ({ ...prev, form: "Erreur lors de la sauvegarde" }));
         } finally {
             setLoading(false);
