@@ -99,7 +99,7 @@ const RecentOrders = ({ orders = [] }) => {
                                 "
                             >
                                 <td className="px-5 py-3 font-semibold text-primary-1">
-                                    {order.reference}
+                                    #{order.reference}
                                 </td>
                                 <td className="px-5 py-3 text-neutral-8 dark:text-neutral-8 whitespace-nowrap">
                                     {order.client}

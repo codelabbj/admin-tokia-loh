@@ -1,6 +1,7 @@
+/* eslint-disable no-unused-vars */
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { NavLink, useNavigate } from 'react-router';
+import { NavLink } from 'react-router';
 import {
     LayoutDashboard, Package, Grid2X2, ShoppingCart,
     Users, MapPin, Bell, BarChart2, Settings,
@@ -107,6 +108,15 @@ const Sidebar = ({ collapsed, onToggle, onNavigate }) => {
 
                 {/* ── Nav principale ── */}
                 <nav className="flex flex-col gap-0.5 px-2 pt-4 flex-1 overflow-y-auto overflow-x-hidden">
+                    <div className="my-3 flex items-center gap-2 px-1">
+                        <div className="flex-1 h-px bg-neutral-4 dark:bg-neutral-4" />
+                        {!collapsed && (
+                            <span className="text-[10px] font-poppins font-semibold text-neutral-5 uppercase tracking-wider whitespace-nowrap">
+                                Navigation principale
+                            </span>
+                        )}
+                        <div className="flex-1 h-px bg-neutral-4 dark:bg-neutral-4" />
+                    </div>
                     {navMain.map(item => (
                         <NavItem key={item.to} {...item} collapsed={collapsed} onNavigate={onNavigate} />
                     ))}
@@ -116,7 +126,7 @@ const Sidebar = ({ collapsed, onToggle, onNavigate }) => {
                         <div className="flex-1 h-px bg-neutral-4 dark:bg-neutral-4" />
                         {!collapsed && (
                             <span className="text-[10px] font-poppins font-semibold text-neutral-5 uppercase tracking-wider whitespace-nowrap">
-                                Outils
+                                Outils secondaire
                             </span>
                         )}
                         <div className="flex-1 h-px bg-neutral-4 dark:bg-neutral-4" />

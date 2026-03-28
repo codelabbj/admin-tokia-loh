@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 // version 2.2.0 - Correction affichage others_details
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';

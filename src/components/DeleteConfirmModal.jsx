@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import Button from './Button';
 import { Trash2, AlertCircle } from 'lucide-react';
 import { useToast } from './ui/ToastProvider';
+import { toFrenchUserMessage } from '../utils/apiMessagesFr';
 
 /**
  * DeleteConfirmModal
@@ -13,6 +14,11 @@ import { useToast } from './ui/ToastProvider';
  * @param {string}   [title]     - Titre du modal (optionnel)
  * @param {string}   [message]   - Message de confirmation (optionnel)
  * @param {string}   [mode]      - 'confirm' | 'error'
+ *
+ * onConfirm peut être async : en cas d'échec, levez throw new Error("message")
+ * pour afficher ce texte dans le toast d'erreur (sinon message générique).
+ * Après une erreur, onCancel() est appelé pour réinitialiser isOpen côté parent
+ * (sinon le modal ne peut plus se rouvrir tant que isOpen reste true).
  */
 const DeleteConfirmModal = ({
     isOpen,
@@ -61,11 +67,22 @@ const DeleteConfirmModal = ({
             setIsClosing(false);
             setVisible(false);
             setIsLoading(true);
+            const fallbackError =
+                'Une erreur est survenue. Veuillez réessayer.';
             try {
                 await onConfirm();
                 toast.success('Élément supprimé avec succès.');
-            } catch {
-                toast.error('Une erreur est survenue. Veuillez réessayer.');
+            } catch (err) {
+                const raw =
+                    err instanceof Error && err.message?.trim()
+                        ? err.message.trim()
+                        : '';
+                toast.error(
+                    raw
+                        ? toFrenchUserMessage(raw, fallbackError)
+                        : fallbackError,
+                );
+                onCancel?.();
             } finally {
                 setIsLoading(false);
             }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    ShoppingCart, TrendingUp, Package, Users
+    ShoppingCart, TrendingUp, Package, Users, UserPlus, LayoutGrid,
 } from 'lucide-react';
 import { useDashboard } from '../hooks/useDashboard';
 import StatCard from '../components/dashboard/StatCard';
@@ -8,6 +8,7 @@ import RecentOrders from '../components/dashboard/RecentOrders';
 import LowStockList from '../components/dashboard/LowStockList';
 import SalesChart from '../components/dashboard/SalesChart';
 import TopCities from '../components/dashboard/TopCities';
+import MonthlyWeekRevenue from '../components/dashboard/MonthlyWeekRevenue';
 import DateRangeFilter from '../components/dashboard/DateRangeFilter';
 
 const formatCFA = (amount) =>
@@ -59,10 +60,15 @@ const DashboardPage = () => {
                     <div key={i} className="h-28 bg-neutral-3 dark:bg-neutral-3 rounded-3" />
                 ))}
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl">
+                <div className="h-28 bg-neutral-3 dark:bg-neutral-3 rounded-3" />
+                <div className="h-28 bg-neutral-3 dark:bg-neutral-3 rounded-3" />
+            </div>
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                 <div className="xl:col-span-2 h-72 bg-neutral-3 dark:bg-neutral-3 rounded-3" />
                 <div className="h-72 bg-neutral-3 dark:bg-neutral-3 rounded-3" />
             </div>
+            <div className="h-40 bg-neutral-3 dark:bg-neutral-3 rounded-3 max-w-4xl" />
         </div>
     );
 
@@ -110,7 +116,11 @@ const DashboardPage = () => {
                 />
                 <StatCard
                     title="Produits vendus"
-                    value={stats?.products_sold?.toLocaleString('fr-FR') ?? '—'}
+                    value={
+                        stats?.products_sold != null
+                            ? Number(stats.products_sold).toLocaleString('fr-FR')
+                            : '—'
+                    }
                     icon={<Package size={18} />}
                     color="success"
                 />
@@ -119,6 +129,32 @@ const DashboardPage = () => {
                     value={formatCFA(stats?.average_basket)}
                     icon={<Users size={18} />}
                     color="warning"
+                />
+            </div>
+
+            {/* ── Clients + catalogue (API dashboard) ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl">
+                <StatCard
+                    title="Nouveaux clients"
+                    value={
+                        stats?.new_clients_week != null
+                            ? Number(stats.new_clients_week).toLocaleString('fr-FR')
+                            : '—'
+                    }
+                    //caption="Inscriptions cette semaine (champ API new_client_count_current_week)."
+                    icon={<UserPlus size={18} />}
+                    color="primary"
+                />
+                <StatCard
+                    title="Produits au catalogue"
+                    value={
+                        stats?.total_products != null
+                            ? Number(stats.total_products).toLocaleString('fr-FR')
+                            : '—'
+                    }
+                    //caption="Nombre de références catalogue (total_products), distinct du volume vendu."
+                    icon={<LayoutGrid size={18} />}
+                    color="secondary"
                 />
             </div>
 
@@ -132,9 +168,9 @@ const DashboardPage = () => {
                 </div>
             </div>
 
+            <MonthlyWeekRevenue weeks={stats?.monthly_revenue_by_week ?? []} />
+
             {/* ── Commandes récentes + Ruptures ── */}
-            {/* Ces données ne sont pas sur /dashboard-rapport — */}
-            {/* elles viendront de /dashboard-orders/ et /dashboard-product/ */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                 <div className="xl:col-span-2">
                     <RecentOrders orders={stats?.recent_orders ?? []} />

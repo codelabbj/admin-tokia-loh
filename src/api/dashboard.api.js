@@ -15,8 +15,9 @@ import api from "./client";
  * GET /shop/dashboard-pubs-list/    ← liste publicités backoffice
  * GET /shop/dashboard-notifications/← notifications backoffice
  *
- * GET  /shop/dashboard?period=today|this_week|this_month
- * GET  /shop/dashboard?start_date=DD-MM-YYYY&end_date=DD-MM-YYYY
+ * GET  /shop/dashboard/?period=today|this_week|this_month
+ * GET  /shop/dashboard/?start_date=DD-MM-YYYY&end_date=DD-MM-YYYY
+ * GET  /shop/dashboard-rapport/   ← mêmes query params ; complète products_sold, sales_by_category…
  *
  * GET  /shop/dashboard/orders/client/:id/history/
  * PUT  /shop/dashboard/orders/:id/status/   body: { status: "canceled" }
@@ -31,6 +32,20 @@ class DashboardAPI {
    */
   getStats(params = {}) {
     return api.get("/shop/dashboard/", { params });
+  }
+
+  /**
+   * Paramètres identiques à getStats : { period } ou { start_date, end_date } (DD-MM-YYYY).
+   */
+  getRapportWithDashboardParams(params = {}) {
+    const q = {};
+    if (params.start_date && params.end_date) {
+      q.start_date = params.start_date;
+      q.end_date = params.end_date;
+    } else if (params.period) {
+      q.period = params.period;
+    }
+    return api.get("/shop/dashboard-rapport/", { params: q });
   }
 
   /** Stats produits. */
@@ -133,26 +148,6 @@ class DashboardAPI {
   /** Top produits vendus */
   getTopProducts() {
     return api.get("/shop/dashboard-product/");
-  }
-
-  /** Stats commandes (total, in_progress, delivered, canceled) */
-  listOrdersStats() {
-    return api.get("/shop/dashboard-orders/");
-  }
-
-  /** Liste complète des commandes paginée */
-  listOrders(params = {}) {
-    return api.get("/shop/dashboard/orders/", { params });
-  }
-
-  /** Historique commandes d'un client */
-  getClientOrderHistory(clientId) {
-    return api.get(`/shop/dashboard/orders/client/${clientId}/history/`);
-  }
-
-  /** Mise à jour du statut d'une commande */
-  updateOrderStatus(orderId, status) {
-    return api.put(`/shop/dashboard/orders/${orderId}/status/`, { status });
   }
 }
 

@@ -6,6 +6,7 @@ import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
   - title    : string       — libellé de la stat
   - value    : string       — valeur affichée (ex: "142" ou "58 000 F")
   - icon     : ReactNode    — icône lucide
+  - caption  : string       — texte d’aide sous la valeur (optionnel)
   - trend    : 'up' | 'down' | 'neutral'  (optionnel)
   - trendLabel : string     — ex: "+12% ce mois" (optionnel)
   - color    : 'primary' | 'secondary' (défaut: primary)
@@ -35,6 +36,7 @@ const StatCard = ({
     title,
     value,
     icon,
+    caption,
     trend,
     trendLabel,
     color = 'primary',
@@ -59,17 +61,23 @@ const StatCard = ({
             </div>
 
             {/* Valeur */}
-            <div className="flex items-end justify-between gap-2">
-                <span className="text-h4 font-bold font-poppins text-neutral-8 dark:text-neutral-8 leading-none">
-                    {value}
-                </span>
-
-                {/* Tendance */}
-                {trend && trendLabel && (
-                    <span className={`flex items-center gap-1 text-xs font-medium font-poppins ${trendColor[trend]}`}>
-                        {trendIcon[trend]}
-                        {trendLabel}
+            <div className="flex flex-col gap-2">
+                <div className="flex items-end justify-between gap-2">
+                    <span className="text-h4 font-bold font-poppins text-neutral-8 dark:text-neutral-8 leading-none">
+                        {value}
                     </span>
+
+                    {trend && trendLabel && (
+                        <span className={`flex items-center gap-1 text-xs font-medium font-poppins shrink-0 ${trendColor[trend]}`}>
+                            {trendIcon[trend]}
+                            {trendLabel}
+                        </span>
+                    )}
+                </div>
+                {caption && (
+                    <p className="text-[11px] font-poppins text-neutral-5 dark:text-neutral-5 leading-snug">
+                        {caption}
+                    </p>
                 )}
             </div>
         </div>

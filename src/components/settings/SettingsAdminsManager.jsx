@@ -1,8 +1,24 @@
-import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Shield, AlertCircle, Eye, EyeOff } from "lucide-react";
+import React, { useState } from "react";
+import { Plus, Trash2, Shield, AlertCircle } from "lucide-react";
 import Button from "../Button";
 import InputField from "../InputField";
+import DeleteConfirmModal from "../DeleteConfirmModal";
 import { useAdmin } from "../../hooks/useAdmin";
+import { toFrenchUserMessage } from "../../utils/apiMessagesFr";
+
+/** Extrait un message lisible depuis le corps d'erreur API (ex. { success, message }). */
+const messageFromApiData = (data) => {
+    if (!data || typeof data !== "object") return null;
+    const m = data.message;
+    if (typeof m === "string" && m.trim()) return m.trim();
+    if (Array.isArray(m) && m.length && typeof m[0] === "string") return m[0].trim();
+    if (m && typeof m === "object") {
+        const first = Object.values(m).flat()[0];
+        if (typeof first === "string") return first.trim();
+    }
+    if (typeof data.detail === "string" && data.detail.trim()) return data.detail.trim();
+    return null;
+};
 
 const SettingsAdminsManager = () => {
     const {
@@ -19,6 +35,7 @@ const SettingsAdminsManager = () => {
     const [form, setForm] = useState({ email: "", phone: "", password: "", is_admin: true, is_superuser: false });
     const [formErrors, setFormErrors] = useState({});
     const [localError, setLocalError] = useState("");
+    const [deleteTarget, setDeleteTarget] = useState(null);
 
     const handleCreate = async (e) => {
         e.preventDefault();
@@ -35,18 +52,32 @@ const SettingsAdminsManager = () => {
             setForm({ email: "", phone: "", password: "", is_admin: true, is_superuser: false });
             setIsAdding(false);
         } else {
-            setLocalError(result.data?.message || "Erreur lors de la creation");
+            const raw = messageFromApiData(result.data);
+            setLocalError(
+                toFrenchUserMessage(
+                    raw,
+                    "Erreur lors de la création du compte.",
+                ),
+            );
         }
     };
 
-    const handleDeleteAdmin = async (id) => {
-        if (!window.confirm("Supprimer cet administrateur ?")) return;
-
-        const result = await deleteAdmin(id);
-
+    const handleConfirmDeleteAdmin = async () => {
+        if (!deleteTarget?.id) return;
+        setLocalError("");
+        const result = await deleteAdmin(deleteTarget.id);
         if (!result.ok) {
-            setLocalError(result.data?.message || "Erreur lors de la suppression");
+            const raw =
+                messageFromApiData(result.data) ||
+                "Impossible de supprimer cet administrateur.";
+            const msg = toFrenchUserMessage(
+                raw,
+                "Impossible de supprimer cet administrateur.",
+            );
+            setLocalError(msg);
+            throw new Error(msg);
         }
+        setDeleteTarget(null);
     };
 
     const handleCancel = () => {
@@ -181,18 +212,32 @@ const SettingsAdminsManager = () => {
                             </div>
                         </div>
                         <button
+                            type="button"
                             disabled={admin.id === currentUser?.id}
                             className={`p-2 rounded-2 transition-all ${admin.id === currentUser?.id
                                 ? "text-neutral-4 cursor-not-allowed"
                                 : "text-danger-1 hover:bg-danger-2 cursor-pointer"
                                 }`}
-                            onClick={() => handleDeleteAdmin(admin.id)}
+                            title={admin.id === currentUser?.id ? "Vous ne pouvez pas supprimer votre propre compte" : "Supprimer cet administrateur"}
+                            onClick={() => setDeleteTarget(admin)}
                         >
                             <Trash2 size={13} />
                         </button>
                     </div>
                 ))}
             </div>
+
+            <DeleteConfirmModal
+                isOpen={!!deleteTarget}
+                onConfirm={handleConfirmDeleteAdmin}
+                onCancel={() => setDeleteTarget(null)}
+                title="Supprimer l'administrateur"
+                message={
+                    deleteTarget
+                        ? `Voulez-vous vraiment retirer l'accès de « ${deleteTarget.email} » ? Cette action est irréversible.`
+                        : ""
+                }
+            />
         </div>
     );
 };
