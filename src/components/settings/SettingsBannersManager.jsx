@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { filesAPI } from '../../api/files.api';
 import { Plus, Pencil, Trash2, Upload, X, Image as ImageIcon } from 'lucide-react';
-import InputField from '../InputField';
 import Button from '../Button';
 import ProductStatusToggle from '../products/ProductStatusToggle';
 import { useAdmin } from '../../hooks/useAdmin';
+import DeleteConfirmModal from '../DeleteConfirmModal';
+import { useToast } from '../ui/ToastProvider';
 
 const EMPTY_FORM = {
     imageMobile: null,
@@ -130,6 +131,8 @@ const BannerForm = ({ banner, onSave, onCancel, isLoading }) => {
 
     const [errors, setErrors] = useState({});
 
+    const { toast } = useToast();
+
     const handleImageSelect = (field, file) => {
         // Validation de la taille du fichier (500 Ko max)
         if (file.size > 500 * 1024) {
@@ -216,8 +219,7 @@ const BannerForm = ({ banner, onSave, onCancel, isLoading }) => {
             onSave(formData);
 
         } catch (error) {
-            console.error(error);
-            alert("Erreur lors de l'upload des images");
+            toast.error("Erreur lors de l'upload des images");
         }
     };
 
@@ -297,6 +299,9 @@ const SettingsBannersManager = () => {
     const [showForm, setShowForm] = useState(false);
     const [editTarget, setEditTarget] = useState(null);
     const [operationLoading, setOperationLoading] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [deleteError, setDeleteError] = useState('');
+    const { toast } = useToast();
 
     const handleToggle = async (banner) => {
         setOperationLoading(true);
@@ -307,7 +312,7 @@ const SettingsBannersManager = () => {
         setOperationLoading(false);
 
         if (!result.ok) {
-            alert(result.data?.message || 'Erreur lors de la mise à jour du statut');
+            toast.error(result.data?.message || 'Erreur lors de la mise à jour du statut');
         }
     };
 
@@ -326,20 +331,36 @@ const SettingsBannersManager = () => {
         if (result.ok) {
             setShowForm(false);
             setEditTarget(null);
+            toast.success(`Bannière ${editTarget ? 'mise à jour' : 'ajoutée'} avec succès.`);
         } else {
-            alert(result.data?.message || 'Erreur lors de la sauvegarde');
+            toast.error(result.data?.message || 'Erreur lors de la sauvegarde');
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette bannière ?')) return;
+    // ✅ Fonction de confirmation de suppression corrigée
+    const handleConfirmDeleteBanner = async () => {
+        if (!deleteTarget?.id) return;
 
+        setDeleteError('');
         setOperationLoading(true);
-        const result = await deleteBanner(id);
-        setOperationLoading(false);
 
-        if (!result.ok) {
-            alert(result.data?.message || 'Erreur lors de la suppression');
+        try {
+            const result = await deleteBanner(deleteTarget.id);
+
+            if (!result.ok) {
+                const errorMessage = result.data?.message || "Impossible de supprimer cette bannière.";
+                setDeleteError(errorMessage);
+                setOperationLoading(false);
+                return; // ✅ Ne pas fermer la modale en cas d'erreur
+            }
+
+            // ✅ Succès - Fermer la modale
+            setDeleteTarget(null);
+            setDeleteError('');
+        } catch (error) {
+            setDeleteError("Une erreur inattendue s'est produite.");
+        } finally {
+            setOperationLoading(false);
         }
     };
 
@@ -350,6 +371,12 @@ const SettingsBannersManager = () => {
 
     const handleCancelEdit = () => {
         setEditTarget(null);
+    };
+
+    // ✅ Fonction pour annuler la suppression
+    const handleCancelDelete = () => {
+        setDeleteTarget(null);
+        setDeleteError('');
     };
 
     return (
@@ -482,8 +509,9 @@ const SettingsBannersManager = () => {
                                             >
                                                 <Pencil size={13} />
                                             </button>
+                                            {/* ✅ CORRECTION : Ouvre la modale au lieu de supprimer directement */}
                                             <button
-                                                onClick={() => handleDelete(banner.id)}
+                                                onClick={() => setDeleteTarget(banner)}
                                                 className="w-7 h-7 flex items-center justify-center rounded-1.5 text-neutral-6 hover:bg-danger-2 hover:text-danger-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                                 disabled={operationLoading}
                                             >
@@ -509,6 +537,21 @@ const SettingsBannersManager = () => {
                     </div>
                 )}
             </div>
+
+            {/* ✅ Modale de confirmation avec gestion des erreurs */}
+            <DeleteConfirmModal
+                isOpen={!!deleteTarget}
+                onConfirm={handleConfirmDeleteBanner}
+                onCancel={handleCancelDelete}
+                title="Supprimer la bannière"
+                message={
+                    deleteTarget
+                        ? `Voulez-vous vraiment supprimer cette bannière ? Cette action est irréversible.`
+                        : ""
+                }
+                error={deleteError} // ✅ Affichage de l'erreur dans la modale
+                isLoading={operationLoading} // ✅ État de chargement
+            />
         </div>
     );
 };

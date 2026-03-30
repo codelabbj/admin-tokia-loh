@@ -95,7 +95,7 @@ const SettingsPage = () => {
     }, []);
 
     return (
-        <div className="flex flex-col gap-6 lg:gap-8 w-full max-w-6xl xl:max-w-[1200px]">
+        <div className="flex flex-col gap-6 lg:gap-8 w-full max-w-6xl xl:max-w-300">
             {/* ── En-tête ──────── */}
             <header
                 className="

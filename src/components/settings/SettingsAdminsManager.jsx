@@ -147,7 +147,7 @@ const SettingsAdminsManager = () => {
                                 className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-5 hover:text-neutral-7 transition-colors" tabIndex={-1}>
                             </button>
                         </div>
-                        <div className="flex items-center gap-2">
+                        {/*<div className="flex items-center gap-2">
                             <input
                                 type="checkbox"
                                 id="is_superuser"
@@ -164,7 +164,7 @@ const SettingsAdminsManager = () => {
                             <label htmlFor="is_superuser" className="text-xs font-poppins text-neutral-7">
                                 Super administrateur
                             </label>
-                        </div>
+                        </div> */}
                         <div className="flex items-center gap-2 pt-1">
                             <Button type="submit" variant="primary" size="normal" loading={submitting} disabled={submitting}>
                                 {submitting ? "Creation..." : "Creer l administrateur"}
@@ -199,13 +199,23 @@ const SettingsAdminsManager = () => {
                                         {admin.phone}
                                     </p>
 
-                                    {currentUser?.is_superuser ? (
+                                    {/* currentUser?.is_superuser ? (
                                         <span className="px-1.5 py-0.5 rounded-full bg-primary-5 text-primary-1 text-[10px] font-semibold font-poppins">
                                             Super Admin
                                         </span>
                                     ) : (
                                         <span className="px-1.5 py-0.5 rounded-full bg-neutral-3 text-neutral-6 text-[10px] font-semibold font-poppins">
                                             Admin
+                                        </span>
+                                    ) */}
+
+                                    {currentUser?.is_admin ? (
+                                        <span className="px-1.5 py-0.5 rounded-full bg-primary-5 text-primary-1 text-[10px] font-semibold font-poppins">
+                                            Admin
+                                        </span>
+                                    ) : (
+                                        <span className="px-1.5 py-0.5 rounded-full bg-neutral-3 text-neutral-6 text-[10px] font-semibold font-poppins">
+                                            User
                                         </span>
                                     )}
                                 </div>
