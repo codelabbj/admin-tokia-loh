@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -13,8 +14,10 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import ProductsPage from './pages/ProductsPage';
 import ProductDetailPage from './pages/ProductDetailPage';
+import ProductFormPage from './pages/ProductFormPage';
 import CategoriesPage from './pages/CategoriesPage';
 import CategoryDetailPage from './pages/CategoryDetailPage';
+import MediaLibraryPage from './pages/MediaLibraryPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import ClientsPage from './pages/ClientsPage';
@@ -26,6 +29,7 @@ import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import PublishPage from './pages/PublishPage';
 import ProfilePage from './pages/ProfilePage';
+import CategoryFormPage from './pages/CategoryFormPage';
 
 // ── Guard : redirige vers /login si non connecté ──────────────
 const ProtectedRoute = ({ children }) => {
@@ -71,10 +75,20 @@ const App = () => (
                 {/* ── Routes protégées ── */}
                 <Route path="/dashboard" element={<PrivatePage page={DashboardPage} showSearch={false} />} />
 
+                {/* --- routes produits --- */}
                 <Route path="/products" element={<PrivatePage page={ProductsPage} showSearch={false} />} />
+                {/* -- route pour ajouter unn nouveau produit -- */}
+                <Route path="/products/new" element={<PrivatePage page={ProductFormPage} showSearch={false} />} />
+                {/* -- route pour éditer un produit existant -- */}
+                <Route path="/products/:id/edit" element={<PrivatePage page={ProductFormPage} showSearch={false} />} />
+                {/* --- route detail produit --- */}
                 <Route path="/products/:id" element={<PrivatePage page={ProductDetailPage} showSearch={false} />} />
 
-                <Route path="/categories" element={<PrivatePage page={CategoriesPage} />} showSearch={false} />
+                <Route path="/media" element={<PrivatePage page={MediaLibraryPage} showSearch={false} />} />
+
+                <Route path="/categories" element={<PrivatePage page={CategoriesPage} showSearch={false} />} />
+                <Route path="/categories/new" element={<PrivatePage page={CategoryFormPage} showSearch={false} />} />
+                <Route path="/categories/:id/edit" element={<PrivatePage page={CategoryFormPage} showSearch={false} />} />
                 <Route path="/categories/:id" element={<PrivatePage page={CategoryDetailPage} showSearch={false} />} />
 
                 <Route path="/orders" element={<PrivatePage page={OrdersPage} showSearch={false} />} />
@@ -87,7 +101,7 @@ const App = () => (
                 <Route path="/cities/:id" element={<PrivatePage page={VilleDetailPage} showSearch={false} />} />
 
                 <Route path="/notifications" element={<PrivatePage page={NotificationsPage} showSearch={false} />} />
-                <Route path="/reports" element={<PrivatePage page={ReportsPage} />} showSearch={false} />
+                <Route path="/reports" element={<PrivatePage page={ReportsPage} showSearch={false} />} />
                 <Route path="/settings" element={<PrivatePage page={SettingsPage} showSearch={false} />} />
                 <Route path="/publish" element={<PrivatePage page={PublishPage} showSearch={false} />} />
                 <Route path="/profile" element={<PrivatePage page={ProfilePage} showSearch={false} />} />

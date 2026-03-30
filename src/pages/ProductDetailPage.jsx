@@ -11,7 +11,6 @@ import { useProducts } from '../hooks/useProducts';
 import { useCategories } from '../hooks/useCategories';
 import Button from '../components/Button';
 import ProductBadge from '../components/products/ProductBadge';
-import ProductFormModal from '../components/products/ProductFormModal';
 
 // ── Helpers ───────────────────────────────────────────────────
 const formatPrice = (p) => `${Number(p).toLocaleString('fr-FR')} F`;
@@ -142,7 +141,6 @@ const ProductDetailPage = () => {
     const { products, loading, update } = useProducts();
     const { categories } = useCategories();
 
-    const [modalOpen, setModalOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(0);
 
     const product = useMemo(() =>
@@ -176,14 +174,13 @@ const ProductDetailPage = () => {
     const discount = calcDiscount(product.price, product.original_price);
     const stockBadge = product.stock === 0 ? 'out-of-stock' : product.stock <= 5 ? 'low-stock' : null;
 
-    // ✅ CONSTRUCTION GALERIE : image principale + images secondaires + vidéos
+
     const secondaryImages = (product.secondary_images ?? []).filter(Boolean);
 
     const videoUrls = (product.videos ?? [])
         .map(v => typeof v === 'string' ? v : v?.video_url)
         .filter(Boolean);
 
-    // Ordre : [image principale, ...images secondaires, ...vidéos]
     const allMedia = [
         product.image,
         ...secondaryImages,
@@ -220,10 +217,7 @@ const ProductDetailPage = () => {
     const imageCount = 1 + secondaryImages.length; // principale + secondaires
     const videoCount = videoUrls.length;
 
-    const handleSave = async (formData) => {
-        await update(product.id, formData);
-        setModalOpen(false);
-    };
+    const handleEdit = () => navigate(`/products/${product.id}/edit`);
 
     return (
         <div className="flex flex-col gap-6">
@@ -244,7 +238,7 @@ const ProductDetailPage = () => {
                         <p className="text-xs font-poppins text-neutral-6 mt-0.5">Détail du produit</p>
                     </div>
                 </div>
-                <Button variant="primary" size="normal" onClick={() => setModalOpen(true)}>
+                <Button variant="primary" size="normal" onClick={handleEdit}>
                     <Pencil size={14} /> Modifier le produit
                 </Button>
             </div>
@@ -450,15 +444,6 @@ const ProductDetailPage = () => {
                     )}
                 </div>
             </div>
-
-            {/* Modal modification */}
-            <ProductFormModal
-                open={modalOpen}
-                onClose={() => setModalOpen(false)}
-                product={product}
-                categories={categories}
-                onSave={handleSave}
-            />
         </div>
     );
 };

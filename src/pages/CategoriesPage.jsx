@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router';
 import { Plus, Grid2X2 } from 'lucide-react';
 import { useCategories } from '../hooks/useCategories';
 import { useProducts } from '../hooks/useProducts';
@@ -9,11 +10,10 @@ import CategoryFormModal from '../components/categories/CategoryFormModal';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 
 const CategoriesPage = () => {
+    const navigate = useNavigate();
     const { categories, loading, create, update, remove } = useCategories();
     const { products } = useProducts();
 
-    const [modalOpen, setModalOpen] = useState(false);
-    const [selectedCategory, setSelectedCategory] = useState(null);
     const [deleteTarget, setDeleteTarget] = useState(null);
 
     useEffect(() => {
@@ -38,15 +38,9 @@ const CategoriesPage = () => {
     }, [products]);
 
     // ── Handlers ──────────────────────────────────────────────
-    const handleCreate = () => { setSelectedCategory(null); setModalOpen(true); };
-    const handleEdit = (cat) => { setSelectedCategory(cat); setModalOpen(true); };
-    const handleClose = () => { setModalOpen(false); setSelectedCategory(null); };
+    const handleCreate = () => navigate('/categories/new');
+    const handleEdit = (category) => navigate(`/categories/${category.id}/edit`);
 
-    const handleSave = async (formData) => {
-        if (selectedCategory) await update(selectedCategory.id, formData);
-        else await create(formData);
-        handleClose();
-    };
 
     const handleDelete = (cat) => setDeleteTarget(cat);
 
@@ -119,14 +113,6 @@ const CategoriesPage = () => {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onUpdate={update}
-            />
-
-            {/* ── Modal formulaire ── */}
-            <CategoryFormModal
-                open={modalOpen}
-                onClose={handleClose}
-                category={selectedCategory}
-                onSave={handleSave}
             />
 
             {/* ── Confirmation suppression ── */}

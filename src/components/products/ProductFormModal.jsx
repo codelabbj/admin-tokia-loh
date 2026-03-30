@@ -570,9 +570,9 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
                             <p className="text-xs font-semibold font-poppins text-neutral-6 uppercase tracking-wide">
                                 Autres caractéristiques
                             </p>
-                            <p className="text-[11px] font-poppins text-neutral-5 -mt-2">
+                            {/* <p className="text-[11px] font-poppins text-neutral-5 -mt-2">
                                 ✅ Format accepté : "Clé: Valeur" (ex: "Matière: Coton") ou juste une valeur (ex: "Edite")
-                            </p>
+                            </p> */}
 
                             {/* Liste des détails existants */}
                             {customDetails.length > 0 && (

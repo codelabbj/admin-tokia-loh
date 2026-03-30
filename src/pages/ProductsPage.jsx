@@ -1,19 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router';
 import { Plus, Package } from 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
 import { useCategories } from '../hooks/useCategories';
 import Button from '../components/Button';
 import ProductsTable from '../components/products/ProductsTable';
-import ProductFormModal from '../components/products/ProductFormModal';
 import StatCard from '../components/dashboard/StatCard';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 
 const ProductsPage = () => {
     const { products, loading, create, update, remove } = useProducts();
     const { categories } = useCategories();
+    const navigate = useNavigate();
 
-    const [modalOpen, setModalOpen] = useState(false);
-    const [selectedProduct, setSelectedProduct] = useState(null);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
 
@@ -30,30 +29,9 @@ const ProductsPage = () => {
         return { total, active, lowStock, outStock };
     }, [products]);
 
-    // ── Handlers ──────────────────────────────────────────────
-    const handleCreate = () => {
-        setSelectedProduct(null);
-        setModalOpen(true);
-    };
+    const handleCreate = () => navigate('/products/new');
 
-    const handleEdit = (product) => {
-        setSelectedProduct(product);
-        setModalOpen(true);
-    };
-
-    const handleClose = () => {
-        setModalOpen(false);
-        setSelectedProduct(null);
-    };
-
-    const handleSave = async (formData) => {
-        if (selectedProduct) {
-            await update(selectedProduct.id, formData);
-        } else {
-            await create(formData);
-        }
-        handleClose();
-    };
+    const handleEdit = (product) => navigate(`/products/${product.id}/edit`);
 
     const handleDelete = (product) => {
         setDeleteTarget(product);
@@ -128,15 +106,6 @@ const ProductsPage = () => {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onUpdate={update}
-            />
-
-            {/* ── Modal formulaire ── */}
-            <ProductFormModal
-                open={modalOpen}
-                onClose={handleClose}
-                product={selectedProduct}
-                categories={categories}
-                onSave={handleSave}
             />
 
             {/* ── Confirmation suppression ── */}

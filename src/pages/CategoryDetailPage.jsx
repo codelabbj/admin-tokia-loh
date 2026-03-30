@@ -129,8 +129,6 @@ const CategoryDetailPage = () => {
     const { categories, loading: catLoading, update: updateCategory } = useCategories();
     const { products, loading: prodLoading, update: updateProduct } = useProducts();
 
-    const [modalOpen, setModalOpen] = useState(false);
-
     // Cherche la catégorie dans la liste
     const category = useMemo(() =>
         categories.find(c => String(c.id) === String(id)) ?? null,
@@ -166,14 +164,11 @@ const CategoryDetailPage = () => {
 
     if (!category) return null;
 
-    const handleCategorySave = async (formData) => {
-        await updateCategory(category.id, formData);
-        setModalOpen(false);
-    };
-
     const handleToggleStatus = () => {
         updateCategory(category.id, { is_active: !category.is_active });
     };
+
+    const handleEdit = () => navigate(`/categories/${category.id}/edit`);
 
     return (
         <div className="flex flex-col gap-6">
@@ -190,7 +185,7 @@ const CategoryDetailPage = () => {
                         <p className="text-xs font-poppins text-neutral-6 mt-0.5">Détail de la catégorie</p>
                     </div>
                 </div>
-                <Button variant="primary" size="normal" onClick={() => setModalOpen(true)}>
+                <Button variant="primary" size="normal" onClick={handleEdit}>
                     <Pencil size={14} /> Modifier la catégorie
                 </Button>
             </div>
@@ -253,14 +248,6 @@ const CategoryDetailPage = () => {
                 </div>
                 <CategoryProductsTable products={catProducts} onUpdate={updateProduct} navigate={navigate} />
             </div>
-
-            {/* ── Modal modification ── */}
-            <CategoryFormModal
-                open={modalOpen}
-                onClose={() => setModalOpen(false)}
-                category={category}
-                onSave={handleCategorySave}
-            />
         </div>
     );
 };

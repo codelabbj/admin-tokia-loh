@@ -5,7 +5,7 @@ import { NavLink } from 'react-router';
 import {
     LayoutDashboard, Package, Grid2X2, ShoppingCart,
     Users, MapPin, Bell, BarChart2, Settings,
-    LogOut, ChevronLeft, ChevronRight, Rss
+    LogOut, ChevronLeft, ChevronRight, Rss, Images, FolderOpen
 } from 'lucide-react';
 import LogoutConfirmModal from '../LogoutConfirmModal';
 
@@ -23,6 +23,7 @@ const navSecondary = [
     { to: '/notifications', icon: Bell, label: 'Notifications' },
     { to: '/publish', icon: Rss, label: 'Publicité' },
     { to: '/reports', icon: BarChart2, label: 'Rapports' },
+    { to: '/media', icon: Images, label: 'Médiathèque' },
     { to: '/settings', icon: Settings, label: 'Paramètres' },
 ];
 
