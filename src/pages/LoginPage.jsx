@@ -124,7 +124,8 @@ const LoginPage = () => {
                             onChange={handleChange}
                             placeholder="admin@tokia-loh.com"
                             error={errors.email}
-                            icon={<Mail size={15} className="text-neutral-5" />}
+                            icon={<Mail size={15} />}
+                            autoComplete="username"
                             required
                         />
 
@@ -136,7 +137,8 @@ const LoginPage = () => {
                             onChange={handleChange}
                             placeholder="••••••••"
                             error={errors.password}
-                            icon={<Lock size={15} className="text-neutral-5" />}
+                            icon={<Lock size={15} />}
+                            autoComplete="current-password"
                             required
                         />
 

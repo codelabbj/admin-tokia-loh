@@ -15,6 +15,7 @@ const InputField = ({
     required = false,
     disabled = false,
     icon,          // icône à gauche
+    autoComplete,
     ...props
 }) => {
     const [showPassword, setShowPassword] = useState(false);
@@ -23,13 +24,14 @@ const InputField = ({
     const inputType = isPassword ? (showPassword ? 'text' : 'password') : type;
 
     const baseInput = `
-        w-full rounded-rounded-h2) border border-neutral-5 bg-neutral-0
+        w-full rounded-lg border border-neutral-5 bg-neutral-1
         px-4 py-2.5 text-small text-neutral-8
         placeholder:text-neutral-6 font-poppins
         outline-none
         transition-all duration-200
         focus:border-primary-1 focus:ring-2 focus:ring-primary-5
         disabled:bg-neutral-3 disabled:cursor-not-allowed disabled:text-neutral-6
+        dark:bg-neutral-1 dark:border-neutral-5 dark:text-neutral-8
         ${error ? 'border-danger-1 focus:border-danger-1 focus:ring-danger-2' : ''}
         ${icon ? 'pl-10' : ''}
         ${isPassword ? 'pr-10' : ''}
@@ -99,10 +101,13 @@ const InputField = ({
                 </label>
             )}
 
-            <div className="relative w-full">
-                {/* Icône gauche */}
+            <div className="relative z-0 isolate w-full">
+                {/* Icône gauche — au-dessus du calque autofill Chrome */}
                 {icon && (
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-6">
+                    <span
+                        className="pointer-events-none absolute left-3 top-1/2 z-20 -translate-y-1/2 text-neutral-6 dark:text-neutral-6 [&_svg]:text-neutral-6 dark:[&_svg]:text-neutral-6"
+                        aria-hidden
+                    >
                         {icon}
                     </span>
                 )}
@@ -115,8 +120,8 @@ const InputField = ({
                     onChange={onChange}
                     required={required}
                     disabled={disabled}
-                    className={baseInput}
-                    autoComplete='off'
+                    className={`${baseInput} relative z-0`}
+                    autoComplete={autoComplete ?? 'off'}
                     {...props}
                 />
 
@@ -125,8 +130,9 @@ const InputField = ({
                     <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-6 hover:text-neutral-8 transition-colors"
+                        className="absolute right-3 top-1/2 z-20 -translate-y-1/2 text-neutral-6 hover:text-neutral-8 dark:text-neutral-6 dark:hover:text-neutral-8 transition-colors cursor-pointer"
                         tabIndex={-1}
+                        aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                     >
                         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
