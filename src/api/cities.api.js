@@ -15,9 +15,12 @@ import api from "./client";
  * }
  */
 class CitiesAPI {
-  /** Liste toutes les villes. */
-  list() {
-    return api.get("/accounts/cities/");
+  /**
+   * Liste les villes.
+   * @param {{ ordering?: string }} params — ex. '-created_at'
+   */
+  list(params = {}) {
+    return api.get("/accounts/cities/", { params });
   }
 
   /**

@@ -110,6 +110,15 @@ const MediaPickerModal = ({
 
     const isSelected = (file) => selected.some(f => f.id === file.id);
 
+    // Double-clic : en sélection unique (une seule image), on valide directement.
+    const handleTileDoubleClick = (file, fileType) => {
+        if (multiple) return;
+        if (fileType !== 'image') return;
+        setSelected([file]);
+        onSelect?.(file);
+        onClose();
+    };
+
     const handleConfirm = () => {
         if (!selected.length) return;
         onSelect(multiple ? selected : selected[0]);
@@ -242,6 +251,8 @@ const MediaPickerModal = ({
                                                 key={file.id}
                                                 type="button"
                                                 onClick={() => toggleSelect(file)}
+                                                onDoubleClick={() => handleTileDoubleClick(file, type)}
+                                                title={!multiple && type === 'image' ? 'Double-clic pour sélectionner' : undefined}
                                                 className={`
                                                     relative aspect-square rounded-2 overflow-hidden border-2
                                                     transition-all duration-150 cursor-pointer group

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Calendar } from 'lucide-react';
+import { Calendar, Filter } from 'lucide-react';
+import Button from '../Button';
 
 const PERIODS = [
     { key: 'day', label: "Aujourd'hui" },
@@ -8,7 +9,15 @@ const PERIODS = [
 ];
 
 
-const ReportFilters = ({ period, onPeriodChange, dateFrom, dateTo, onDateChange }) => {
+const ReportFilters = ({
+    period,
+    onPeriodChange,
+    dateFrom,
+    dateTo,
+    onDateChange,
+    onApplyDateRange,
+    applyDateDisabled = false,
+}) => {
     return (
         <div className="
             flex flex-wrap items-center gap-3
@@ -75,6 +84,19 @@ const ReportFilters = ({ period, onPeriodChange, dateFrom, dateTo, onDateChange 
                         transition-all duration-200 cursor-pointer
                     "
                 />
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    icon={<Filter size={14} />}
+                    iconPosition="left"
+                    disabled={applyDateDisabled}
+                    onClick={onApplyDateRange}
+                    title="Appliquer la plage de dates sélectionnée"
+                    className="shrink-0"
+                >
+                    Appliquer les dates
+                </Button>
             </div>
         </div>
     );

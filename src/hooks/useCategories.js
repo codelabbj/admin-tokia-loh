@@ -1,8 +1,20 @@
 import { useState, useEffect, useCallback } from "react";
 import { categoriesAPI } from "../api/categories.api";
+import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
 import { filesAPI } from "../api/files.api";
 
+/** Aligné sur la liste paginée admin — parcourt toutes les pages en interne. */
+export const CATEGORIES_PAGE_SIZE = 50;
+
 const USE_MOCK = false; // 🔧 Branché sur la vraie API
+
+/**
+ * Normalise l’API (status) vers les composants (is_active).
+ */
+export const normalizeCategory = (c) => ({
+  ...c,
+  is_active: c.status ?? c.is_active ?? true,
+});
 
 const MOCK_CATEGORIES = [
   {
@@ -82,10 +94,13 @@ const resolveIconUrl = async (icon) => {
  *
  * Usage :
  *   const { categories, loading, error, create, update, remove } = useCategories();
+ * @param {{ skipInitialFetch?: boolean }} options — true sur CategoriesPage (liste paginée séparée)
  */
-export const useCategories = () => {
+export const useCategories = (options = {}) => {
+  const skipInitialFetch = options.skipInitialFetch === true;
+
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!skipInitialFetch);
   const [error, setError] = useState(null);
 
   const fetchAll = useCallback(async () => {
@@ -96,16 +111,21 @@ export const useCategories = () => {
         await new Promise((r) => setTimeout(r, 400));
         setCategories(MOCK_CATEGORIES);
       } else {
-        const { data } = await categoriesAPI.list();
-        // Django REST : { count, next, previous, results: [...] }
-        // ⚠️  L'API retourne "status" — on normalise en "is_active" pour les composants
-        const list = Array.isArray(data) ? data : (data.results ?? []);
-        setCategories(
-          list.map((c) => ({
-            ...c,
-            is_active: c.status ?? c.is_active ?? true,
-          })),
-        );
+        let merged = [];
+        let pageNum = 1;
+        for (;;) {
+          const { data } = await categoriesAPI.list({
+            page: pageNum,
+            page_size: CATEGORIES_PAGE_SIZE,
+            ordering: ORDERING_NEWEST_FIRST,
+          });
+          const list = Array.isArray(data) ? data : (data.results ?? []);
+          merged = merged.concat(list.map(normalizeCategory));
+          if (!data.next || list.length === 0) break;
+          pageNum += 1;
+        }
+        // Fallback front : sécurité si le backend n'applique pas `ordering`.
+        setCategories(merged);
       }
     } catch (err) {
       setError(err.message ?? "Erreur lors du chargement des catégories");
@@ -115,8 +135,8 @@ export const useCategories = () => {
   }, []);
 
   useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+    if (!skipInitialFetch) fetchAll();
+  }, [skipInitialFetch, fetchAll]);
 
   // ── Créer ─────────────────────────────────────────────────
   const create = async (formData) => {
@@ -146,11 +166,10 @@ export const useCategories = () => {
 
     const { data } = await categoriesAPI.create(payload);
     // Normalise "status" → "is_active" pour les composants
-    const normalized = {
-      ...data,
-      is_active: data.status ?? data.is_active ?? true,
-    };
-    setCategories((prev) => [...prev, normalized]);
+    const normalized = normalizeCategory(data);
+    if (!skipInitialFetch) {
+      setCategories((prev) => [...prev, normalized]);
+    }
     return normalized;
   };
 
@@ -163,18 +182,18 @@ export const useCategories = () => {
       return { ...formData, id };
     }
 
-    // Mise à jour optimiste immédiate (avec preview si dispo)
-    setCategories((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-        return {
-          ...c,
-          ...formData,
-          // Garde l'ancienne icône visuellement jusqu'à la confirmation API
-          icon: typeof formData.icon === "string" ? formData.icon : c.icon,
-        };
-      }),
-    );
+    if (!skipInitialFetch) {
+      setCategories((prev) =>
+        prev.map((c) => {
+          if (c.id !== id) return c;
+          return {
+            ...c,
+            ...formData,
+            icon: typeof formData.icon === "string" ? formData.icon : c.icon,
+          };
+        }),
+      );
+    }
 
     try {
       // Upload l'image si c'est un File, sinon garde l'URL existante
@@ -192,16 +211,17 @@ export const useCategories = () => {
 
       const { data } = await categoriesAPI.update(id, payload);
       // Normalise status → is_active pour les composants
-      const normalized = {
-        ...data,
-        is_active: data.status ?? data.is_active ?? true,
-      };
-      setCategories((prev) => prev.map((c) => (c.id === id ? normalized : c)));
+      const normalized = normalizeCategory(data);
+      if (!skipInitialFetch) {
+        setCategories((prev) =>
+          prev.map((c) => (c.id === id ? normalized : c)),
+        );
+      }
       return normalized;
     } catch (err) {
       // Rollback en cas d'erreur
       setError(err.message ?? "Erreur mise à jour catégorie");
-      fetchAll();
+      if (!skipInitialFetch) fetchAll();
       throw err;
     }
   };
@@ -213,12 +233,14 @@ export const useCategories = () => {
       return;
     }
 
-    setCategories((prev) => prev.filter((c) => c.id !== id)); // Optimiste
+    if (!skipInitialFetch) {
+      setCategories((prev) => prev.filter((c) => c.id !== id));
+    }
     try {
       await categoriesAPI.delete(id);
     } catch (err) {
       setError(err.message ?? "Erreur suppression catégorie");
-      fetchAll(); // Rollback
+      if (!skipInitialFetch) fetchAll();
       throw err;
     }
   };

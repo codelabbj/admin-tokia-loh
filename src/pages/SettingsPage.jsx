@@ -6,8 +6,10 @@ import {
     Settings2,
     ChevronRight,
     Sparkles,
+    Building2,
 } from 'lucide-react';
 import SettingsBannersManager from '../components/settings/SettingsBannersManager';
+import SettingsCompanyForm from '../components/settings/SettingsCompanyForm';
 import SettingsPasswordForm from '../components/settings/SettingsPasswordForm';
 import SettingsAdminsManager from '../components/settings/SettingsAdminsManager';
 import { useAdmin } from '../hooks/useAdmin';
@@ -62,6 +64,13 @@ const SettingsPage = () => {
                 description: "Visuels promotionnels sur la vitrine",
                 icon: Megaphone,
                 accent: 'primary',
+            },
+            {
+                id: 'company',
+                label: 'Entreprise',
+                description: 'Identité, contact et liens affichés sur les factures',
+                icon: Building2,
+                accent: 'secondary',
             },
             {
                 id: 'password',
@@ -292,6 +301,15 @@ const SettingsPage = () => {
                             description="Gérez les visuels affichés sur l’application et le site. Format et poids des fichiers selon les consignes techniques."
                         >
                             <SettingsBannersManager />
+                        </SettingsPanel>
+                    )}
+
+                    {validTabId === 'company' && (
+                        <SettingsPanel
+                            title="Fiche entreprise"
+                            description="Informations légales et de contact synchronisées avec l’API (GET/PATCH /accounts/company/). Elles sont reprises sur les factures PDF."
+                        >
+                            <SettingsCompanyForm />
                         </SettingsPanel>
                     )}
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { TrendingUp, ShoppingCart, Package, BarChart2, Loader2, AlertCircle } from 'lucide-react';
 import StatCard from '../components/dashboard/StatCard';
 import ReportFilters from '../components/reports/ReportFilters';
@@ -44,15 +44,29 @@ const ReportsPage = () => {
         fetch({ period: p });
     };
 
+    const runDateRangeFetch = useCallback((from, to) => {
+        if (!from || !to) return;
+        if (from > to) {
+            toast.error('La date de début doit être antérieure ou égale à la date de fin.');
+            return;
+        }
+        lastErrorRef.current = null;
+        setPeriod(null);
+        fetch({ dateFrom: from, dateTo: to });
+    }, [fetch, toast]);
+
     const handleDateChange = ({ from, to }) => {
         setDateFrom(from);
         setDateTo(to);
+        if (from && to) runDateRangeFetch(from, to);
+    };
 
-        if (from && to) {
-            lastErrorRef.current = null;
-            setPeriod(null);
-            fetch({ dateFrom: from, dateTo: to });
+    const handleApplyDateRange = () => {
+        if (!dateFrom || !dateTo) {
+            toast.error('Sélectionnez une date de début et une date de fin.');
+            return;
         }
+        runDateRangeFetch(dateFrom, dateTo);
     };
 
     if (loading) return (
@@ -108,6 +122,8 @@ const ReportsPage = () => {
                 dateFrom={dateFrom}
                 dateTo={dateTo}
                 onDateChange={handleDateChange}
+                onApplyDateRange={handleApplyDateRange}
+                applyDateDisabled={!dateFrom || !dateTo || dateFrom > dateTo}
             />
 
             {/* ── Stats ── */}

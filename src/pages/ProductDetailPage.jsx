@@ -7,7 +7,8 @@ import {
     Package, CheckCircle, XCircle, AlertTriangle, Loader2,
     ChevronLeft, ChevronRight, Play, ImageOff
 } from 'lucide-react';
-import { useProducts } from '../hooks/useProducts';
+import { useProducts, normalizeProduct } from '../hooks/useProducts';
+import { productsAPI } from '../api/products.api';
 import { useCategories } from '../hooks/useCategories';
 import Button from '../components/Button';
 import ProductBadge from '../components/products/ProductBadge';
@@ -138,32 +139,52 @@ const Section = ({ title, children }) => (
 const ProductDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { products, loading, update } = useProducts();
+    const { products, loading: productsLoading, update } = useProducts();
     const { categories } = useCategories();
 
     const [activeIndex, setActiveIndex] = useState(0);
+    const [productFromDetail, setProductFromDetail] = useState(null);
 
-    const product = useMemo(() =>
-        products.find(p => String(p.id) === String(id)) ?? null,
-        [products, id]);
+    const productFromList = useMemo(
+        () => products.find(p => String(p.id) === String(id)) ?? null,
+        [products, id],
+    );
+    const product = productFromList ?? productFromDetail;
+
+    const needsDetailFetch =
+        !!id && !productsLoading && !productFromList;
+
+    useEffect(() => {
+        if (productFromList) setProductFromDetail(null);
+    }, [productFromList]);
 
     useEffect(() => {
         if (product) document.title = `Admin Tokia-Loh | ${product.name}`;
     }, [product]);
 
     useEffect(() => {
-        if (!loading && products.length > 0 && !product) {
-            navigate('/products', { replace: true });
-        }
-    }, [loading, products, product, navigate]);
+        if (!needsDetailFetch) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const { data } = await productsAPI.detail(id);
+                if (!cancelled) setProductFromDetail(normalizeProduct(data));
+            } catch {
+                if (!cancelled) navigate('/products', { replace: true });
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [needsDetailFetch, id, navigate]);
 
     useEffect(() => { setActiveIndex(0); }, [id]);
 
-    if (loading) return (
-        <div className="flex items-center justify-center h-64">
-            <Loader2 size={24} className="animate-spin text-primary-1" />
-        </div>
-    );
+    if (productsLoading || (needsDetailFetch && !productFromDetail)) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Loader2 size={24} className="animate-spin text-primary-1" />
+            </div>
+        );
+    }
     if (!product) return null;
 
     // ── Données ───────────────────────────────────────────────
@@ -172,7 +193,10 @@ const ProductDetailPage = () => {
     // API : status (bool), original_price (prix barré)
     const isActive = product.status ?? product.is_active ?? true;
     const discount = calcDiscount(product.price, product.original_price);
-    const stockBadge = product.stock === 0 ? 'out-of-stock' : product.stock <= 5 ? 'low-stock' : null;
+    const unlimitedStock = product.unlimited_stock === true;
+    const stockBadge = unlimitedStock
+        ? 'unlimited-stock'
+        : product.stock === 0 ? 'out-of-stock' : product.stock <= 5 ? 'low-stock' : null;
 
 
     const secondaryImages = (product.secondary_images ?? []).filter(Boolean);
@@ -336,11 +360,14 @@ const ProductDetailPage = () => {
                         </InfoRow>
                         <InfoRow label="Stock disponible">
                             <span className={
-                                product.stock === 0 ? 'text-danger-1' :
-                                    product.stock <= 5 ? 'text-warning-1' :
-                                        'text-success-1'
+                                unlimitedStock ? 'text-primary-1 font-semibold' :
+                                    product.stock === 0 ? 'text-danger-1' :
+                                        product.stock <= 5 ? 'text-warning-1' :
+                                            'text-success-1'
                             }>
-                                {product.stock} unité{product.stock !== 1 ? 's' : ''}
+                                {unlimitedStock
+                                    ? 'Illimité — toujours disponible'
+                                    : `${product.stock} unité${product.stock !== 1 ? 's' : ''}`}
                             </span>
                         </InfoRow>
                         <InfoRow label="Statut">
@@ -426,7 +453,7 @@ const ProductDetailPage = () => {
                     )}
 
                     {/* Alertes stock */}
-                    {product.stock > 0 && product.stock <= 5 && (
+                    {!unlimitedStock && product.stock > 0 && product.stock <= 5 && (
                         <div className="flex items-start gap-3 bg-warning-2 border border-warning-1 rounded-3 px-4 py-3">
                             <AlertTriangle size={14} className="text-warning-1 shrink-0 mt-0.5" />
                             <p className="text-xs font-poppins font-medium text-warning-1 leading-relaxed">
@@ -434,7 +461,7 @@ const ProductDetailPage = () => {
                             </p>
                         </div>
                     )}
-                    {product.stock === 0 && (
+                    {!unlimitedStock && product.stock === 0 && (
                         <div className="flex items-start gap-3 bg-danger-2 border border-danger-1 rounded-3 px-4 py-3">
                             <AlertTriangle size={14} className="text-danger-1 shrink-0 mt-0.5" />
                             <p className="text-xs font-poppins font-medium text-danger-1 leading-relaxed">

@@ -72,10 +72,15 @@ class DashboardAPI {
    * Liste complète des commandes avec items et total.
    * /shop/dashboard/orders/
    * Retourne : { count, total_pages, results: [{ id, client, status, total, items, ... }] }
-   * @param {{ status?, search?, ordering?, page? }} params
+   * @param {{ status?, search?, ordering?, page?, page_size? }} params
    */
   listOrders(params = {}) {
     return api.get("/shop/dashboard/orders/", { params });
+  }
+
+  /** Détail d'une commande (liste complète des champs + items). */
+  getOrderDetail(id) {
+    return api.get(`/shop/dashboard/orders/${id}/`);
   }
 
   /**
@@ -95,8 +100,10 @@ class DashboardAPI {
   }
 
   /** Historique des commandes d'un client. */
-  getClientOrderHistory(clientId) {
-    return api.get(`/shop/dashboard/orders/client/${clientId}/history/`);
+  getClientOrderHistory(clientId, params = {}) {
+    return api.get(`/shop/dashboard/orders/client/${clientId}/history/`, {
+      params,
+    });
   }
 
   /** Stats clients. */

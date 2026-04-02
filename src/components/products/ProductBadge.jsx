@@ -1,9 +1,9 @@
 import React from 'react';
-import { Star, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { Star, AlertTriangle, CheckCircle, XCircle, Infinity as InfinityIcon } from 'lucide-react';
 
 /*
   Props :
-  - type : 'featured' | 'low-stock' | 'out-of-stock' | 'active' | 'inactive'
+  - type : 'featured' | 'low-stock' | 'out-of-stock' | 'unlimited-stock' | 'active' | 'inactive'
 */
 
 const BADGE_CONFIG = {
@@ -21,6 +21,11 @@ const BADGE_CONFIG = {
         label: 'Rupture',
         icon: <AlertTriangle size={11} />,
         class: 'bg-danger-2 text-danger-1',
+    },
+    'unlimited-stock': {
+        label: 'Stock illimité',
+        icon: <InfinityIcon size={11} />,
+        class: 'bg-primary-5 text-primary-1',
     },
     active: {
         label: 'Actif',

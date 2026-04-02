@@ -1,12 +1,12 @@
 import React from 'react';
-import { X, User, Phone, MapPin, Calendar, ShoppingCart, TrendingUp, Ban, PauseCircle, Trash2 } from 'lucide-react';
+import { X, User, Phone, MapPin, Calendar, ShoppingCart, TrendingUp, PauseCircle } from 'lucide-react';
 import Button from '../Button';
 import ClientStatusBadge from './ClientStatusBadge';
 import OrderStatusBadge from '../orders/OrderStatusBadge';
 
 const formatPrice = (p) => `${Number(p).toLocaleString('fr-FR')} F`;
 
-const ClientDetailModal = ({ open, onClose, client, onDisable, onBlock, onDelete }) => {
+const ClientDetailModal = ({ open, onClose, client, onDisable }) => {
     if (!open || !client) return null;
 
     const totalSpent = client.orders?.reduce((acc, o) => acc + o.total, 0) ?? 0;
@@ -153,35 +153,16 @@ const ClientDetailModal = ({ open, onClose, client, onDisable, onBlock, onDelete
                     {/* ── Footer : actions ── */}
                     <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-neutral-4 dark:border-neutral-4 shrink-0 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
-                            {/* Désactiver / Réactiver */}
-                            <Button
-                                variant={client.status === 'Désactivé' ? 'outline' : 'ghost'}
-                                size="sm"
-                                icon={<PauseCircle size={14} />}
-                                onClick={() => onDisable?.(client)}
-                            >
-                                {client.status === 'Désactivé' ? 'Réactiver' : 'Désactiver'}
-                            </Button>
-
-                            {/* Bloquer / Débloquer */}
-                            <Button
-                                variant={client.status === 'Bloqué' ? 'outline' : 'dangerOutline'}
-                                size="sm"
-                                icon={<Ban size={14} />}
-                                onClick={() => onBlock?.(client)}
-                            >
-                                {client.status === 'Bloqué' ? 'Débloquer' : 'Bloquer'}
-                            </Button>
-
-                            {/* Supprimer */}
-                            <Button
-                                variant="danger"
-                                size="sm"
-                                icon={<Trash2 size={14} />}
-                                onClick={() => onDelete?.(client)}
-                            >
-                                Supprimer
-                            </Button>
+                            {client.status !== 'Désactivé' && (
+                                <Button
+                                    variant="dangerOutline"
+                                    size="sm"
+                                    icon={<PauseCircle size={14} />}
+                                    onClick={() => onDisable?.(client)}
+                                >
+                                    Désactiver le client
+                                </Button>
+                            )}
                         </div>
 
                         <Button variant="ghost" size="sm" onClick={onClose}>

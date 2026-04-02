@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, MapPin, CheckCircle, XCircle, Truck } from 'lucide-react';
 import { useVilles } from '../hooks/useVilles';
+import { useOrders, getOrderDeliveryCity } from '../hooks/useOrders';
 import Button from '../components/Button';
 import StatCard from '../components/dashboard/StatCard';
 import VillesTable from '../components/villes/VillesTable';
@@ -10,6 +11,9 @@ import { useToast } from '../components/ui/ToastProvider';
 
 const VillesPage = () => {
     const { villes, loading, error, create, update, remove } = useVilles();
+    const { orders: allOrders, loading: ordersLoading } = useOrders({
+        loadAllPages: true,
+    });
     const { toast } = useToast();
 
     const [modalOpen, setModalOpen] = useState(false);
@@ -32,6 +36,18 @@ const VillesPage = () => {
             : 0;
         return { total, actives, inactives, avgFee };
     }, [villes]);
+
+    const cityKeysWithOrders = useMemo(() => {
+        const set = new Set();
+        for (const o of allOrders) {
+            const key = getOrderDeliveryCity(o).toLowerCase();
+            if (key) set.add(key);
+        }
+        return set;
+    }, [allOrders]);
+
+    const villeHasOrders = (ville) =>
+        cityKeysWithOrders.has(String(ville?.name ?? '').toLowerCase());
 
     // ── Handlers ────────────────────────────────────────────
     const handleCreate = () => { setSelectedVille(null); setModalOpen(true); };
@@ -64,11 +80,29 @@ const VillesPage = () => {
     };
 
     const handleDelete = (ville) => {
+        if (ordersLoading) {
+            toast.error('Chargement des commandes… réessayez dans un instant.');
+            return;
+        }
+        if (villeHasOrders(ville)) {
+            toast.error(
+                `Impossible de supprimer « ${ville.name} » : au moins une commande y est liée.`,
+            );
+            return;
+        }
         setDeleteTarget(ville);
     };
 
     const handleConfirmDelete = async () => {
         if (!deleteTarget) return;
+        const targetName = deleteTarget.name;
+        if (villeHasOrders(deleteTarget)) {
+            setDeleteTarget(null);
+            toast.error(
+                `Impossible de supprimer « ${targetName} » : au moins une commande y est liée.`,
+            );
+            return;
+        }
         setDeleteLoading(true);
         try {
             await remove(deleteTarget.id);
@@ -150,6 +184,8 @@ const VillesPage = () => {
             <VillesTable
                 villes={villes}
                 loading={loading}
+                ordersLoading={ordersLoading}
+                cityKeysWithOrders={cityKeysWithOrders}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onToggle={handleToggle}

@@ -22,7 +22,7 @@ class FilesAPI {
   }
 
   /**
-   * @param {{ page?: number, page_size?: number }} params
+   * @param {{ page?: number, page_size?: number, ordering?: string }} params
    */
   list(params = {}) {
     return api.get("/shop/files/", { params });

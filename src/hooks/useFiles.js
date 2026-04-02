@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { filesAPI } from "../api/files.api";
+import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
 
 /**
  * useFiles — état centralisé pour la médiathèque avec pagination.
@@ -44,6 +45,7 @@ export const useFiles = (pageSize = 50) => {
         const res = await filesAPI.list({
           page: targetPage,
           page_size: pageSize,
+          ordering: ORDERING_NEWEST_FIRST,
         });
         const data = res.data;
 

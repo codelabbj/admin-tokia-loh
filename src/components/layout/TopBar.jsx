@@ -7,6 +7,7 @@ import {
 import { useNavigate } from 'react-router';
 import LogoutConfirmModal from '../LogoutConfirmModal';
 import { useNotifications } from '../../hooks/useNotifications';
+import { getNotificationNavigatePath } from '../../utils/notificationTargets';
 import useTheme from '../../hooks/useTheme';
 import NotificationsBadge from '../notifications/NotificationsBadge';
 
@@ -194,7 +195,11 @@ const TopBar = ({ onMenuToggle, showSearch = true }) => {
                                     ) : previewNotifs.map((notif) => (
                                         <div
                                             key={notif.id}
-                                            onClick={() => markRead(notif.id)}
+                                            onClick={() => {
+                                                markRead(notif.id);
+                                                navigate(getNotificationNavigatePath(notif));
+                                                setNotifOpen(false);
+                                            }}
                                             className={`flex items-start gap-3 px-4 py-3
                                                 border-b border-neutral-4 dark:border-neutral-4 last:border-0
                                                 cursor-pointer transition-all duration-150

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { citiesAPI } from "../api/cities.api";
+import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
 
 /**
  * useVilles — gère la liste et le CRUD des villes de livraison.
@@ -25,7 +26,9 @@ export const useVilles = (options = {}) => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await citiesAPI.list();
+      const { data } = await citiesAPI.list({
+        ordering: ORDERING_NEWEST_FIRST,
+      });
       // Django REST retourne { count, next, previous, results: [...] }
       setVilles(Array.isArray(data) ? data : (data.results ?? []));
     } catch (err) {

@@ -1,7 +1,15 @@
 import api from "./client";
 
+/**
+ * Auth admin — le renouvellement du JWT (refresh) est géré dans api/client.js
+ * (intercepteur 401). Le back doit exposer POST {VITE_AUTH_REFRESH_PATH}
+ * (défaut /accounts/token/refresh/) avec body { refresh } → { access, refresh? }.
+ */
 class AuthAPI {
-  /** Connexion admin. */
+  /**
+   * Connexion admin.
+   * Réponse attendue : success, access, refresh, exp, user: { id, email, is_admin?, is_superuser? }
+   */
   login(email, password) {
     return api.post("/accounts/admin/login/", { email, password });
   }

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import { Plus, Package } from 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
+import { useProductsList } from '../hooks/useProductsList';
 import { useCategories } from '../hooks/useCategories';
 import Button from '../components/Button';
 import ProductsTable from '../components/products/ProductsTable';
@@ -9,7 +10,8 @@ import StatCard from '../components/dashboard/StatCard';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 
 const ProductsPage = () => {
-    const { products, loading, create, update, remove } = useProducts();
+    const list = useProductsList();
+    const { update, remove } = useProducts({ skipInitialFetch: true });
     const { categories } = useCategories();
     const navigate = useNavigate();
 
@@ -20,14 +22,30 @@ const ProductsPage = () => {
         document.title = 'Admin Tokia-Loh | Produits';
     }, []);
 
-    // ── Stats calculées depuis les vraies données ─────────────
+    const handleUpdate = useCallback(
+        async (id, payload) => {
+            await update(id, payload);
+            list.refetch();
+        },
+        [update, list],
+    );
+
+    // ── Stats : uniquement les produits de la page courante (réponse API, avant filtres locaux du tableau) ──
     const stats = useMemo(() => {
-        const total = products.length;
-        const active = products.filter(p => p.status).length;
-        const lowStock = products.filter(p => p.stock > 0 && p.stock <= 5).length;
-        const outStock = products.filter(p => p.stock === 0).length;
-        return { total, active, lowStock, outStock };
-    }, [products]);
+        const pageProducts = list.products;
+        const total = pageProducts.length;
+        const active = pageProducts.filter(p => p.status).length;
+        const lowStock = pageProducts.filter(p => !p.unlimited_stock && p.stock > 0 && p.stock <= 5).length;
+        const outStock = pageProducts.filter(p => !p.unlimited_stock && p.stock === 0).length;
+        const activePct = total > 0 ? Math.round((active / total) * 100) : 0;
+        return {
+            total,
+            active,
+            lowStock,
+            outStock,
+            activePct,
+        };
+    }, [list.products]);
 
     const handleCreate = () => navigate('/products/new');
 
@@ -40,9 +58,28 @@ const ProductsPage = () => {
     const handleConfirmDelete = async () => {
         if (!deleteTarget) return;
         setDeleteLoading(true);
-        await remove(deleteTarget.id);
-        setDeleteLoading(false);
-        setDeleteTarget(null);
+        try {
+            await remove(deleteTarget.id);
+            list.refetch();
+        } finally {
+            setDeleteLoading(false);
+            setDeleteTarget(null);
+        }
+    };
+
+    const serverFilters = {
+        search: list.search,
+        onSearchChange: list.setSearch,
+        categoryId: list.categoryId,
+        onCategoryIdChange: list.setCategoryId,
+    };
+
+    const pagination = {
+        page: list.page,
+        totalPages: list.totalPages,
+        totalCount: list.totalCount,
+        pageSize: list.pageSize,
+        onPageChange: list.setPage,
     };
 
     return (
@@ -64,48 +101,56 @@ const ProductsPage = () => {
                 </Button>
             </div>
 
-            {/* ── Stats ── */}
+            {/* ── Stats (page courante uniquement) ── */}
+            {!list.loading && (
+                <p className="text-[11px] font-poppins text-neutral-6 dark:text-neutral-6 -mb-2">
+                    Statistiques pour la page {list.page} sur {list.totalPages}
+                    {stats.total > 0 ? ` · ${stats.total} produit${stats.total > 1 ? 's' : ''} sur cette page` : ' · Aucun produit sur cette page'}
+                </p>
+            )}
             <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <StatCard
                     title="Total produits"
-                    value={loading ? '…' : stats.total.toString()}
+                    value={list.loading ? '…' : stats.total.toString()}
                     icon={<Package size={18} />}
                     color="primary"
                 />
                 <StatCard
                     title="Produits actifs"
-                    value={loading ? '…' : stats.active.toString()}
+                    value={list.loading ? '…' : stats.active.toString()}
                     icon={<Package size={18} />}
                     trend="up"
-                    trendLabel={loading ? '' : `${stats.total ? Math.round((stats.active / stats.total) * 100) : 0}%`}
+                    trendLabel={list.loading || stats.total === 0 ? '' : `${stats.activePct}% de la page`}
                     color="success"
                 />
                 <StatCard
                     title="Stock faible"
-                    value={loading ? '…' : stats.lowStock.toString()}
+                    value={list.loading ? '…' : stats.lowStock.toString()}
                     icon={<Package size={18} />}
-                    trend="down"
-                    trendLabel="À réapprovisionner"
+                    trend={stats.lowStock > 0 ? 'down' : 'neutral'}
+                    trendLabel={list.loading || stats.total === 0 ? '' : stats.lowStock > 0 ? 'Sur cette page' : 'Aucun'}
                     color="warning"
                 />
                 <StatCard
                     title="Ruptures"
-                    value={loading ? '…' : stats.outStock.toString()}
+                    value={list.loading ? '…' : stats.outStock.toString()}
                     icon={<Package size={18} />}
-                    trend="down"
-                    trendLabel="Urgent"
+                    trend={stats.outStock > 0 ? 'down' : 'neutral'}
+                    trendLabel={list.loading || stats.total === 0 ? '' : stats.outStock > 0 ? 'Sur cette page' : 'Aucune'}
                     color="danger"
                 />
             </div>
 
             {/* ── Tableau ── */}
             <ProductsTable
-                products={products}
-                loading={loading}
+                products={list.products}
+                loading={list.loading}
                 categories={categories}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                onUpdate={update}
+                onUpdate={handleUpdate}
+                serverFilters={serverFilters}
+                pagination={pagination}
             />
 
             {/* ── Confirmation suppression ── */}

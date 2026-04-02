@@ -1,14 +1,32 @@
-import React, { useState, useEffect } from 'react';
-import { Users, UserCheck, UserMinus, UserX, Loader2, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Users, UserCheck, UserMinus, UserX, AlertCircle } from 'lucide-react';
+import { useSearchParams } from 'react-router';
 import StatCard from '../components/dashboard/StatCard';
 import ClientsTable from '../components/clients/ClientsTable';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { useToast } from '../hooks/useToast';
 import ToastContainer from '../components/ToastContainer';
-import { useClients, deriveStatus } from '../hooks/useClients';
+import { useClients, deriveStatus, CLIENTS_LIST_PAGE_SIZE } from '../hooks/useClients';
+import { findClientListPage } from '../utils/findListPage';
 
 const ClientsPage = () => {
-    const { clients, loading, error, deactivate } = useClients();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const highlightClient = searchParams.get('highlightClient')?.trim() ?? '';
+    const resolvingRef = useRef(false);
+    const [tableFlashId, setTableFlashId] = useState('');
+
+    const {
+        clients,
+        loading,
+        error,
+        deactivate,
+        reactivate,
+        page,
+        setPage,
+        totalPages,
+        totalCount,
+        pageSize,
+    } = useClients();
     const { toasts, showToast, removeToast } = useToast();
     const [deleteTarget, setDeleteTarget] = useState(null);
 
@@ -16,22 +34,66 @@ const ClientsPage = () => {
         document.title = 'Admin Tokia-Loh | Clients';
     }, []);
 
+    useEffect(() => {
+        if (!highlightClient || loading) return;
+
+        const onPage = clients.some((c) => String(c.id) === highlightClient);
+        if (onPage) {
+            setTableFlashId(highlightClient);
+            const t = window.setTimeout(() => {
+                document.getElementById(`client-row-${highlightClient}`)?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                });
+                setSearchParams((p) => {
+                    p.delete('highlightClient');
+                    return p;
+                }, { replace: true });
+                window.setTimeout(() => setTableFlashId(''), 2200);
+            }, 80);
+            return () => clearTimeout(t);
+        }
+
+        if (resolvingRef.current) return;
+        resolvingRef.current = true;
+        (async () => {
+            try {
+                const targetPage = await findClientListPage(
+                    highlightClient,
+                    pageSize ?? CLIENTS_LIST_PAGE_SIZE,
+                );
+                if (targetPage != null) setPage(targetPage);
+                else {
+                    setSearchParams((p) => {
+                        p.delete('highlightClient');
+                        return p;
+                    }, { replace: true });
+                }
+            } finally {
+                resolvingRef.current = false;
+            }
+        })();
+    }, [highlightClient, loading, clients, setPage, setSearchParams, pageSize]);
+
     // Enrichit chaque client avec son statut dérivé des champs API
     const clientsWithStatus = clients.map(c => ({ ...c, status: deriveStatus(c) }));
 
     // ── Actions ───────────────────────────────────────────────
 
     const handleDisable = async (client) => {
-        // Réactivation non disponible côté API pour l'instant
-        if (client.is_active === false) {
-            showToast({ message: 'La réactivation n\'est pas encore disponible.', type: 'info' });
-            return;
-        }
         try {
-            await deactivate(client.id);
-            showToast({ message: `Client désactivé avec succès.` });
+            if (client.is_active === false) {
+                await reactivate(client.id);
+                showToast({ message: 'Client réactivé avec succès.' });
+            } else {
+                await deactivate(client.id);
+                showToast({ message: 'Client désactivé avec succès.' });
+            }
         } catch (err) {
-            showToast({ message: err.message ?? 'Erreur lors de la désactivation.', type: 'error' });
+            showToast({
+                message: err.message ?? 'Erreur lors de la mise à jour du client.',
+                type: 'error',
+            });
         }
     };
 
@@ -55,18 +117,11 @@ const ClientsPage = () => {
         showToast({ message: 'Suppression annulée.', type: 'info' });
     };
 
-    // ── Stats calculées depuis les données API ────────────────
-    const total = clientsWithStatus.length;
+    // ── Stats : total catalogue (count API) · répartition sur la page courante ──
+    const totalListed = clientsWithStatus.length;
     const actifs = clientsWithStatus.filter(c => c.status === 'Actif').length;
     const desactives = clientsWithStatus.filter(c => c.status === 'Désactivé').length;
     const bloques = clientsWithStatus.filter(c => c.status === 'Bloqué').length;
-
-    // ── États de chargement / erreur ──────────────────────────
-    if (loading) return (
-        <div className="flex items-center justify-center h-48">
-            <Loader2 size={24} className="animate-spin text-primary-1" />
-        </div>
-    );
 
     if (error) return (
         <div className="flex flex-col items-center justify-center gap-3 h-48 text-danger-1">
@@ -92,27 +147,31 @@ const ClientsPage = () => {
             <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <StatCard
                     title="Total clients"
-                    value={String(total)}
+                    value={loading ? '…' : String(totalCount)}
+                    caption="Tous les comptes (API)"
                     icon={<Users size={18} />}
                     color="primary"
                 />
                 <StatCard
                     title="Clients actifs"
-                    value={String(actifs)}
+                    value={loading ? '…' : String(actifs)}
+                    caption="Sur cette page"
                     icon={<UserCheck size={18} />}
                     color="success"
                     trend="up"
-                    trendLabel={total > 0 ? `${Math.round((actifs / total) * 100)}%` : '0%'}
+                    trendLabel={totalListed > 0 ? `${Math.round((actifs / totalListed) * 100)}%` : '0%'}
                 />
                 <StatCard
                     title="Désactivés"
-                    value={String(desactives)}
+                    value={loading ? '…' : String(desactives)}
+                    caption="Sur cette page"
                     icon={<UserMinus size={18} />}
                     color="warning"
                 />
                 <StatCard
                     title="Bloqués"
-                    value={String(bloques)}
+                    value={loading ? '…' : String(bloques)}
+                    caption="Sur cette page"
                     icon={<UserX size={18} />}
                     color="danger"
                 />
@@ -121,9 +180,18 @@ const ClientsPage = () => {
             {/* ── Tableau clients ── */}
             <ClientsTable
                 clients={clientsWithStatus}
+                loading={loading}
                 onDisable={handleDisable}
                 onBlock={handleBlock}
                 onDelete={handleDelete}
+                highlightRowId={highlightClient || tableFlashId}
+                pagination={{
+                    page,
+                    totalPages,
+                    totalCount,
+                    pageSize,
+                    onPageChange: setPage,
+                }}
             />
 
             {/* ── Modal suppression ── */}

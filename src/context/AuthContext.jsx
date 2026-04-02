@@ -22,11 +22,20 @@ export const AuthProvider = ({ children }) => {
         try {
             const { data } = await authAPI.login(email, password);
 
-            // ⚠️  v3 : { success, access, refresh, exp, user: { id, email } }
+            /**
+             * Réponse typique :
+             * { success, access, refresh, exp, user: { id, email, is_admin, is_superuser } }
+             */
             if (!data.success) throw new Error(data.message ?? 'Identifiants incorrects');
 
-            const token = data.access;   // JWT access token
-            const adminData = data.user;     // { id, email }
+            const token = data.access;
+            const u = data.user ?? {};
+            const adminData = {
+                id: u.id ?? null,
+                email: u.email ?? '',
+                is_admin: !!u.is_admin,
+                is_superuser: !!u.is_superuser,
+            };
 
             localStorage.setItem('token', token);
             localStorage.setItem('admin', JSON.stringify(adminData));

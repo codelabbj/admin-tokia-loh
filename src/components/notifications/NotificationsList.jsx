@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router';
 import { CheckCheck, Trash2, Loader2, AlertCircle, Bell, RefreshCw, BellOff } from 'lucide-react';
 import NotificationsBadge, { NOTIF_TYPE_CONFIG } from './NotificationsBadge';
 import Button from '../Button';
 import { useNotifications } from '../../hooks/useNotifications';
+import { getNotificationNavigatePath } from '../../utils/notificationTargets';
 
 const formatDate = (iso) => {
     if (!iso) return '—';
@@ -42,6 +44,7 @@ const FILTER_TABS = [
 ];
 
 const NotificationsList = () => {
+    const navigate = useNavigate();
     const {
         notifications, loading, loadingMore, error,
         hasMore, totalCount, loadMore,
@@ -179,33 +182,42 @@ const NotificationsList = () => {
                                     }
                                 `}
                             >
-                                {/* Dot non lu */}
-                                <div className="pt-4.5 shrink-0 w-2">
-                                    {!notif.read && (
-                                        <span className="block w-1.5 h-1.5 rounded-full bg-primary-1" />
-                                    )}
-                                </div>
-
-                                {/* Avatar */}
-                                <div className="pt-0.5">
-                                    <NotifAvatar type={notif.type} />
-                                </div>
-
-                                {/* Contenu */}
-                                <div className="flex-1 min-w-0 pt-0.5">
-                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                        <NotificationsBadge type={notif.type} />
-                                        <span className="text-[10px] font-poppins text-neutral-4">
-                                            {formatDate(notif.date)}
-                                        </span>
+                                <button
+                                    type="button"
+                                    className="flex items-start gap-3 flex-1 min-w-0 text-left cursor-pointer"
+                                    onClick={() => {
+                                        markRead(notif.id);
+                                        navigate(getNotificationNavigatePath(notif));
+                                    }}
+                                >
+                                    {/* Dot non lu */}
+                                    <div className="pt-4.5 shrink-0 w-2">
+                                        {!notif.read && (
+                                            <span className="block w-1.5 h-1.5 rounded-full bg-primary-1" />
+                                        )}
                                     </div>
-                                    <p className={`text-xs font-poppins leading-snug ${!notif.read ? 'font-semibold text-neutral-8 dark:text-neutral-8' : 'font-medium text-neutral-7 dark:text-neutral-7'}`}>
-                                        {notif.title}
-                                    </p>
-                                    <p className="text-xs font-poppins text-neutral-5 leading-relaxed mt-0.5">
-                                        {notif.message}
-                                    </p>
-                                </div>
+
+                                    {/* Avatar */}
+                                    <div className="pt-0.5">
+                                        <NotifAvatar type={notif.type} />
+                                    </div>
+
+                                    {/* Contenu */}
+                                    <div className="flex-1 min-w-0 pt-0.5">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            <NotificationsBadge type={notif.type} />
+                                            <span className="text-[10px] font-poppins text-neutral-4">
+                                                {formatDate(notif.date)}
+                                            </span>
+                                        </div>
+                                        <p className={`text-xs font-poppins leading-snug ${!notif.read ? 'font-semibold text-neutral-8 dark:text-neutral-8' : 'font-medium text-neutral-7 dark:text-neutral-7'}`}>
+                                            {notif.title}
+                                        </p>
+                                        <p className="text-xs font-poppins text-neutral-5 leading-relaxed mt-0.5">
+                                            {notif.message}
+                                        </p>
+                                    </div>
+                                </button>
 
                                 {/* ── Actions — toujours visibles ── */}
                                 <div className="flex items-center gap-1 shrink-0 pt-0.5">
@@ -219,6 +231,7 @@ const NotificationsList = () => {
                                         </button>
                                     )}
                                     <button
+                                        type="button"
                                         onClick={() => deleteNotif(notif.id)}
                                         title="Supprimer"
                                         className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-4 hover:bg-danger-2 hover:text-danger-1 active:scale-95 transition-all cursor-pointer"

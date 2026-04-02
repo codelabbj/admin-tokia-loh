@@ -67,15 +67,41 @@ const PublishPage = () => {
     };
 
     const handleDuplicate = async (campaign) => {
-        await create({
-            title: `${campaign.title} (copie)`,
-            content: campaign.content,
-            image: campaign.image ?? null,
-            budget: campaign.budget ?? '0.00',
-            end_date: campaign.end_date ?? null,
-            social_media: campaign.social_media ?? [],
-            status: 'draft',
-        });
+        try {
+            const endRaw = campaign.end_date;
+            const end_date = endRaw ? String(endRaw).slice(0, 10) : null;
+            const budget =
+                campaign.budget != null && campaign.budget !== ''
+                    ? String(Number(campaign.budget))
+                    : '0.00';
+
+            await create({
+                title: `${campaign.title ?? 'Sans titre'} (copie)`,
+                content: campaign.content ?? '',
+                image: campaign.image ?? null,
+                budget,
+                end_date,
+                social_media: Array.isArray(campaign.social_media)
+                    ? [...campaign.social_media]
+                    : [],
+                people: Number(campaign.people) || 0,
+                // Le POST /shop/pubs/ n’accepte pas le statut "draft" côté API
+                status: 'paused',
+            });
+            toast.success(
+                'Publicité dupliquée (en pause). Réactivez-la ou modifiez-la avant diffusion.',
+            );
+        } catch (err) {
+            const detail =
+                err?.response?.data?.detail ??
+                err?.response?.data?.message ??
+                err?.message;
+            toast.error(
+                typeof detail === 'string'
+                    ? detail
+                    : 'Impossible de dupliquer la publicité.',
+            );
+        }
     };
 
     // Toggle ongoing ↔ paused via PATCH

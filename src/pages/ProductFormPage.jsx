@@ -4,7 +4,8 @@ import { ArrowLeft, Upload, Trash2, Plus, X, Loader2, Images } from 'lucide-reac
 import InputField from '../components/InputField';
 import Button from '../components/Button';
 import ProductStatusToggle from '../components/products/ProductStatusToggle';
-import { useProducts } from '../hooks/useProducts';
+import { useProducts, normalizeProduct } from '../hooks/useProducts';
+import { productsAPI } from '../api/products.api';
 import { useCategories } from '../hooks/useCategories';
 import { useToast } from '../components/ui/ToastProvider';
 import MediaPickerModal from '../components/media/MediaPickerModal';
@@ -81,6 +82,7 @@ const EMPTY_FORM = {
     price: '',
     sale_price: '',
     stock: '',
+    unlimited_stock: false,
     is_active: true,
     featured: false,
     mainImage: null,
@@ -171,11 +173,19 @@ const ProductFormPage = () => {
     const { toast } = useToast();
     const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
     const [mediaPickerTarget, setMediaPickerTarget] = useState('main'); // 'main' | 'sub'
+    const [productFromDetail, setProductFromDetail] = useState(null);
 
     const isEdit = !!id;
-    const product = isEdit
+    const productFromList = isEdit
         ? products.find(p => String(p.id) === String(id)) ?? null
         : null;
+    const product = productFromList ?? productFromDetail;
+
+    const needsDetailFetch =
+        isEdit &&
+        !!id &&
+        !productsLoading &&
+        !productFromList;
 
     const [form, setForm] = useState(EMPTY_FORM);
     const [errors, setErrors] = useState({});
@@ -197,12 +207,24 @@ const ProductFormPage = () => {
             : 'Admin Tokia-Loh | Nouveau produit';
     }, [isEdit, product]);
 
-    // ── Redirection si ID invalide ────────────────────────────
     useEffect(() => {
-        if (isEdit && !productsLoading && products.length > 0 && !product) {
-            navigate('/products', { replace: true });
-        }
-    }, [isEdit, productsLoading, products, product, navigate]);
+        if (productFromList) setProductFromDetail(null);
+    }, [productFromList]);
+
+    // ── Produit absent de la liste paginée : chargement GET /products/:id/ ──
+    useEffect(() => {
+        if (!needsDetailFetch) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const { data } = await productsAPI.detail(id);
+                if (!cancelled) setProductFromDetail(normalizeProduct(data));
+            } catch {
+                if (!cancelled) navigate('/products', { replace: true });
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [needsDetailFetch, id, navigate]);
 
     // ── Pré-remplissage en mode édition ──────────────────────
     useEffect(() => {
@@ -216,6 +238,7 @@ const ProductFormPage = () => {
                 price: product.original_price ?? product.price ?? '',
                 sale_price: product.original_price ? product.price ?? '' : '',
                 stock: product.stock ?? '',
+                unlimited_stock: product.unlimited_stock === true,
                 is_active: product.is_active ?? product.status ?? true,
                 featured: product.featured ?? false,
                 mainImage: product.image ?? null,
@@ -236,7 +259,7 @@ const ProductFormPage = () => {
     }, [isEdit, product]);
 
     // ── Loader pendant la résolution du produit en édition ───
-    if (isEdit && productsLoading) {
+    if (isEdit && (productsLoading || (needsDetailFetch && !productFromDetail))) {
         return (
             <div className="flex items-center justify-center h-64">
                 <Loader2 size={24} className="animate-spin text-primary-1" />
@@ -248,8 +271,9 @@ const ProductFormPage = () => {
 
     // ── Handlers génériques ───────────────────────────────────
     const handleChange = (e) => {
-        const { name, value } = e.target;
-        setForm(prev => ({ ...prev, [name]: value }));
+        const { name, value, type, checked } = e.target;
+        const next = type === 'checkbox' ? checked : value;
+        setForm(prev => ({ ...prev, [name]: next }));
         if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
     };
 
@@ -353,7 +377,7 @@ const ProductFormPage = () => {
         if (!form.name.trim()) e.name = 'Nom requis';
         if (!form.category) e.category = 'Catégorie requise';
         if (!form.price) e.price = 'Prix requis';
-        if (form.stock === '' || form.stock === null) e.stock = 'Stock requis';
+        if (!form.unlimited_stock && (form.stock === '' || form.stock === null)) e.stock = 'Stock requis';
         if (form.sale_price && parseFloat(form.sale_price) >= parseFloat(form.price))
             e.sale_price = 'Le prix réduit doit être inférieur au prix initial';
         if (!form.mainImage) e.mainImage = 'Image principale requise';
@@ -373,7 +397,8 @@ const ProductFormPage = () => {
                 category: form.category,
                 price: Number(form.price),
                 sale_price: form.sale_price ? Number(form.sale_price) : null,
-                stock: Number(form.stock),
+                stock: Number(form.stock === '' || form.stock === null ? 0 : form.stock),
+                unlimited_stock: form.unlimited_stock,
                 is_active: form.is_active,
                 featured: form.featured,
                 mainImage: form.mainImage,
@@ -520,19 +545,32 @@ const ProductFormPage = () => {
                                 onChange={handleChange}
                                 placeholder="Ex: 20"
                                 error={errors.stock}
-                                required
+                                required={!form.unlimited_stock}
                             />
-                            {form.stock !== '' && parseInt(form.stock) <= 5 && parseInt(form.stock) > 0 && (
+                            {!form.unlimited_stock && form.stock !== '' && parseInt(form.stock, 10) <= 5 && parseInt(form.stock, 10) > 0 && (
                                 <div className="pb-2">
                                     <span className="text-[11px] font-semibold font-poppins text-warning-1">⚠️ Stock faible</span>
                                 </div>
                             )}
-                            {form.stock !== '' && parseInt(form.stock) === 0 && (
+                            {!form.unlimited_stock && form.stock !== '' && parseInt(form.stock, 10) === 0 && (
                                 <div className="pb-2">
                                     <span className="text-[11px] font-semibold font-poppins text-danger-1">⛔ Rupture de stock</span>
                                 </div>
                             )}
                         </div>
+                        <label className="flex items-start gap-3 cursor-pointer select-none rounded-md border border-neutral-4 dark:border-neutral-4 px-4 py-3 bg-neutral-2/50 dark:bg-neutral-2/50">
+                            <input
+                                type="checkbox"
+                                name="unlimited_stock"
+                                checked={form.unlimited_stock}
+                                onChange={handleChange}
+                                className="mt-0.5 rounded border-neutral-5 text-primary-1 focus:ring-primary-5"
+                            />
+                            <div>
+                                <span className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">Toujours en stock</span>
+                                <p className="text-[11px] font-poppins text-neutral-6 mt-0.5">Disponible sans limite de quantité (stock illimité).</p>
+                            </div>
+                        </label>
                     </FormSection>
 
                     {/* Images */}
@@ -871,11 +909,11 @@ const ProductFormPage = () => {
                                     )}
                                 </div>
                             )}
-                            {form.stock !== '' && (
+                            {(form.unlimited_stock || form.stock !== '') && (
                                 <div className="flex flex-col gap-0.5">
                                     <span className="text-[11px] font-poppins text-neutral-5 uppercase tracking-wide">Stock</span>
-                                    <span className={`text-xs font-semibold font-poppins ${parseInt(form.stock) === 0 ? 'text-danger-1' : parseInt(form.stock) <= 5 ? 'text-warning-1' : 'text-neutral-8'}`}>
-                                        {form.stock} unité{parseInt(form.stock) !== 1 ? 's' : ''}
+                                    <span className={`text-xs font-semibold font-poppins ${form.unlimited_stock ? 'text-primary-1' : parseInt(form.stock, 10) === 0 ? 'text-danger-1' : parseInt(form.stock, 10) <= 5 ? 'text-warning-1' : 'text-neutral-8'}`}>
+                                        {form.unlimited_stock ? 'Illimité (toujours disponible)' : `${form.stock} unité${parseInt(form.stock, 10) !== 1 ? 's' : ''}`}
                                     </span>
                                 </div>
                             )}

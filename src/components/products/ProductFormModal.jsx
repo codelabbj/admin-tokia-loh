@@ -77,6 +77,7 @@ const EMPTY_FORM = {
     price: '',
     sale_price: '',
     stock: '',
+    unlimited_stock: false,
     is_active: true,
     featured: false,
     mainImage: null,
@@ -188,6 +189,7 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
                     price: product.original_price ?? product.price ?? '',
                     sale_price: product.original_price ? product.price ?? '' : '',
                     stock: product.stock ?? '',
+                    unlimited_stock: product.unlimited_stock === true,
                     is_active: product.is_active ?? product.status ?? true,
                     featured: product.featured ?? false,
                     mainImage: product.image ?? null,
@@ -217,8 +219,9 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
 
     // ── Handlers génériques ───────────────────────────────────
     const handleChange = (e) => {
-        const { name, value } = e.target;
-        setForm(prev => ({ ...prev, [name]: value }));
+        const { name, value, type, checked } = e.target;
+        const next = type === 'checkbox' ? checked : value;
+        setForm(prev => ({ ...prev, [name]: next }));
         if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
     };
 
@@ -281,7 +284,7 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
         if (!form.name.trim()) e.name = 'Nom requis';
         if (!form.category) e.category = 'Catégorie requise';
         if (!form.price) e.price = 'Prix requis';
-        if (form.stock === '' || form.stock === null) e.stock = 'Stock requis';
+        if (!form.unlimited_stock && (form.stock === '' || form.stock === null)) e.stock = 'Stock requis';
         if (form.sale_price && parseFloat(form.sale_price) >= parseFloat(form.price))
             e.sale_price = 'Le prix réduit doit être inférieur au prix initial';
         if (!form.mainImage) e.mainImage = 'Image principale requise';
@@ -302,7 +305,8 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
                 category: form.category,
                 price: Number(form.price),
                 sale_price: form.sale_price ? Number(form.sale_price) : null,
-                stock: Number(form.stock),
+                stock: Number(form.stock === '' || form.stock === null ? 0 : form.stock),
+                unlimited_stock: form.unlimited_stock,
                 is_active: form.is_active,
                 featured: form.featured,
 
@@ -395,18 +399,31 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <InputField label="Quantité en stock" name="stock" type="number" value={form.stock} onChange={handleChange} placeholder="Ex: 20" error={errors.stock} required />
-                                {form.stock !== '' && parseInt(form.stock) <= 5 && parseInt(form.stock) > 0 && (
+                                <InputField label="Quantité en stock" name="stock" type="number" value={form.stock} onChange={handleChange} placeholder="Ex: 20" error={errors.stock} required={!form.unlimited_stock} />
+                                {!form.unlimited_stock && form.stock !== '' && parseInt(form.stock, 10) <= 5 && parseInt(form.stock, 10) > 0 && (
                                     <div className="flex items-end pb-2">
                                         <span className="text-[11px] font-semibold font-poppins text-warning-1">⚠️ Stock faible</span>
                                     </div>
                                 )}
-                                {form.stock !== '' && parseInt(form.stock) === 0 && (
+                                {!form.unlimited_stock && form.stock !== '' && parseInt(form.stock, 10) === 0 && (
                                     <div className="flex items-end pb-2">
                                         <span className="text-[11px] font-semibold font-poppins text-danger-1">⛔ Rupture de stock</span>
                                     </div>
                                 )}
                             </div>
+                            <label className="flex items-start gap-3 cursor-pointer select-none rounded-2 border border-neutral-4 dark:border-neutral-4 px-4 py-3 bg-neutral-2/50 dark:bg-neutral-2/50">
+                                <input
+                                    type="checkbox"
+                                    name="unlimited_stock"
+                                    checked={form.unlimited_stock}
+                                    onChange={handleChange}
+                                    className="mt-0.5 rounded border-neutral-5 text-primary-1 focus:ring-primary-5"
+                                />
+                                <div>
+                                    <span className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">Toujours en stock</span>
+                                    <p className="text-[11px] font-poppins text-neutral-6 mt-0.5">Disponible sans limite de quantité (stock illimité).</p>
+                                </div>
+                            </label>
                         </div>
 
                         {/* ── Images ── */}

@@ -19,7 +19,7 @@ import api from "./client";
 class PubsAPI {
   /**
    * Liste les publicités.
-   * @param {{ search?: string, page?: number }} params
+   * @param {{ search?: string, page?: number, ordering?: string }} params
    */
   list(params = {}) {
     return api.get("/shop/pubs/", { params });

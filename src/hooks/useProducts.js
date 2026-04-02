@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { productsAPI } from "../api/products.api";
+import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
 import { filesAPI } from "../api/files.api";
 
 /**
@@ -30,29 +31,52 @@ const resolveImageUrl = async (image) => {
   return null;
 };
 
+/** Même pas que la liste paginée admin — utilisé pour parcourir toutes les pages. */
+export const PRODUCTS_PAGE_SIZE = 50;
+
 /**
  * Normalise les données venant de l'API → format frontend
  */
-const normalizeProduct = (p) => ({
+export const normalizeProduct = (p) => ({
   ...p,
   sale_price: p.sale_price ?? null,
   status: p.status ?? true,
+  unlimited_stock: p.unlimited_stock === true,
   others_details: p.others_details ?? [],
 });
 
-export const useProducts = () => {
+/**
+ * @param {{ skipInitialFetch?: boolean }} options
+ *   skipInitialFetch : true pour ProductsPage (liste paginée séparée) — mutations seulement.
+ */
+export const useProducts = (options = {}) => {
+  const skipInitialFetch = options.skipInitialFetch === true;
+
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!skipInitialFetch);
   const [error, setError] = useState(null);
 
-  // ── FETCH ─────────────────────────────────────────────
+  // ── FETCH (toutes les pages, pour compteurs / catégories / fallback liste) ──
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await productsAPI.list();
-      const list = Array.isArray(data) ? data : (data.results ?? []);
-      setProducts(list.map(normalizeProduct));
+      let merged = [];
+      let pageNum = 1;
+
+      for (;;) {
+        const { data } = await productsAPI.list({
+          page: pageNum,
+          page_size: PRODUCTS_PAGE_SIZE,
+          ordering: ORDERING_NEWEST_FIRST,
+        });
+        const list = Array.isArray(data) ? data : (data.results ?? []);
+        merged = merged.concat(list.map(normalizeProduct));
+        if (!data.next || list.length === 0) break;
+        pageNum += 1;
+      }
+
+      setProducts(merged);
     } catch (err) {
       setError(err.message ?? "Erreur lors du chargement des produits");
     } finally {
@@ -61,8 +85,8 @@ export const useProducts = () => {
   }, []);
 
   useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+    if (!skipInitialFetch) fetchAll();
+  }, [skipInitialFetch, fetchAll]);
 
   // ── CREATE ────────────────────────────────────────────
   const create = async (formData) => {
@@ -74,16 +98,23 @@ export const useProducts = () => {
       (formData.subImages ?? []).map(resolveImageUrl),
     ).then((urls) => urls.filter(Boolean));
 
+    const initialPrice = Number(formData.price);
+    const salePrice = formData.sale_price
+      ? Number(formData.sale_price)
+      : null;
+    const priceFields =
+      salePrice != null
+        ? { price: salePrice, original_price: initialPrice }
+        : { price: initialPrice, original_price: null };
+
+    const unlimited = !!formData.unlimited_stock;
+
     const payload = {
       name: formData.name,
       description: formData.description || null,
       category: formData.category,
-      price: Number(formData.price),
-      original_price: formData.price ? Number(formData.price) : null,
-      price: formData.sale_price
-        ? Number(formData.sale_price)
-        : Number(formData.price),
-      stock: Number(formData.stock),
+      ...priceFields,
+      unlimited_stock: unlimited,
 
       // Images
       image: imageUrl,
@@ -94,18 +125,24 @@ export const useProducts = () => {
       featured: formData.featured ?? false,
     };
 
+    if (!unlimited) {
+      payload.stock = Number(formData.stock ?? 0);
+    }
+
     const { data } = await productsAPI.create(payload);
-    setProducts((prev) => [...prev, normalizeProduct(data)]);
+    if (!skipInitialFetch) {
+      setProducts((prev) => [...prev, normalizeProduct(data)]);
+    }
     return data;
   };
 
   // ── UPDATE ────────────────────────────────────────────
   const update = async (id, formData) => {
-    // Optimistic update
-    console.log("useProducts.update called", id, formData);
-    setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...formData } : p)),
-    );
+    if (!skipInitialFetch) {
+      setProducts((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, ...formData } : p)),
+      );
+    }
 
     try {
       const payload = {};
@@ -115,9 +152,17 @@ export const useProducts = () => {
         payload.description = formData.description || null;
       if (formData.category !== undefined) payload.category = formData.category;
       if (formData.price !== undefined) payload.price = Number(formData.price);
-      if (formData.stock !== undefined) payload.stock = Number(formData.stock);
 
-      if (formData.stock !== undefined) payload.stock = Number(formData.stock);
+      if (formData.unlimited_stock !== undefined) {
+        payload.unlimited_stock = !!formData.unlimited_stock;
+      }
+
+      if (
+        formData.stock !== undefined &&
+        formData.unlimited_stock !== true
+      ) {
+        payload.stock = Number(formData.stock);
+      }
 
       if (formData.price !== undefined || formData.sale_price !== undefined) {
         const initialPrice = Number(formData.price);
@@ -160,27 +205,31 @@ export const useProducts = () => {
 
       const { data } = await productsAPI.update(id, payload);
 
-      setProducts((prev) =>
-        prev.map((p) => (p.id === id ? normalizeProduct(data) : p)),
-      );
+      if (!skipInitialFetch) {
+        setProducts((prev) =>
+          prev.map((p) => (p.id === id ? normalizeProduct(data) : p)),
+        );
+      }
 
       return data;
     } catch (err) {
       setError(err.message ?? "Erreur mise à jour produit");
-      fetchAll(); // rollback
+      if (!skipInitialFetch) fetchAll();
       throw err;
     }
   };
 
   // ── DELETE ────────────────────────────────────────────
   const remove = async (id) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+    if (!skipInitialFetch) {
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+    }
 
     try {
       await productsAPI.delete(id);
     } catch (err) {
       setError(err.message ?? "Erreur suppression produit");
-      fetchAll(); // rollback
+      if (!skipInitialFetch) fetchAll();
       throw err;
     }
   };

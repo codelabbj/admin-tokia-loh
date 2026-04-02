@@ -3,7 +3,7 @@ import api from "./client";
 /**
  * NotificationsAPI — v4
  *
- * GET    /shop/dashboard-notifications/          ?page=N
+ * GET    /shop/dashboard-notifications/          ?page=N&ordering=-created_at
  * POST   /shop/dashboard-notifications/:id/read/
  * POST   /shop/dashboard-notifications/read-all/
  * DELETE /shop/dashboard-notifications/:id/remove/

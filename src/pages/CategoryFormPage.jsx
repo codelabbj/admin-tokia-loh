@@ -5,7 +5,8 @@ import InputField from '../components/InputField';
 import Button from '../components/Button';
 import ProductStatusToggle from '../components/products/ProductStatusToggle';
 import MediaPickerModal from '../components/media/MediaPickerModal';
-import { useCategories } from '../hooks/useCategories';
+import { useCategories, normalizeCategory } from '../hooks/useCategories';
+import { categoriesAPI } from '../api/categories.api';
 import { useToast } from '../components/ui/ToastProvider';
 
 // ── Formulaire vide ───────────────────────────────────────────
@@ -36,11 +37,19 @@ const CategoryFormPage = () => {
     const navigate = useNavigate();
     const { categories, loading: categoriesLoading, create, update } = useCategories();
     const { toast } = useToast();
+    const [categoryFromDetail, setCategoryFromDetail] = useState(null);
 
     const isEdit = !!id;
-    const category = isEdit
+    const categoryFromList = isEdit
         ? categories.find(c => String(c.id) === String(id)) ?? null
         : null;
+    const category = categoryFromList ?? categoryFromDetail;
+
+    const needsDetailFetch =
+        isEdit &&
+        !!id &&
+        !categoriesLoading &&
+        !categoryFromList;
 
     const [form, setForm] = useState(EMPTY_FORM);
     const [errors, setErrors] = useState({});
@@ -59,12 +68,23 @@ const CategoryFormPage = () => {
             : 'Admin Tokia-Loh | Nouvelle catégorie';
     }, [isEdit, category]);
 
-    // ── Redirection si ID invalide ────────────────────────────
     useEffect(() => {
-        if (isEdit && !categoriesLoading && categories.length > 0 && !category) {
-            navigate('/categories', { replace: true });
-        }
-    }, [isEdit, categoriesLoading, categories, category, navigate]);
+        if (categoryFromList) setCategoryFromDetail(null);
+    }, [categoryFromList]);
+
+    useEffect(() => {
+        if (!needsDetailFetch) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const { data } = await categoriesAPI.detail(id);
+                if (!cancelled) setCategoryFromDetail(normalizeCategory(data));
+            } catch {
+                if (!cancelled) navigate('/categories', { replace: true });
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [needsDetailFetch, id, navigate]);
 
     // ── Pré-remplissage en mode édition ──────────────────────
     useEffect(() => {
@@ -85,7 +105,7 @@ const CategoryFormPage = () => {
     }, [isEdit, category]);
 
     // ── Loader pendant résolution en mode édition ─────────────
-    if (isEdit && categoriesLoading) {
+    if (isEdit && (categoriesLoading || (needsDetailFetch && !categoryFromDetail))) {
         return (
             <div className="flex items-center justify-center h-64">
                 <Loader2 size={24} className="animate-spin text-primary-1" />
@@ -265,7 +285,7 @@ const CategoryFormPage = () => {
                             onChange={handleChange}
                             placeholder="Décrivez cette catégorie…"
                         />
-                        <InputField
+                        {/* <InputField
                             label="Ordre d'affichage"
                             name="order"
                             type="number"
@@ -274,7 +294,7 @@ const CategoryFormPage = () => {
                             placeholder="Ex: 1"
                             hint="Laissez vide pour placer en dernier"
                             error={errors.order}
-                        />
+                        /> */}
                     </FormSection>
 
                     {/* Image */}

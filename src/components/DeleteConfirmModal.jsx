@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import Button from './Button';
-import { Trash2, AlertCircle } from 'lucide-react';
+import { Trash2, AlertCircle, UserCheck } from 'lucide-react';
 import { useToast } from './ui/ToastProvider';
 import { toFrenchUserMessage } from '../utils/apiMessagesFr';
 
@@ -11,9 +11,12 @@ import { toFrenchUserMessage } from '../utils/apiMessagesFr';
  * @param {boolean}  isOpen      - Affiche ou masque le modal
  * @param {Function} onConfirm   - Appelé quand l'utilisateur confirme la suppression
  * @param {Function} onCancel    - Appelé quand l'utilisateur annule
- * @param {string}   [title]     - Titre du modal (optionnel)
- * @param {string}   [message]   - Message de confirmation (optionnel)
- * @param {string}   [mode]      - 'confirm' | 'error'
+ * @param {string}   [title]         - Titre du modal (optionnel)
+ * @param {string}   [message]       - Message de confirmation (optionnel)
+ * @param {string}   [confirmLabel]  - Libellé du bouton de confirmation (défaut : Supprimer)
+ * @param {string}   [successMessage] - Toast après succès de onConfirm (défaut : message suppression)
+ * @param {'danger'|'primary'} [confirmVariant] - Style du bouton / icône (défaut : danger)
+ * @param {string}   [mode]          - 'confirm' | 'error'
  *
  * onConfirm peut être async : en cas d'échec, levez throw new Error("message")
  * pour afficher ce texte dans le toast d'erreur (sinon message générique).
@@ -26,6 +29,9 @@ const DeleteConfirmModal = ({
     onCancel,
     title = 'Confirmer la suppression',
     message = 'Êtes-vous sûr de vouloir supprimer cet élément ? Cette action est irréversible.',
+    confirmLabel = 'Supprimer',
+    successMessage = 'Élément supprimé avec succès.',
+    confirmVariant = 'danger',
     mode = 'confirm',
 }) => {
     const [visible, setVisible] = useState(false);      // contrôle le mount
@@ -71,7 +77,7 @@ const DeleteConfirmModal = ({
                 'Une erreur est survenue. Veuillez réessayer.';
             try {
                 await onConfirm();
-                toast.success('Élément supprimé avec succès.');
+                toast.success(successMessage);
             } catch (err) {
                 const raw =
                     err instanceof Error && err.message?.trim()
@@ -90,6 +96,7 @@ const DeleteConfirmModal = ({
     };
 
     const isError = mode === 'error';
+    const isPrimary = !isError && confirmVariant === 'primary';
 
     return ReactDOM.createPortal(
         <>
@@ -114,12 +121,15 @@ const DeleteConfirmModal = ({
                             onClick={e => e.stopPropagation()}
                         >
                             <div className={`w-14 h-14 rounded-full flex items-center justify-center shrink-0
-                                ${isError ? 'bg-warning-2' : 'bg-danger-2'}
+                                ${isError ? 'bg-warning-2' : isPrimary ? 'bg-success-2' : 'bg-danger-2'}
                             `}>
-                                {isError
-                                    ? <AlertCircle size={24} className="text-warning-1" />
-                                    : <Trash2 size={24} className="text-danger-1" />
-                                }
+                                {isError ? (
+                                    <AlertCircle size={24} className="text-warning-1" />
+                                ) : isPrimary ? (
+                                    <UserCheck size={24} className="text-success-1" />
+                                ) : (
+                                    <Trash2 size={24} className="text-danger-1" />
+                                )}
                             </div>
 
                             <div className="flex flex-col gap-1.5 text-center">
@@ -141,8 +151,13 @@ const DeleteConfirmModal = ({
                                         <Button variant="ghost" size="normal" onClick={handleCancel} className="flex-1">
                                             Annuler
                                         </Button>
-                                        <Button variant="danger" size="normal" onClick={handleConfirm} className="flex-1">
-                                            Supprimer
+                                        <Button
+                                            variant={isPrimary ? 'primary' : 'danger'}
+                                            size="normal"
+                                            onClick={handleConfirm}
+                                            className="flex-1"
+                                        >
+                                            {confirmLabel}
                                         </Button>
                                     </>
                                 )}
@@ -156,7 +171,11 @@ const DeleteConfirmModal = ({
             {isLoading && (
                 <div className="fixed inset-0 bg-neutral-8/30 dark:bg-neutral-2/50 backdrop-blur-sm z-50
                     flex items-center justify-center anim-overlay-in">
-                    <div className="w-12 h-12 rounded-full border-4 border-neutral-4 border-t-danger-1 spinner" />
+                    <div
+                        className={`w-12 h-12 rounded-full border-4 border-neutral-4 spinner ${
+                            isPrimary ? 'border-t-primary-1' : 'border-t-danger-1'
+                        }`}
+                    />
                 </div>
             )}
 

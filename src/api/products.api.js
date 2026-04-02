@@ -19,7 +19,8 @@ import api from "./client";
  * {
  *   name             : string
  *   price            : number
- *   stock            : number
+ *   stock            : number  — omis si unlimited_stock === true (admin)
+ *   unlimited_stock  : boolean  — disponible sans limite de quantité
  *   description      : string
  *   image            : string (URL image principale)
  *   secondary_images : string[] (URLs images secondaires)

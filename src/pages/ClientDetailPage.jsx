@@ -1,13 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import {
     ArrowLeft, User, Phone, MapPin, Calendar, Clock,
     ShoppingCart, CheckCircle, TrendingUp,
-    PauseCircle, Ban, Trash2, Loader2, AlertCircle
+    PauseCircle, UserCheck, Loader2, AlertCircle
 } from 'lucide-react';
 import { useClients } from '../hooks/useClients';
 import { useOrders } from '../hooks/useOrders';
 import Button from '../components/Button';
+import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import ClientStatusBadge from '../components/clients/ClientStatusBadge';
 import StatCard from '../components/dashboard/StatCard';
 import OrdersTable from '../components/orders/OrdersTable';
@@ -47,8 +48,10 @@ const InfoCard = ({ icon, label, value }) => (
 const ClientDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
+    const [reactivateConfirmOpen, setReactivateConfirmOpen] = useState(false);
 
-    const { client, loading: clientLoading, error: clientError, deactivate } = useClients(id);
+    const { client, loading: clientLoading, error: clientError, deactivate, reactivate } = useClients(id);
     const { orders, loading: ordersLoading, updateStatus } = useOrders({ clientId: id });
 
     React.useEffect(() => {
@@ -121,25 +124,18 @@ const ClientDetailPage = () => {
     if (!client) return null;
 
     // ── Actions ───────────────────────────────────────────────
-    const handleDisable = async () => {
-        if (client.is_active === false) return;
-        try {
-            await deactivate(client.id);
-        } catch (err) {
-            console.error('Erreur désactivation :', err);
-        }
+    // POST /accounts/clients/:id/deactivate/ — pas de blocage / suppression côté UI
+    const handleConfirmDeactivate = async () => {
+        await deactivate(client.id);
+        setDeactivateConfirmOpen(false);
     };
 
-    const handleBlock = () => {
-        console.log('Bloquer/débloquer client :', id);
-        // TODO : endpoint à confirmer avec le backend
+    const handleConfirmReactivate = async () => {
+        await reactivate(client.id);
+        setReactivateConfirmOpen(false);
     };
 
-    const handleDelete = () => {
-        if (!window.confirm(`Supprimer définitivement "${firstName} ${lastName}" ?`)) return;
-        // TODO : DELETE /accounts/clients/:id/ non dispo en API v5
-        navigate('/clients');
-    };
+    const isDeactivated = client.is_active === false;
 
     return (
         <div className="flex flex-col gap-6">
@@ -163,27 +159,27 @@ const ClientDetailPage = () => {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                {!isDeactivated ? (
                     <Button
-                        variant={status === 'Désactivé' ? 'outline' : 'ghost'}
+                        variant="dangerOutline"
                         size="normal"
-                        onClick={handleDisable}
+                        icon={<PauseCircle size={14} />}
+                        iconPosition="left"
+                        onClick={() => setDeactivateConfirmOpen(true)}
                     >
-                        <PauseCircle size={14} />
-                        {status === 'Désactivé' ? 'Réactiver' : 'Désactiver'}
+                        Désactiver le client
                     </Button>
+                ) : (
                     <Button
-                        variant={status === 'Bloqué' ? 'outline' : 'dangerOutline'}
+                        variant="outline"
                         size="normal"
-                        onClick={handleBlock}
+                        icon={<UserCheck size={14} />}
+                        iconPosition="left"
+                        onClick={() => setReactivateConfirmOpen(true)}
                     >
-                        <Ban size={14} />
-                        {status === 'Bloqué' ? 'Débloquer' : 'Bloquer'}
+                        Réactiver le client
                     </Button>
-                    <Button variant="danger" size="normal" onClick={handleDelete}>
-                        <Trash2 size={14} /> Supprimer
-                    </Button>
-                </div>
+                )}
             </div>
 
             {/* ── Fiche client ── */}
@@ -259,6 +255,27 @@ const ClientDetailPage = () => {
                     />
                 )}
             </div>
+
+            <DeleteConfirmModal
+                isOpen={deactivateConfirmOpen}
+                onConfirm={handleConfirmDeactivate}
+                onCancel={() => setDeactivateConfirmOpen(false)}
+                title="Désactiver le client"
+                message={`Le compte de « ${firstName} ${lastName} » sera désactivé. Le client ne pourra plus utiliser son compte.`}
+                confirmLabel="Désactiver"
+                successMessage="Client désactivé."
+            />
+
+            <DeleteConfirmModal
+                isOpen={reactivateConfirmOpen}
+                onConfirm={handleConfirmReactivate}
+                onCancel={() => setReactivateConfirmOpen(false)}
+                title="Réactiver le client"
+                message={`Réactiver le compte de « ${firstName} ${lastName} » ? Le client pourra à nouveau utiliser son compte.`}
+                confirmLabel="Réactiver"
+                successMessage="Client réactivé."
+                confirmVariant="primary"
+            />
         </div>
     );
 };

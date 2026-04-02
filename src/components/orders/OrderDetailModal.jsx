@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { X, FileText, Truck, MessageSquare, User, MapPin, Phone } from 'lucide-react';
 import Button from '../Button';
 import OrderStatusBadge from './OrderStatusBadge';
 import OrderStatusStepper from './OrderStatusStepper';
 import { generateInvoice, generateDeliveryNote } from './OrderPDFGenerator';
+import { resolveDeliveryFeeFromVilles } from '../../hooks/useOrders';
+import { useVilles } from '../../hooks/useVilles';
+import { useCompany } from '../../hooks/useCompany';
 //import OrderMap from './OrderMapOld';
 import OrderMap from './OrderMap';
 
@@ -11,11 +14,32 @@ const formatPrice = (p) => `${Number(p).toLocaleString('fr-FR')} F`;
 
 const OrderDetailModal = ({ open, onClose, order, onStatusChange }) => {
     const [currentOrder, setCurrentOrder] = useState(order);
+    const { villes } = useVilles();
+    const { company } = useCompany();
 
     // Sync si l'order change depuis le parent
     React.useEffect(() => {
         setCurrentOrder(order);
     }, [order]);
+
+    const subtotal = useMemo(() => {
+        if (!currentOrder) return 0;
+        return (
+            currentOrder.items?.reduce(
+                (acc, i) => acc + i.quantity * i.unitPrice,
+                0,
+            ) ?? 0
+        );
+    }, [currentOrder]);
+
+    const delivery = useMemo(() => {
+        if (!currentOrder) return 0;
+        return resolveDeliveryFeeFromVilles(
+            currentOrder,
+            villes,
+            currentOrder.delivery_fee ?? currentOrder.deliveryFee,
+        );
+    }, [currentOrder, villes]);
 
     if (!open || !currentOrder) return null;
 
@@ -25,14 +49,12 @@ const OrderDetailModal = ({ open, onClose, order, onStatusChange }) => {
         onStatusChange?.(currentOrder.id, newStatus);
     };
 
-    const total = currentOrder.items?.reduce((acc, i) => acc + i.quantity * i.unitPrice, 0) ?? 0;
-    const subtotal = total;
-    const delivery = currentOrder.deliveryFee ?? 0;
-
     const orderForPDF = {
         ...currentOrder,
         subtotal,
+        deliveryFee: delivery,
         total: subtotal + delivery,
+        company: company ?? undefined,
     };
 
     return (
@@ -202,7 +224,7 @@ const OrderDetailModal = ({ open, onClose, order, onStatusChange }) => {
                                 variant="outline"
                                 size="sm"
                                 icon={<FileText size={14} />}
-                                onClick={() => generateInvoice(orderForPDF)}
+                                onClick={() => void generateInvoice(orderForPDF)}
                             >
                                 Facture PDF
                             </Button>
@@ -210,7 +232,7 @@ const OrderDetailModal = ({ open, onClose, order, onStatusChange }) => {
                                 variant="outlineSecondary"
                                 size="sm"
                                 icon={<Truck size={14} />}
-                                onClick={() => generateDeliveryNote(orderForPDF)}
+                                onClick={() => void generateDeliveryNote(orderForPDF)}
                             >
                                 Bon de livraison
                             </Button>

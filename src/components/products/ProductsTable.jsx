@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Pencil, Trash2, Eye, Loader2 } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, Pencil, Trash2, Eye, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import ProductStatusToggle from './ProductStatusToggle';
 import ProductBadge from './ProductBadge';
@@ -17,7 +17,8 @@ const calcDiscount = (price, originalPrice) => {
     return Math.round(((o - p) / o) * 100);
 };
 
-const getStockBadgeType = (stock) => {
+const getStockBadgeType = (stock, unlimitedStock) => {
+    if (unlimitedStock) return 'unlimited-stock';
     if (stock === 0) return 'out-of-stock';
     if (stock <= 5) return 'low-stock';
     return null;
@@ -38,50 +39,90 @@ const ProductAvatar = ({ name, image }) => {
 
 /*
   Props :
-  - products   : tableau issu de useProducts()
+  - products   : tableau issu de useProducts() ou useProductsList()
   - loading    : boolean
   - categories : tableau issu de useCategories()
   - onEdit     : (product) => void
   - onDelete   : (product) => void
   - onUpdate   : (id, payload) => Promise  — pour toggle statut
+
+  Mode serveur (liste paginée) — optionnel :
+  - serverFilters       : { search, onSearchChange, categoryId, onCategoryIdChange }
+  - pagination          : { page, totalPages, totalCount, pageSize, onPageChange }
 */
-const ProductsTable = ({ products = [], loading = false, categories = [], onEdit, onDelete, onUpdate }) => {
+const ProductsTable = ({
+    products = [],
+    loading = false,
+    categories = [],
+    onEdit,
+    onDelete,
+    onUpdate,
+    serverFilters = null,
+    pagination = null,
+}) => {
     const navigate = useNavigate();
 
-    const [search, setSearch] = useState('');
+    const [localSearch, setLocalSearch] = useState('');
     const [catFilter, setCatFilter] = useState('Toutes');
     const [stockFilter, setStockFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
+
+    const search = serverFilters ? serverFilters.search : localSearch;
+    const setSearch = serverFilters ? serverFilters.onSearchChange : setLocalSearch;
 
     // ── Noms de catégories pour le filtre ─────────────────────
     const categoryNames = useMemo(() =>
         ['Toutes', ...categories.map(c => c.name)],
         [categories]);
 
+    // Catégorie : synchro nom affiché ↔ UUID (mode serveur)
+    const handleCatSelect = (name) => {
+        setCatFilter(name);
+        if (serverFilters?.onCategoryIdChange) {
+            if (name === 'Toutes') serverFilters.onCategoryIdChange(null);
+            else {
+                const cat = categories.find(c => c.name === name);
+                serverFilters.onCategoryIdChange(cat?.id ?? null);
+            }
+        }
+    };
+
+    useEffect(() => {
+        if (!serverFilters) return;
+        if (!serverFilters.categoryId) {
+            setCatFilter('Toutes');
+            return;
+        }
+        const cat = categories.find(c => c.id === serverFilters.categoryId);
+        if (cat) setCatFilter(cat.name);
+    }, [serverFilters, categories]);
+
     // ── Filtrage ──────────────────────────────────────────────
     const filtered = useMemo(() => {
         return products.filter(p => {
-            const name = p.name ?? '';
             const catName = categories.find(c => c.id === p.category)?.name ?? p.category ?? '';
-            const matchSearch = name.toLowerCase().includes(search.toLowerCase());
-            const matchCat = catFilter === 'Toutes' || catName === catFilter;
+            const matchSearch = serverFilters
+                ? true
+                : (p.name ?? '').toLowerCase().includes(localSearch.toLowerCase());
+            const matchCat = serverFilters
+                ? true
+                : catFilter === 'Toutes' || catName === catFilter;
+            const unlimited = p.unlimited_stock === true;
             const matchStock = stockFilter === 'all' ? true
-                : stockFilter === 'out' ? p.stock === 0
-                    : p.stock <= 5 && p.stock > 0;
-            // API : "status" (bool) — était status
+                : stockFilter === 'out' ? p.stock === 0 && !unlimited
+                    : p.stock <= 5 && p.stock > 0 && !unlimited;
             const isActive = p.status ?? true;
             const matchStatus = statusFilter === 'all' ? true
                 : statusFilter === 'active' ? isActive
                     : !isActive;
             return matchSearch && matchCat && matchStock && matchStatus;
         });
-    }, [products, categories, search, catFilter, stockFilter, statusFilter]);
+    }, [products, categories, localSearch, catFilter, stockFilter, statusFilter, serverFilters]);
 
     // ── Toggle statut (optimistic) ────────────────────────────
     // On envoie "status" pour l'API — useProducts.update gère la rétro-compat status
     const handleToggleStatus = (product) => {
         const current = product.status ?? true;
-        console.log('payload envoyé →', { status: !current });
         onUpdate?.(product.id, { status: !current });
     };
 
@@ -101,7 +142,7 @@ const ProductsTable = ({ products = [], loading = false, categories = [], onEdit
                     />
                 </div>
 
-                <select value={catFilter} onChange={e => setCatFilter(e.target.value)}
+                <select value={catFilter} onChange={e => handleCatSelect(e.target.value)}
                     className="px-3 py-2 text-xs font-poppins rounded-full cursor-pointer bg-neutral-3 dark:bg-neutral-3 border border-transparent text-neutral-7 dark:text-neutral-7 outline-none focus:border-primary-1 transition-all duration-200">
                     {categoryNames.map(c => <option key={c}>{c}</option>)}
                 </select>
@@ -121,7 +162,9 @@ const ProductsTable = ({ products = [], loading = false, categories = [], onEdit
                 </select>
 
                 <span className="text-[11px] font-poppins text-neutral-6 whitespace-nowrap ml-auto">
-                    {filtered.length} produit{filtered.length > 1 ? 's' : ''}
+                    {pagination
+                        ? `${filtered.length} affiché${filtered.length > 1 ? 's' : ''} · ${pagination.totalCount} au total`
+                        : `${filtered.length} produit${filtered.length > 1 ? 's' : ''}`}
                 </span>
             </div>
 
@@ -154,7 +197,7 @@ const ProductsTable = ({ products = [], loading = false, categories = [], onEdit
                             const catName = categories.find(c => c.id === product.category)?.name ?? product.category ?? '—';
                             // API : original_price = prix barré, price = prix de vente
                             const discount = calcDiscount(product.price, product.original_price);
-                            const stockBadge = getStockBadgeType(product.stock);
+                            const stockBadge = getStockBadgeType(product.stock, product.unlimited_stock === true);
                             const isActive = product.status ?? true; // ← retire product.status ??
 
                             return (
@@ -198,8 +241,8 @@ const ProductsTable = ({ products = [], loading = false, categories = [], onEdit
 
                                     <td className="px-4 py-3 whitespace-nowrap">
                                         <div className="flex items-center gap-2">
-                                            <span className={`font-semibold ${product.stock === 0 ? 'text-danger-1' : product.stock <= 5 ? 'text-warning-1' : 'text-neutral-8 dark:text-neutral-8'}`}>
-                                                {product.stock}
+                                            <span className={`font-semibold ${product.unlimited_stock ? 'text-primary-1' : product.stock === 0 ? 'text-danger-1' : product.stock <= 5 ? 'text-warning-1' : 'text-neutral-8 dark:text-neutral-8'}`}>
+                                                {product.unlimited_stock ? 'Illimité' : product.stock}
                                             </span>
                                             {stockBadge && <ProductBadge type={stockBadge} />}
                                         </div>
@@ -243,6 +286,38 @@ const ProductsTable = ({ products = [], loading = false, categories = [], onEdit
                     </tbody>
                 </table>
             </div>
+
+            {pagination && pagination.totalCount > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-t border-neutral-4 dark:border-neutral-4 bg-neutral-2/50 dark:bg-neutral-2/50">
+                    <p className="text-[11px] font-poppins text-neutral-6">
+                        Page <span className="font-semibold text-neutral-8">{pagination.page}</span>
+                        {' · '}
+                        {pagination.totalPages} au total
+                        {' · '}
+                        {pagination.pageSize} par page
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            disabled={pagination.page <= 1 || loading}
+                            onClick={() => pagination.onPageChange(pagination.page - 1)}
+                            className="w-9 h-9 flex items-center justify-center rounded-full border border-neutral-4 text-neutral-7 hover:bg-neutral-0 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            title="Page précédente"
+                        >
+                            <ChevronLeft size={18} />
+                        </button>
+                        <button
+                            type="button"
+                            disabled={pagination.page >= pagination.totalPages || loading}
+                            onClick={() => pagination.onPageChange(pagination.page + 1)}
+                            className="w-9 h-9 flex items-center justify-center rounded-full border border-neutral-4 text-neutral-7 hover:bg-neutral-0 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            title="Page suivante"
+                        >
+                            <ChevronRight size={18} />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

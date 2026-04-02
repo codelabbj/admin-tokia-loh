@@ -1,10 +1,13 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import {
     ArrowLeft, FileText, Truck,
     MessageSquare, User, MapPin, Phone, Loader2
 } from 'lucide-react';
-import { useOrders } from '../hooks/useOrders';
+import { useOrders, normalizeOrder, resolveDeliveryFeeFromVilles } from '../hooks/useOrders';
+import { useVilles } from '../hooks/useVilles';
+import { useCompany } from '../hooks/useCompany';
+import { dashboardAPI } from '../api/dashboard.api';
 import Button from '../components/Button';
 import OrderStatusBadge from '../components/orders/OrderStatusBadge';
 import OrderStatusStepper from '../components/orders/OrderStatusStepper';
@@ -35,44 +38,89 @@ const OrderDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { orders, loading, updateStatus } = useOrders();
+    const { villes } = useVilles();
+    const { company } = useCompany();
+    const [orderFromDetail, setOrderFromDetail] = useState(null);
 
-    // Cherche la commande dans la liste déjà chargée
-    const order = useMemo(() =>
-        orders.find(o => o.id === id) ?? null,
-        [orders, id]);
+    const orderFromList = useMemo(
+        () => orders.find(o => o.id === id) ?? null,
+        [orders, id],
+    );
+    const order = orderFromList ?? orderFromDetail;
+
+    const delivery = useMemo(() => {
+        if (!order) return 0;
+        return resolveDeliveryFeeFromVilles(
+            order,
+            villes,
+            order.delivery_fee ?? order.deliveryFee,
+        );
+    }, [order, villes]);
+
+    const orderForPDF = useMemo(() => {
+        if (!order) return null;
+        const subtotal =
+            order.items?.reduce(
+                (acc, i) => acc + i.quantity * i.unitPrice,
+                0,
+            ) ?? 0;
+        const total = subtotal + delivery;
+        return {
+            ...order,
+            date: order.date,
+            deliveryFee: delivery,
+            subtotal,
+            total,
+            company: company ?? undefined,
+        };
+    }, [order, delivery, company]);
+
+    const needsDetailFetch =
+        !!id && !orderFromList && !loading;
 
     useEffect(() => {
-        if (order) document.title = `Admin Tokia-Loh | Commande #${id}`;
+        if (orderFromList) setOrderFromDetail(null);
+    }, [orderFromList]);
+
+    useEffect(() => {
+        if (order) document.title = `Admin Tokia-Loh | Commande #${order.reference}`;
     }, [order, id]);
 
     useEffect(() => {
-        if (!loading && orders.length > 0 && !order)
-            navigate('/orders', { replace: true });
-    }, [loading, orders, order, navigate]);
+        if (!needsDetailFetch) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const { data } = await dashboardAPI.getOrderDetail(id);
+                if (!cancelled) setOrderFromDetail(normalizeOrder(data));
+            } catch {
+                if (!cancelled) navigate('/orders', { replace: true });
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [needsDetailFetch, id, navigate]);
 
-    if (loading) return (
-        <div className="flex items-center justify-center h-48">
-            <Loader2 size={24} className="animate-spin text-primary-1" />
-        </div>
-    );
+    if (loading || (needsDetailFetch && !orderFromDetail)) {
+        return (
+            <div className="flex items-center justify-center h-48">
+                <Loader2 size={24} className="animate-spin text-primary-1" />
+            </div>
+        );
+    }
 
     if (!order) return null;
 
     const subtotal = order.items?.reduce((acc, i) => acc + i.quantity * i.unitPrice, 0) ?? 0;
-    const delivery = order.delivery_fee ?? 0;
     const total = subtotal + delivery;
-    const orderForPDF = {
-        ...order,
-        // Adapte pour OrderPDFGenerator qui attend certains champs
-        id: `#${id}`,
-        date: order.date,
-        deliveryFee: delivery,
-        subtotal,
-        total,
-    };
 
-    const handleStatusChange = (newStatus) => {
-        updateStatus(order.id, newStatus);
+    const handleStatusChange = async (newStatus) => {
+        await updateStatus(order.id, newStatus);
+        try {
+            const { data } = await dashboardAPI.getOrderDetail(id);
+            setOrderFromDetail(normalizeOrder(data));
+        } catch {
+            /* la liste paginée peut déjà refléter le statut */
+        }
     };
 
     return (
@@ -98,10 +146,10 @@ const OrderDetailPage = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                    <Button variant="outline" size="normal" onClick={() => generateInvoice(orderForPDF)}>
+                    <Button variant="outline" size="normal" onClick={() => orderForPDF && void generateInvoice(orderForPDF)}>
                         <FileText size={14} /> Facture PDF
                     </Button>
-                    <Button variant="outlineSecondary" size="normal" onClick={() => generateDeliveryNote(orderForPDF)}>
+                    <Button variant="outlineSecondary" size="normal" onClick={() => orderForPDF && void generateDeliveryNote(orderForPDF)}>
                         <Truck size={14} /> Bon de livraison
                     </Button>
                 </div>
@@ -139,9 +187,7 @@ const OrderDetailPage = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {console.log(order)}
-                                {
-                                    order.items?.map((item, i) => (
+                                {order.items?.map((item, i) => (
                                         <tr key={i} className="border-b border-neutral-4 dark:border-neutral-4 last:border-0">
                                             <td className="px-4 py-3 font-medium text-neutral-8 dark:text-neutral-8">{item.name}</td>
                                             <td className="px-4 py-3 text-center text-neutral-7 dark:text-neutral-7">{item.quantity}</td>

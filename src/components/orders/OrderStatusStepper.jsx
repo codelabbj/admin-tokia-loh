@@ -1,5 +1,13 @@
-import React from 'react';
-import { Package, Star, XCircle, ChevronRight } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import ReactDOM from 'react-dom';
+import {
+    Package,
+    Star,
+    XCircle,
+    ChevronRight,
+    CheckCircle,
+    Loader2,
+} from 'lucide-react';
 
 /**
  * Étapes backend
@@ -30,8 +38,144 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
     const nextStep = STEPS[activeIndex + 1] ?? null;
     const progress = getProgress(status);
 
+    const [confirm, setConfirm] = useState(null);
+    // confirm = { targetStatus: 'canceled' | 'delivered', title, message, confirmLabel }
+    const [confirmLoading, setConfirmLoading] = useState(false);
+
+    const deliverConfig = useMemo(() => {
+        if (!nextStep || nextStep.status !== 'delivered') return null;
+        return {
+            label: 'Marquer comme livrée',
+        };
+    }, [nextStep]);
+
+    const openConfirm = (targetStatus) => {
+        if (disabled) return;
+        if (!targetStatus) return;
+
+        if (targetStatus === 'canceled') {
+            setConfirm({
+                targetStatus,
+                title: 'Confirmer l’annulation',
+                message:
+                    'Êtes-vous sûr de vouloir annuler cette commande ? Cette action peut être irréversible.',
+                confirmLabel: 'Annuler la commande',
+            });
+            return;
+        }
+
+        if (targetStatus === 'delivered') {
+            setConfirm({
+                targetStatus,
+                title: 'Confirmer la livraison',
+                message:
+                    'Êtes-vous sûr de vouloir marquer cette commande comme livrée ?',
+                confirmLabel: 'Passer à livrée',
+            });
+        }
+    };
+
+    const closeConfirm = () => {
+        if (confirmLoading) return;
+        setConfirm(null);
+    };
+
+    const handleConfirm = async () => {
+        if (!confirm?.targetStatus) return;
+        setConfirmLoading(true);
+        try {
+            await onStatusChange?.(confirm.targetStatus);
+            setConfirm(null);
+        } finally {
+            setConfirmLoading(false);
+        }
+    };
+
     return (
-        <div className="flex flex-col gap-5">
+        <>
+            {confirm &&
+                ReactDOM.createPortal(
+                    <>
+                        {/* Overlay */}
+                        <div
+                            className="fixed inset-0 bg-neutral-8/40 dark:bg-neutral-2/60 backdrop-blur-sm z-40"
+                            onClick={closeConfirm}
+                        />
+
+                        {/* Modal */}
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                            <div
+                                className={`
+                                    bg-neutral-0 dark:bg-neutral-0
+                                    border border-neutral-4 dark:border-neutral-4
+                                    rounded-md shadow-xl
+                                    w-full max-w-sm
+                                    flex flex-col items-center gap-5 p-6
+                                `}
+                                onClick={(e) => e.stopPropagation()}
+                                role="dialog"
+                                aria-modal="true"
+                                aria-label={confirm.title}
+                            >
+                                <div
+                                    className={`
+                                        w-14 h-14 rounded-full flex items-center justify-center shrink-0
+                                        ${confirm.targetStatus === 'canceled' ? 'bg-danger-2' : 'bg-success-2'}
+                                    `}
+                                >
+                                    {confirm.targetStatus === 'canceled' ? (
+                                        <XCircle size={24} className="text-danger-1" />
+                                    ) : (
+                                        <CheckCircle size={24} className="text-success-1" />
+                                    )}
+                                </div>
+
+                                <div className="flex flex-col gap-1.5 text-center">
+                                    <h2 className="text-sm font-bold font-poppins text-neutral-8 dark:text-neutral-8">
+                                        {confirm.title}
+                                    </h2>
+                                    <p className="text-xs font-poppins text-neutral-6 leading-relaxed">
+                                        {confirm.message}
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-col-reverse sm:flex-row gap-3 w-full">
+                                    <button
+                                        type="button"
+                                        onClick={closeConfirm}
+                                        disabled={confirmLoading}
+                                        className="flex-1 px-4 py-2 rounded-full text-xs font-semibold font-poppins bg-neutral-2/80 hover:bg-neutral-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                    >
+                                        Retour
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleConfirm}
+                                        disabled={confirmLoading}
+                                        className={`
+                                            flex-1 px-4 py-2 rounded-full text-xs font-semibold font-poppins
+                                            ${
+                                                confirm.targetStatus === 'canceled'
+                                                    ? 'bg-danger-2 text-danger-1 hover:bg-danger-1'
+                                                    : 'bg-success-2 text-success-1 hover:bg-success-1'
+                                            }
+                                            disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer
+                                            flex items-center justify-center gap-2
+                                        `}
+                                    >
+                                        {confirmLoading ? (
+                                            <Loader2 size={14} className="animate-spin" />
+                                        ) : null}
+                                        {confirm.confirmLabel}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </>,
+                    document.body,
+                )}
+
+            <div className="flex flex-col gap-5">
 
             {/* ── Cas annulé ── */}
             {isCanceled ? (
@@ -90,24 +234,40 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
 
                     {nextStep && (
                         <button
-                            onClick={() => onStatusChange?.(nextStep.status)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary-1 text-white text-xs font-semibold font-poppins hover:bg-primary-6 transition-all duration-200 hover:scale-105"
+                            onClick={() => openConfirm(nextStep.status)}
+                            className={`
+                                flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold font-poppins
+                                transition-all duration-200 hover:scale-105 cursor-pointer
+                                ${nextStep.status === 'delivered'
+                                    ? 'bg-success-2 text-success-1 hover:bg-success-1 hover:text-white cursor-pointer'
+                                    : 'bg-primary-1 text-white hover:bg-primary-6 hover:text-white cursor-pointer'}
+                            `}
                         >
-                            Passer à : {nextStep.label}
-                            <ChevronRight size={14} />
+                            {nextStep.status === 'delivered' ? (
+                                <>
+                                    {deliverConfig?.label ?? 'Livrer'}
+                                    <Star size={14} />
+                                </>
+                            ) : (
+                                <>
+                                    Passer à : {nextStep.label}
+                                    <ChevronRight size={14} />
+                                </>
+                            )}
                         </button>
                     )}
 
                     <button
-                        onClick={() => onStatusChange?.('canceled')}
-                        className="flex items-center gap-2 px-4 py-2 rounded-full border border-danger-1 text-danger-1 text-xs font-semibold font-poppins hover:bg-danger-2 transition-all duration-200 hover:scale-105"
+                        onClick={() => openConfirm('canceled')}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full border border-danger-1 text-danger-1 cursor-pointer text-xs font-semibold font-poppins hover:bg-danger-2 transition-all duration-200 hover:scale-105"
                     >
                         <XCircle size={14} />
                         Annuler
                     </button>
                 </div>
             )}
-        </div>
+            </div>
+        </>
     );
 };
 

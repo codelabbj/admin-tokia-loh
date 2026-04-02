@@ -19,7 +19,7 @@ import api from "./client";
 class CategoriesAPI {
   /**
    * Liste les catégories.
-   * @param {{ search?: string, page?: number, page_size?: number }} params
+   * @param {{ search?: string, page?: number, page_size?: number, ordering?: string }} params
    */
   list(params = {}) {
     return api.get("/shop/categories/", { params });

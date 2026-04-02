@@ -90,8 +90,8 @@ const CategoryProductsTable = ({ products, onUpdate, navigate }) => {
 
                                 {/* Stock */}
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                    <span className={`font-semibold ${product.stock === 0 ? 'text-danger-1' : product.stock <= 5 ? 'text-warning-1' : 'text-neutral-8 dark:text-neutral-8'}`}>
-                                        {product.stock === 0 ? 'Rupture' : `${product.stock} unité${product.stock > 1 ? 's' : ''}`}
+                                    <span className={`font-semibold ${product.unlimited_stock ? 'text-primary-1' : product.stock === 0 ? 'text-danger-1' : product.stock <= 5 ? 'text-warning-1' : 'text-neutral-8 dark:text-neutral-8'}`}>
+                                        {product.unlimited_stock ? 'Illimité' : product.stock === 0 ? 'Rupture' : `${product.stock} unité${product.stock > 1 ? 's' : ''}`}
                                     </span>
                                 </td>
 
@@ -151,7 +151,7 @@ const CategoryDetailPage = () => {
     // Stats calculées depuis les produits réels
     const stats = useMemo(() => {
         const actifs = catProducts.filter(p => p.is_active).length;
-        const ruptures = catProducts.filter(p => p.stock === 0).length;
+        const ruptures = catProducts.filter(p => !p.unlimited_stock && p.stock === 0).length;
         const caTotal = catProducts.reduce((acc, p) => acc + Number(p.sale_price ?? p.price), 0);
         return { actifs, ruptures, caTotal };
     }, [catProducts]);

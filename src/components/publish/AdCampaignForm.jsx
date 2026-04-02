@@ -16,7 +16,8 @@ const EMPTY_FORM = {
     end_date: '',
     social_media: [],
     people: 0,
-    status: 'draft',    // valeur API
+    // Défaut à la création : "paused" (le POST n’accepte pas "draft" côté API)
+    status: 'paused',
 };
 
 const AdCampaignForm = ({ open, onClose, campaign = null, onSave }) => {
@@ -130,6 +131,9 @@ const AdCampaignForm = ({ open, onClose, campaign = null, onSave }) => {
         setLoading(true);
         setApiError('');
         try {
+            // Création : l’API refuse souvent "draft" — on envoie "paused" à la place.
+            const status =
+                !isEdit && form.status === 'draft' ? 'paused' : form.status;
             const payload = {
                 title: form.title.trim(),
                 content: form.content.trim(),
@@ -138,7 +142,7 @@ const AdCampaignForm = ({ open, onClose, campaign = null, onSave }) => {
                 end_date: form.end_date || null,
                 social_media: form.social_media,
                 people: form.people,
-                status: form.status,
+                status,
             };
             await onSave?.(payload);
             onClose();

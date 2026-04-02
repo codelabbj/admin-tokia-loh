@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Mail, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import {
+    AUTH_LOGIN_NOTICE_KEY,
+    AUTH_NOTICE_SESSION_EXPIRED,
+    AUTH_SESSION_EXPIRED_MESSAGE,
+} from '../constants/authLoginNotice';
 import InputField from '../components/InputField';
 import Button from '../components/Button';
 import ThemeToggle from '../components/ThemeToggle';
@@ -13,11 +18,23 @@ const LoginPage = () => {
     const [form, setForm] = useState({ email: '', password: '' });
     const [errors, setErrors] = useState({});
     const [apiError, setApiError] = useState('');
+    const [sessionNotice, setSessionNotice] = useState('');
 
     // Redirige si déjà connecté
     useEffect(() => {
         if (isAuthenticated) navigate('/dashboard', { replace: true });
     }, [isAuthenticated, navigate]);
+
+    // Message après expiration du JWT / échec du refresh (intercepteur API)
+    useEffect(() => {
+        try {
+            const notice = sessionStorage.getItem(AUTH_LOGIN_NOTICE_KEY);
+            if (notice === AUTH_NOTICE_SESSION_EXPIRED) {
+                setSessionNotice(AUTH_SESSION_EXPIRED_MESSAGE);
+                sessionStorage.removeItem(AUTH_LOGIN_NOTICE_KEY);
+            }
+        } catch { /* ignore */ }
+    }, []);
 
     const validate = () => {
         const e = {};
@@ -32,6 +49,7 @@ const LoginPage = () => {
         setForm(prev => ({ ...prev, [name]: value }));
         if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
         if (apiError) setApiError('');
+        if (sessionNotice) setSessionNotice('');
     };
 
     const handleSubmit = async (e) => {
@@ -78,6 +96,17 @@ const LoginPage = () => {
 
                 {/* ── Carte formulaire ── */}
                 <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-xl p-6 shadow-sm">
+
+                    {sessionNotice && (
+                        <div
+                            className="mb-4 px-3 py-2.5 rounded-lg bg-warning-2 dark:bg-warning-2 border border-warning-1/50"
+                            role="status"
+                        >
+                            <p className="text-xs font-poppins text-warning-1 font-medium">
+                                {sessionNotice}
+                            </p>
+                        </div>
+                    )}
 
                     {/* Erreur API */}
                     {apiError && (

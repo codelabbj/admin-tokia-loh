@@ -10,7 +10,7 @@ import StatCard from '../components/dashboard/StatCard';
 import OrdersTable from '../components/orders/OrdersTable';
 import VilleFormModal from '../components/villes/VilleFormModal';
 import { useVilles } from '../hooks/useVilles';
-import { useOrders } from '../hooks/useOrders';
+import { useOrders, getOrderDeliveryCity } from '../hooks/useOrders';
 
 const formatPrice = (p) => `${Number(p).toLocaleString('fr-FR')} F`;
 
@@ -33,11 +33,12 @@ const VilleDetailPage = () => {
     // ── Commandes de cette ville ─────────────────────────────
     // useOrders ne filtre pas par ville côté API — on récupère toutes
     // les commandes et on filtre localement sur city_name
-    const { orders: allOrders, loading: ordersLoading } = useOrders();
+    const { orders: allOrders, loading: ordersLoading } = useOrders({ loadAllPages: true });
     const orders = useMemo(() => {
         if (!ville) return [];
-        return allOrders.filter(o =>
-            (o.client?.city ?? o.city_name ?? '').toLowerCase() === ville.name.toLowerCase()
+        return allOrders.filter(
+            (o) =>
+                getOrderDeliveryCity(o).toLowerCase() === ville.name.toLowerCase(),
         );
     }, [allOrders, ville]);
 

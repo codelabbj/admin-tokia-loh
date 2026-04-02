@@ -1,18 +1,17 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import { Plus, Grid2X2 } from 'lucide-react';
 import { useCategories } from '../hooks/useCategories';
-import { useProducts } from '../hooks/useProducts';
+import { useCategoriesList } from '../hooks/useCategoriesList';
 import Button from '../components/Button';
 import StatCard from '../components/dashboard/StatCard';
 import CategoriesTable from '../components/categories/CategoriesTable';
-import CategoryFormModal from '../components/categories/CategoryFormModal';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 
 const CategoriesPage = () => {
     const navigate = useNavigate();
-    const { categories, loading, create, update, remove } = useCategories();
-    const { products } = useProducts();
+    const list = useCategoriesList();
+    const { update, remove } = useCategories({ skipInitialFetch: true });
 
     const [deleteTarget, setDeleteTarget] = useState(null);
 
@@ -20,40 +19,57 @@ const CategoriesPage = () => {
         document.title = 'Admin Tokia-Loh | Catégories';
     }, []);
 
-    // ── Stats calculées ───────────────────────────────────────
+    const handleUpdate = useCallback(
+        async (id, payload) => {
+            await update(id, payload);
+            list.refetch();
+        },
+        [update, list],
+    );
+
+    // ── Stats : page courante uniquement ──────────────────────
     const stats = useMemo(() => {
-        const total = categories.length;
-        const active = categories.filter(c => c.is_active).length;
+        const pageCats = list.categories;
+        const total = pageCats.length;
+        const active = pageCats.filter(c => c.is_active).length;
         const inactive = total - active;
-        return { total, active, inactive };
-    }, [categories]);
+        const activePct = total > 0 ? Math.round((active / total) * 100) : 0;
+        return { total, active, inactive, activePct };
+    }, [list.categories]);
 
-    // ── Nombre de produits par catégorie ──────────────────────
-    const productCountByCat = useMemo(() => {
-        const map = {};
-        products.forEach(p => {
-            map[p.category] = (map[p.category] ?? 0) + 1;
-        });
-        return map;
-    }, [products]);
-
-    // ── Handlers ──────────────────────────────────────────────
     const handleCreate = () => navigate('/categories/new');
-    const handleEdit = (category) => navigate(`/categories/${category.id}/edit`);
 
+    const handleEdit = (category) => navigate(`/categories/${category.id}/edit`);
 
     const handleDelete = (cat) => setDeleteTarget(cat);
 
     const handleConfirmDelete = async () => {
         if (!deleteTarget) return;
-        await remove(deleteTarget.id);
-        setDeleteTarget(null);
+        try {
+            await remove(deleteTarget.id);
+            list.refetch();
+        } finally {
+            setDeleteTarget(null);
+        }
     };
 
-    // Nombre de produits liés à la catégorie cible
-    const deleteTargetProductCount = deleteTarget
-        ? (productCountByCat[deleteTarget.id] ?? 0)
-        : 0;
+    const deleteTargetProductCount =
+        deleteTarget?.products_count ??
+        deleteTarget?.productsCount ??
+        0;
+
+    const serverFilters = {
+        search: list.search,
+        onSearchChange: list.setSearch,
+    };
+
+    const pagination = {
+        page: list.page,
+        totalPages: list.totalPages,
+        totalCount: list.totalCount,
+        pageSize: list.pageSize,
+        onPageChange: list.setPage,
+    };
 
     return (
         <div className="flex flex-col gap-6">
@@ -74,45 +90,50 @@ const CategoriesPage = () => {
                 </Button>
             </div>
 
-            {/* ── Stats ── */}
+            {/* ── Stats (page courante) ── */}
+            {!list.loading && (
+                <p className="text-[11px] font-poppins text-neutral-6 dark:text-neutral-6 -mb-2">
+                    Statistiques pour la page {list.page} sur {list.totalPages}
+                    {stats.total > 0
+                        ? ` · ${stats.total} catégorie${stats.total > 1 ? 's' : ''} sur cette page`
+                        : ' · Aucune catégorie sur cette page'}
+                </p>
+            )}
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 <StatCard
                     title="Total catégories"
-                    value={loading ? '…' : stats.total.toString()}
+                    value={list.loading ? '…' : stats.total.toString()}
                     icon={<Grid2X2 size={18} />}
                     color="primary"
                 />
                 <StatCard
                     title="Catégories actives"
-                    value={loading ? '…' : stats.active.toString()}
+                    value={list.loading ? '…' : stats.active.toString()}
                     icon={<Grid2X2 size={18} />}
                     trend="up"
-                    trendLabel={loading ? '' : `${stats.total ? Math.round((stats.active / stats.total) * 100) : 0}%`}
+                    trendLabel={list.loading || stats.total === 0 ? '' : `${stats.activePct}% de la page`}
                     color="success"
                 />
                 <StatCard
                     title="Catégories inactives"
-                    value={loading ? '…' : stats.inactive.toString()}
+                    value={list.loading ? '…' : stats.inactive.toString()}
                     icon={<Grid2X2 size={18} />}
+                    trend={stats.inactive > 0 ? 'down' : 'neutral'}
+                    trendLabel={list.loading || stats.total === 0 ? '' : stats.inactive > 0 ? 'Sur cette page' : 'Aucune'}
                     color="warning"
                 />
             </div>
 
-            {/* ── Info ordre ── */}
-            <div className="flex items-center gap-2 bg-primary-5 dark:bg-primary-5 border border-primary-4 rounded-2 px-4 py-3">
-                <span className="text-xs font-poppins text-primary-7 dark:text-primary-7">
-                    💡 Utilisez les flèches ▲▼ pour changer l'ordre d'affichage des catégories sur la boutique.
-                </span>
-            </div>
-
             {/* ── Tableau ── */}
             <CategoriesTable
-                categories={categories}
-                loading={loading}
-                productCountByCat={productCountByCat}
+                categories={list.categories}
+                loading={list.loading}
+                productCountByCat={{}}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                onUpdate={update}
+                onUpdate={handleUpdate}
+                serverFilters={serverFilters}
+                pagination={pagination}
             />
 
             {/* ── Confirmation suppression ── */}

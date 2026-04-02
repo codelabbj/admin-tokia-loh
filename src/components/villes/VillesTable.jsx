@@ -5,6 +5,8 @@ import ProductStatusToggle from '../products/ProductStatusToggle';
 
 const formatPrice = (p) => `${Number(p).toLocaleString('fr-FR')} F`;
 
+const EMPTY_CITY_KEYS = new Set();
+
 const VilleAvatar = ({ name }) => (
     <div className="w-9 h-9 rounded-md bg-secondary-5 flex items-center justify-center shrink-0">
         <span className="text-xs font-bold font-poppins text-secondary-1 uppercase">
@@ -17,11 +19,21 @@ const VilleAvatar = ({ name }) => (
   Props :
   - villes   : tableau issu de useVilles()
   - loading  : boolean
+  - ordersLoading       : boolean — tant que les commandes chargent, suppression désactivée (prudence)
+  - cityKeysWithOrders  : Set<string> — clés ville en lower case ayant au moins une commande
   - onEdit   : (ville) => void
   - onDelete : (ville) => void
   - onToggle : (ville) => void  — toggle is_active
 */
-const VillesTable = ({ villes = [], loading = false, onEdit, onDelete, onToggle }) => {
+const VillesTable = ({
+    villes = [],
+    loading = false,
+    ordersLoading = false,
+    cityKeysWithOrders = EMPTY_CITY_KEYS,
+    onEdit,
+    onDelete,
+    onToggle,
+}) => {
     const navigate = useNavigate();
 
     return (
@@ -50,7 +62,13 @@ const VillesTable = ({ villes = [], loading = false, onEdit, onDelete, onToggle 
                                     Aucune ville configurée
                                 </td>
                             </tr>
-                        ) : villes.map(ville => (
+                        ) : villes.map((ville) => {
+                            const hasOrders =
+                                cityKeysWithOrders.has(
+                                    String(ville.name ?? '').toLowerCase(),
+                                );
+                            const deleteDisabled = ordersLoading || hasOrders;
+                            return (
                             <tr
                                 key={ville.id}
                                 onClick={() => navigate(`/cities/${ville.id}`)}
@@ -105,16 +123,32 @@ const VillesTable = ({ villes = [], loading = false, onEdit, onDelete, onToggle 
                                             <Pencil size={14} />
                                         </button>
                                         <button
-                                            onClick={() => onDelete?.(ville)}
-                                            title="Supprimer"
-                                            className="w-7 h-7 flex items-center justify-center rounded-md text-neutral-6 hover:bg-danger-2 hover:text-danger-1 transition-colors cursor-pointer"
+                                            type="button"
+                                            disabled={deleteDisabled}
+                                            onClick={() =>
+                                                !deleteDisabled && onDelete?.(ville)
+                                            }
+                                            title={
+                                                ordersLoading
+                                                    ? 'Chargement des commandes…'
+                                                    : hasOrders
+                                                      ? 'Suppression impossible : commandes liées à cette ville'
+                                                      : 'Supprimer'
+                                            }
+                                            className="
+                                                w-7 h-7 flex items-center justify-center rounded-md transition-colors
+                                                text-neutral-6
+                                                enabled:hover:bg-danger-2 enabled:hover:text-danger-1 enabled:cursor-pointer
+                                                disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent
+                                            "
                                         >
                                             <Trash2 size={14} />
                                         </button>
                                     </div>
                                 </td>
                             </tr>
-                        ))}
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import api from "../api/client"; // Import de votre instance axios configurée
+import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
 
 // ─── Hook principal ────────────────────────────────────────────────────────────
 export function useAdmin() {
@@ -25,7 +26,9 @@ export function useAdmin() {
     setBannersLoading(true);
     setBannersError(null);
     try {
-      const { data } = await api.get("/shop/banners/");
+      const { data } = await api.get("/shop/banners/", {
+        params: { ordering: ORDERING_NEWEST_FIRST },
+      });
       setBanners(Array.isArray(data) ? data : []);
     } catch (error) {
       setBannersError(error.message || "Impossible de charger les bannières.");
