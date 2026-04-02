@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Eye, PauseCircle, Ban, Trash2, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Eye, PauseCircle, Ban, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import ClientStatusBadge, { CLIENT_STATUS_CONFIG } from './ClientStatusBadge';
 
@@ -35,7 +35,6 @@ const ClientsTable = ({
     loading = false,
     onDisable,
     onBlock,
-    onDelete,
     pagination = null,
     highlightRowId = '',
 }) => {
@@ -219,14 +218,6 @@ const ClientsTable = ({
                                                 hover:bg-danger-2 hover:text-danger-1 transition-colors cursor-pointer"
                                         >
                                             <Ban size={14} />
-                                        </button>
-                                        <button
-                                            onClick={() => onDelete?.(client)}
-                                            title="Supprimer"
-                                            className="w-7 h-7 flex items-center justify-center rounded-md text-neutral-6
-                                                hover:bg-danger-2 hover:text-danger-1 transition-colors cursor-pointer"
-                                        >
-                                            <Trash2 size={14} />
                                         </button>
                                     </div>
                                 </td>

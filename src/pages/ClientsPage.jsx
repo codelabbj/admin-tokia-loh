@@ -3,7 +3,6 @@ import { Users, UserCheck, UserMinus, UserX, AlertCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router';
 import StatCard from '../components/dashboard/StatCard';
 import ClientsTable from '../components/clients/ClientsTable';
-import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { useToast } from '../hooks/useToast';
 import ToastContainer from '../components/ToastContainer';
 import { useClients, deriveStatus, CLIENTS_LIST_PAGE_SIZE } from '../hooks/useClients';
@@ -28,7 +27,6 @@ const ClientsPage = () => {
         pageSize,
     } = useClients();
     const { toasts, showToast, removeToast } = useToast();
-    const [deleteTarget, setDeleteTarget] = useState(null);
 
     useEffect(() => {
         document.title = 'Admin Tokia-Loh | Clients';
@@ -102,21 +100,6 @@ const ClientsPage = () => {
         showToast({ message: 'La fonctionnalité de blocage n\'est pas encore disponible.', type: 'info' });
     };
 
-    const handleDelete = (client) => {
-        setDeleteTarget(client);
-    };
-
-    const handleConfirmDelete = () => {
-        // Endpoint DELETE /accounts/clients/:id/ non disponible dans l'API v5
-        showToast({ message: 'La suppression n\'est pas encore disponible via l\'API.', type: 'info' });
-        setDeleteTarget(null);
-    };
-
-    const handleCancelDelete = () => {
-        setDeleteTarget(null);
-        showToast({ message: 'Suppression annulée.', type: 'info' });
-    };
-
     // ── Stats : total catalogue (count API) · répartition sur la page courante ──
     const totalListed = clientsWithStatus.length;
     const actifs = clientsWithStatus.filter(c => c.status === 'Actif').length;
@@ -183,7 +166,6 @@ const ClientsPage = () => {
                 loading={loading}
                 onDisable={handleDisable}
                 onBlock={handleBlock}
-                onDelete={handleDelete}
                 highlightRowId={highlightClient || tableFlashId}
                 pagination={{
                     page,
@@ -192,15 +174,6 @@ const ClientsPage = () => {
                     pageSize,
                     onPageChange: setPage,
                 }}
-            />
-
-            {/* ── Modal suppression ── */}
-            <DeleteConfirmModal
-                isOpen={!!deleteTarget}
-                onConfirm={handleConfirmDelete}
-                onCancel={handleCancelDelete}
-                title="Supprimer le client"
-                message={`Voulez-vous vraiment supprimer définitivement "${deleteTarget?.first_name} ${deleteTarget?.last_name}" ? Cette action est irréversible.`}
             />
 
             {/* ── Toasts ── */}
