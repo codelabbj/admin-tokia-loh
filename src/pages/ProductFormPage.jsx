@@ -1,14 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { ArrowLeft, Upload, Trash2, Plus, X, Loader2, Images } from 'lucide-react';
 import InputField from '../components/InputField';
 import Button from '../components/Button';
 import ProductStatusToggle from '../components/products/ProductStatusToggle';
-import { useProducts, normalizeProduct } from '../hooks/useProducts';
+import {
+    useProducts,
+    normalizeProduct,
+    normalizeOthersDetails,
+    resolveImageUrl,
+} from '../hooks/useProducts';
 import { productsAPI } from '../api/products.api';
 import { useCategories } from '../hooks/useCategories';
 import { useToast } from '../components/ui/ToastProvider';
 import MediaPickerModal from '../components/media/MediaPickerModal';
+import { variantsAPI } from '../api/variants.api';
 
 // ── Helpers vidéo ─────────────────────────────────────────────
 const getYouTubeThumbnail = (url) => {
@@ -105,24 +111,34 @@ const parseOthersDetails = (others_details = []) => {
     const custom = [];
 
     others_details.forEach((detail) => {
-        if (typeof detail !== 'string') return;
-        const colonIndex = detail.indexOf(':');
-        if (colonIndex > 0) {
-            const key = detail.substring(0, colonIndex).trim();
-            const value = detail.substring(colonIndex + 1).trim();
+        const normalized = typeof detail === 'string'
+            ? (() => {
+                const colonIndex = detail.indexOf(':');
+                if (colonIndex > 0) {
+                    return {
+                        key: detail.substring(0, colonIndex).trim(),
+                        value: detail.substring(colonIndex + 1).trim(),
+                    };
+                }
+                return { key: detail.trim(), value: '' };
+            })()
+            : {
+                key: String(detail?.key ?? '').trim(),
+                value: String(detail?.value ?? '').trim(),
+            };
+        const key = normalized.key;
+        const value = normalized.value;
+        if (!key) return;
 
-            if (key === 'Taille') {
-                sizes.push(value);
-            } else if (key === 'Couleur') {
-                const hexMatch = value.match(/#[0-9A-Fa-f]{6}/);
-                const hex = hexMatch ? hexMatch[0] : '#000000';
-                const name = value.replace(/\s*\(.*?\)/, '').trim();
-                colors.push({ name, hex });
-            } else {
-                custom.push({ key, value });
-            }
+        if (key === 'Taille') {
+            sizes.push(value);
+        } else if (key === 'Couleur') {
+            const hexMatch = value.match(/#[0-9A-Fa-f]{6}/);
+            const hex = hexMatch ? hexMatch[0] : '#000000';
+            const name = value.replace(/\s*\(.*?\)/, '').trim();
+            colors.push({ name, hex });
         } else {
-            custom.push({ key: detail.trim(), value: '' });
+            custom.push({ key, value });
         }
     });
 
@@ -133,23 +149,126 @@ const buildOthersDetails = (sizes, colors, custom) => {
     const result = [];
 
     sizes.forEach((size) => {
-        if (size?.trim()) result.push(`Taille: ${size.trim()}`);
+        if (size?.trim()) result.push({ key: 'Taille', value: size.trim() });
     });
 
     colors.forEach(({ name, hex }) => {
-        if (name?.trim()) result.push(`Couleur: ${name.trim()} (${hex})`);
+        if (name?.trim()) result.push({ key: 'Couleur', value: `${name.trim()} (${hex})` });
     });
 
     custom.forEach(({ key, value }) => {
         if (!key?.trim()) return;
-        if (value?.trim()) {
-            result.push(`${key.trim()}: ${value.trim()}`);
-        } else {
-            result.push(key.trim());
-        }
+        result.push({ key: key.trim(), value: value?.trim() ?? '' });
     });
 
     return result;
+};
+
+const normalizeAttributesForForm = (attributes = []) => {
+    if (!Array.isArray(attributes)) return [];
+    return attributes
+        .map((a) => ({
+            name: String(a?.name ?? '').trim(),
+            values: Array.isArray(a?.values)
+                ? a.values.map(v => String(v ?? '').trim()).filter(Boolean)
+                : [],
+        }))
+        .filter((a) => a.name);
+};
+
+const normalizeVariantsForForm = (variants = [], attributes = []) => {
+    if (!Array.isArray(variants)) return [];
+    const fallbackAttrMap = Object.fromEntries(
+        attributes.map((a) => [a.name, a.values?.[0] ?? '']),
+    );
+    return variants.map((v) => {
+        const attrMap = { ...fallbackAttrMap };
+        (v?.attributes ?? []).forEach((av) => {
+            const key = String(av?.name ?? '').trim();
+            if (!key) return;
+            attrMap[key] = String(av?.value ?? '').trim();
+        });
+        return {
+            id: v?.id ?? null,
+            sku: String(v?.sku ?? v?.name ?? '').trim(),
+            price: String(v?.price ?? '').trim(),
+            original_price: v?.original_price == null ? '' : String(v.original_price),
+            stock: v?.stock == null ? '' : String(v.stock),
+            unlimited_stock: v?.unlimited_stock === true,
+            status: v?.status ?? true,
+            image: v?.image ?? '',
+            secondary_images: Array.isArray(v?.secondary_images) ? v.secondary_images : [],
+            others_details: normalizeOthersDetails(v?.others_details ?? []),
+            attrMap,
+        };
+    });
+};
+
+const mergeAttributesByName = (attributes = []) => {
+    const map = new Map();
+    attributes.forEach((a) => {
+        const name = String(a?.name ?? '').trim();
+        if (!name) return;
+        const values = Array.isArray(a?.values)
+            ? a.values.map((v) => String(v ?? '').trim()).filter(Boolean)
+            : [];
+        if (!map.has(name)) {
+            map.set(name, new Set(values));
+            return;
+        }
+        const set = map.get(name);
+        values.forEach((v) => set.add(v));
+    });
+    return Array.from(map.entries()).map(([name, set]) => ({
+        name,
+        values: Array.from(set),
+    }));
+};
+
+const buildAllowedVariantAttributes = (form, customDetails) => {
+    const map = new Map();
+    if (form?.hasSizes && Array.isArray(form?.sizes) && form.sizes.length > 0) {
+        map.set(
+            'Taille',
+            Array.from(new Set(form.sizes.map((s) => String(s ?? '').trim()).filter(Boolean))),
+        );
+    }
+    if (form?.hasColors && Array.isArray(form?.colors) && form.colors.length > 0) {
+        map.set(
+            'Couleur',
+            Array.from(new Set(form.colors.map((c) => String(c?.name ?? '').trim()).filter(Boolean))),
+        );
+    }
+    (customDetails ?? []).forEach((d) => {
+        const key = String(d?.key ?? '').trim();
+        const value = String(d?.value ?? '').trim();
+        if (!key) return;
+        if (!map.has(key)) map.set(key, []);
+        if (value) {
+            const arr = map.get(key);
+            if (!arr.includes(value)) arr.push(value);
+        }
+    });
+    return Array.from(map.entries()).map(([name, values]) => ({ name, values }));
+};
+
+const buildVariantName = (variant) => {
+    const attrs = Object.entries(variant?.attrMap ?? {})
+        .map(([k, v]) => [String(k ?? '').trim(), String(v ?? '').trim()])
+        .filter(([, v]) => !!v)
+        .map(([, v]) => v);
+    if (attrs.length > 0) return attrs.join(' / ');
+    return String(variant?.sku ?? '').trim() || 'Variante';
+};
+
+const getVariantImagePreview = (img) => {
+    if (!img) return null;
+    if (typeof img === 'string') return img;
+    if (typeof img === 'object') {
+        if (img.preview) return img.preview;
+        if (img.file instanceof File) return URL.createObjectURL(img.file);
+    }
+    return null;
 };
 
 // ── Section wrapper ───────────────────────────────────────────
@@ -172,7 +291,7 @@ const ProductFormPage = () => {
     const { categories } = useCategories();
     const { toast } = useToast();
     const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
-    const [mediaPickerTarget, setMediaPickerTarget] = useState('main'); // 'main' | 'sub'
+    const [mediaPickerTarget, setMediaPickerTarget] = useState({ type: 'main' });
     const [productFromDetail, setProductFromDetail] = useState(null);
 
     const isEdit = !!id;
@@ -193,12 +312,24 @@ const ProductFormPage = () => {
     const [showImageUrlModal, setShowImageUrlModal] = useState(false);
     const [tempImageUrl, setTempImageUrl] = useState('');
     const [tempImageType, setTempImageType] = useState('main');
+    const [tempImageVariantIdx, setTempImageVariantIdx] = useState(null);
     const [customDetails, setCustomDetails] = useState([]);
     const [newDetailKey, setNewDetailKey] = useState('');
     const [newDetailVal, setNewDetailVal] = useState('');
+    const [variantsDraft, setVariantsDraft] = useState([]);
+    /** Incrémenté après chargement async des variantes (GET v2) pour ré-appliquer le filtre attributs. */
+    const [variantSourceTick, setVariantSourceTick] = useState(0);
+    const allowedVariantAttributes = useMemo(
+        () => buildAllowedVariantAttributes(form, customDetails),
+        [form.hasSizes, form.sizes, form.hasColors, form.colors, customDetails],
+    );
 
     const mainImageRef = useRef(null);
     const subImageRef = useRef(null);
+    const variantImageFileRefs = useRef([]);
+    /** Ancre sous la liste des cartes variantes (scroll après « + Variante »). */
+    const variantsAnchorAfterCardsRef = useRef(null);
+    const scrollToVariantsAnchorPendingRef = useRef(false);
 
     // ── Titre de la page ──────────────────────────────────────
     useEffect(() => {
@@ -228,8 +359,10 @@ const ProductFormPage = () => {
 
     // ── Pré-remplissage en mode édition ──────────────────────
     useEffect(() => {
+        let cancelled = false;
         if (isEdit && product) {
             const { sizes, colors, custom } = parseOthersDetails(product.others_details ?? []);
+            const normalizedAttributes = normalizeAttributesForForm(product.attributes ?? []);
             setForm({
                 ...EMPTY_FORM,
                 name: product.name ?? '',
@@ -249,14 +382,69 @@ const ProductFormPage = () => {
                 colors,
             });
             setCustomDetails(custom);
+
+            const embedded = product.variants ?? [];
+            setVariantsDraft(normalizeVariantsForForm(embedded, normalizedAttributes));
+
+            const needFetchVariants =
+                product.id &&
+                (!Array.isArray(embedded) || embedded.length === 0);
+
+            if (needFetchVariants) {
+                (async () => {
+                    try {
+                        const found = await variantsAPI.listAllForProduct(product.id);
+                        if (cancelled) return;
+                        if (found.length > 0) {
+                            const attrs = normalizeAttributesForForm(product.attributes ?? []);
+                            setVariantsDraft(normalizeVariantsForForm(found, attrs));
+                            setVariantSourceTick((t) => t + 1);
+                        }
+                    } catch {
+                        /* ignore — variante absentes ou erreur réseau */
+                    }
+                })();
+            }
         } else if (!isEdit) {
             setForm(EMPTY_FORM);
             setCustomDetails([]);
+            setVariantsDraft([]);
         }
         setErrors({});
         setNewDetailKey('');
         setNewDetailVal('');
+        return () => {
+            cancelled = true;
+        };
     }, [isEdit, product]);
+
+    useEffect(() => {
+        const allowedByName = new Map(
+            allowedVariantAttributes.map((a) => [a.name, a.values ?? []]),
+        );
+        setVariantsDraft((prev) =>
+            prev.map((v) => {
+                const nextMap = {};
+                Object.entries(v.attrMap ?? {}).forEach(([k, val]) => {
+                    if (!allowedByName.has(k)) return;
+                    const allowedValues = allowedByName.get(k) ?? [];
+                    const strVal = String(val ?? '').trim();
+                    nextMap[k] = allowedValues.includes(strVal)
+                        ? strVal
+                        : (allowedValues[0] ?? '');
+                });
+                return { ...v, attrMap: nextMap };
+            }),
+        );
+    }, [allowedVariantAttributes, variantSourceTick]);
+
+    useEffect(() => {
+        if (!scrollToVariantsAnchorPendingRef.current) return;
+        scrollToVariantsAnchorPendingRef.current = false;
+        const el = variantsAnchorAfterCardsRef.current;
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, [variantsDraft.length]);
 
     // ── Loader pendant la résolution du produit en édition ───
     if (isEdit && (productsLoading || (needsDetailFetch && !productFromDetail))) {
@@ -286,6 +474,15 @@ const ProductFormPage = () => {
         setForm(prev => ({ ...prev, mainImage: { file, preview: URL.createObjectURL(file) } }));
     };
 
+    const handleVariantImageFile = (variantIndex, e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        updateVariant(variantIndex, {
+            image: { file, preview: URL.createObjectURL(file) },
+        });
+        e.target.value = '';
+    };
+
     /* const handleMediaSelect = (file) => {
         if (!file || !file.file) {  // ✅ Changé de file.url à file.file
             toast.error('Fichier invalide');
@@ -311,19 +508,30 @@ const ProductFormPage = () => {
             return;
         }
 
-        if (mediaPickerTarget === 'main') {
-            // Pour l'image principale, prendre seulement le premier fichier
+        if (mediaPickerTarget.type === 'main') {
             setForm(prev => ({ ...prev, mainImage: validFiles[0].file }));
-        } else {
-            // Pour les images secondaires, ajouter tous les fichiers sélectionnés
+        } else if (mediaPickerTarget.type === 'sub') {
             const urls = validFiles.map(f => f.file);
             setForm(prev => ({ ...prev, subImages: [...prev.subImages, ...urls] }));
+        } else if (mediaPickerTarget.type === 'variant') {
+            const idx = mediaPickerTarget.index;
+            const picked = validFiles[0].file;
+            setVariantsDraft((prev) =>
+                prev.map((v, i) => (i === idx ? { ...v, image: picked } : v)),
+            );
         }
     };
 
     const handleAddImageUrl = () => {
         if (!tempImageUrl.trim()) return;
-        if (tempImageType === 'main') {
+        if (tempImageType === 'variant' && tempImageVariantIdx != null) {
+            setVariantsDraft((prev) =>
+                prev.map((v, i) =>
+                    i === tempImageVariantIdx ? { ...v, image: tempImageUrl.trim() } : v,
+                ),
+            );
+            setTempImageVariantIdx(null);
+        } else if (tempImageType === 'main') {
             setForm(prev => ({ ...prev, mainImage: tempImageUrl }));
         } else {
             setForm(prev => ({ ...prev, subImages: [...prev.subImages, tempImageUrl] }));
@@ -371,18 +579,199 @@ const ProductFormPage = () => {
     const handleCustomDetailChange = (index, field, value) =>
         setCustomDetails(prev => prev.map((d, i) => i === index ? { ...d, [field]: value } : d));
 
+    const createEmptyVariant = () => ({
+        id: null,
+        sku: '',
+        price: '',
+        original_price: '',
+        stock: '',
+        unlimited_stock: false,
+        status: true,
+        image: '',
+        secondary_images: [],
+        others_details: [],
+        attrMap: {},
+    });
+    const handleAddVariant = () => {
+        scrollToVariantsAnchorPendingRef.current = true;
+        setVariantsDraft((prev) => [...prev, createEmptyVariant()]);
+    };
+    const handleRemoveVariant = (index) =>
+        setVariantsDraft((prev) => prev.filter((_, i) => i !== index));
+    const updateVariant = (index, patch) =>
+        setVariantsDraft((prev) => prev.map((v, i) => (i === index ? { ...v, ...patch } : v)));
+
+    const handleAddVariantAttribute = (variantIndex) => {
+        const variant = variantsDraft[variantIndex];
+        if (!variant) return;
+        const selected = new Set(Object.keys(variant.attrMap ?? {}));
+        const nextAttr = allowedVariantAttributes.find((a) => !selected.has(a.name));
+        if (!nextAttr) return;
+        updateVariant(variantIndex, {
+            attrMap: {
+                ...(variant.attrMap ?? {}),
+                [nextAttr.name]: nextAttr.values?.[0] ?? '',
+            },
+        });
+    };
+    const handleRemoveVariantAttribute = (variantIndex, attrName) => {
+        const variant = variantsDraft[variantIndex];
+        if (!variant) return;
+        const nextMap = { ...(variant.attrMap ?? {}) };
+        delete nextMap[attrName];
+        updateVariant(variantIndex, { attrMap: nextMap });
+    };
+    const handleVariantAttributeNameChange = (variantIndex, oldName, newName) => {
+        const variant = variantsDraft[variantIndex];
+        if (!variant) return;
+        const attrDef = allowedVariantAttributes.find((a) => a.name === newName);
+        const nextMap = { ...(variant.attrMap ?? {}) };
+        delete nextMap[oldName];
+        nextMap[newName] = nextMap[newName] ?? attrDef?.values?.[0] ?? '';
+        updateVariant(variantIndex, { attrMap: nextMap });
+    };
+    const handleVariantAttributeValueChange = (variantIndex, attrName, value) => {
+        const variant = variantsDraft[variantIndex];
+        if (!variant) return;
+        updateVariant(variantIndex, {
+            attrMap: { ...(variant.attrMap ?? {}), [attrName]: value },
+        });
+    };
+
+    const handleAddVariantDetail = (variantIndex) => {
+        const variant = variantsDraft[variantIndex];
+        if (!variant) return;
+        updateVariant(variantIndex, {
+            others_details: [...(variant.others_details ?? []), { key: '', value: '' }],
+        });
+    };
+    const handleRemoveVariantDetail = (variantIndex, detailIndex) => {
+        const variant = variantsDraft[variantIndex];
+        if (!variant) return;
+        updateVariant(variantIndex, {
+            others_details: (variant.others_details ?? []).filter((_, i) => i !== detailIndex),
+        });
+    };
+    const handleVariantDetailChange = (variantIndex, detailIndex, field, value) => {
+        const variant = variantsDraft[variantIndex];
+        if (!variant) return;
+        updateVariant(variantIndex, {
+            others_details: (variant.others_details ?? []).map((d, i) =>
+                i === detailIndex ? { ...d, [field]: value } : d,
+            ),
+        });
+    };
+
     // ── Validation ────────────────────────────────────────────
     const validate = () => {
         const e = {};
         if (!form.name.trim()) e.name = 'Nom requis';
         if (!form.category) e.category = 'Catégorie requise';
+        const hasVariants = variantsDraft.length > 0;
         if (!form.price) e.price = 'Prix requis';
         if (!form.unlimited_stock && (form.stock === '' || form.stock === null)) e.stock = 'Stock requis';
         if (form.sale_price && parseFloat(form.sale_price) >= parseFloat(form.price))
             e.sale_price = 'Le prix réduit doit être inférieur au prix initial';
         if (!form.mainImage) e.mainImage = 'Image principale requise';
+
+        const attrDefsForVariants = mergeAttributesByName(
+            allowedVariantAttributes.map((a) => ({
+                name: String(a?.name ?? '').trim(),
+                values: (a.values ?? []).map((v) => String(v ?? '').trim()).filter(Boolean),
+            })),
+        ).filter((a) => a.name);
+
+        if (hasVariants) {
+            const seen = new Set();
+            for (let i = 0; i < variantsDraft.length; i += 1) {
+                const v = variantsDraft[i];
+                const variantLabel = String(v.sku ?? '').trim() || buildVariantName(v);
+                if (!variantLabel) {
+                    e.variants = `Nom ou référence requis pour la variante #${i + 1}.`;
+                    break;
+                }
+                const key = variantLabel.toUpperCase();
+                if (seen.has(key)) {
+                    e.variants = `Nom de variante dupliqué: ${variantLabel}.`;
+                    break;
+                }
+                seen.add(key);
+                if (!String(v.price ?? '').trim()) {
+                    e.variants = `Prix requis pour la variante #${i + 1}.`;
+                    break;
+                }
+                if (!v.unlimited_stock && (v.stock === '' || v.stock == null)) {
+                    e.variants = `Stock requis pour la variante #${i + 1}.`;
+                    break;
+                }
+                for (const [name, selectedRaw] of Object.entries(v.attrMap ?? {})) {
+                    const attrDef = attrDefsForVariants.find((a) => a.name === name);
+                    const selected = String(selectedRaw ?? '').trim();
+                    if (!attrDef || !selected || !attrDef.values.includes(selected)) {
+                        e.variants = `Attribut "${name}" invalide sur la variante #${i + 1}.`;
+                        break;
+                    }
+                }
+                if (e.variants) break;
+            }
+        }
         setErrors(e);
         return Object.keys(e).length === 0;
+    };
+
+    const syncVariantsV11 = async (productId) => {
+        const { data } = await variantsAPI.list({ page_size: 500 });
+        const rows = Array.isArray(data)
+            ? data
+            : (Array.isArray(data?.results) ? data.results : []);
+        const existing = rows.filter((r) => {
+            const prod = r?.product;
+            if (typeof prod === 'string') return String(prod) === String(productId);
+            return String(prod?.id ?? '') === String(productId);
+        });
+
+        const keepIds = new Set(variantsDraft.map((v) => v.id).filter(Boolean));
+        for (const row of existing) {
+            if (!keepIds.has(row.id)) {
+                await variantsAPI.delete(row.id);
+            }
+        }
+
+        for (const v of variantsDraft) {
+            const name = String(v.sku ?? '').trim() || buildVariantName(v);
+            if (!name || !String(v.price ?? '').trim()) continue;
+            if (!v.unlimited_stock && (v.stock === '' || v.stock == null)) continue;
+
+            const price = Number(v.price);
+            const origStr = String(v.original_price ?? '').trim();
+            const original_price = origStr === '' ? null : Number(origStr);
+
+            const unlimited = v.unlimited_stock === true;
+            const stock = unlimited ? null : Number(v.stock ?? 0);
+
+            const imageUrl = (await resolveImageUrl(v.image)) ?? null;
+            const others_details = normalizeOthersDetails(v.others_details ?? []);
+
+            const body = {
+                name,
+                price,
+                original_price,
+                stock,
+                unlimited_stock: unlimited,
+                image: imageUrl,
+                others_details,
+                status: v.status !== false,
+            };
+
+            if (v.id) {
+                await variantsAPI.update(v.id, body);
+            } else {
+                await variantsAPI.create({
+                    product: productId,
+                    ...body,
+                });
+            }
+        }
     };
 
     // ── Soumission ────────────────────────────────────────────
@@ -400,7 +789,6 @@ const ProductFormPage = () => {
                 stock: Number(form.stock === '' || form.stock === null ? 0 : form.stock),
                 unlimited_stock: form.unlimited_stock,
                 is_active: form.is_active,
-                featured: form.featured,
                 mainImage: form.mainImage,
                 subImages: form.subImages,
                 others_details: buildOthersDetails(form.sizes, form.colors, customDetails),
@@ -408,8 +796,10 @@ const ProductFormPage = () => {
 
             if (isEdit) {
                 await update(product.id, payload);
+                await syncVariantsV11(product.id);
             } else {
-                await create(payload);
+                const saved = await create(payload);
+                await syncVariantsV11(saved?.id);
             }
 
             toast.success(isEdit ? 'Produit mis à jour avec succès' : 'Produit créé avec succès');
@@ -607,7 +997,7 @@ const ProductFormPage = () => {
                                         <span className="text-[11px] font-poppins">Fichier</span>
                                     </button>
                                     <button type="button"
-                                        onClick={() => { setMediaPickerTarget('main'); setMediaPickerOpen(true); }}
+                                        onClick={() => { setMediaPickerTarget({ type: 'main' }); setMediaPickerOpen(true); }}
                                         className="w-32 h-32 rounded-2 border-2 border-dashed border-neutral-4 flex flex-col items-center justify-center gap-2 text-neutral-6 hover:border-primary-1 hover:text-primary-1 transition-colors cursor-pointer"
                                     >
                                         <Images size={20} />
@@ -673,7 +1063,7 @@ const ProductFormPage = () => {
                                     <span className="text-[10px] font-poppins">Fichier</span>
                                 </button>
                                 <button type="button"
-                                    onClick={() => { setMediaPickerTarget('sub'); setMediaPickerOpen(true); }}
+                                    onClick={() => { setMediaPickerTarget({ type: 'sub' }); setMediaPickerOpen(true); }}
                                     className="w-20 h-20 rounded-2 border-2 border-dashed border-neutral-4 flex flex-col items-center justify-center gap-2 text-neutral-6 hover:border-primary-1 hover:text-primary-1 transition-colors cursor-pointer"
                                 >
                                     <Images size={20} />
@@ -858,6 +1248,315 @@ const ProductFormPage = () => {
                             )}
                         </div>
                     </FormSection>
+
+                    <FormSection title="Variantes">
+                        <p className="text-xs font-poppins text-neutral-6">
+                            Renseigner tailles, couleurs et caractéristiques plus haut pour proposer des valeurs dans « caractéristique existante ». Sinon, indiquez seulement le nom de la variante (ex. M, Noir / XL).
+                        </p>
+                        {allowedVariantAttributes.length === 0 && (
+                            <p className="text-[11px] font-poppins text-warning-1 mt-2">
+                                Sans caractéristiques produit, le bouton « existante » reste désactivé — utilisez le nom de la variante et « nouvelle caractéristique » si besoin.
+                            </p>
+                        )}
+
+                        {variantsDraft.length > 0 && (
+                            <div className="flex flex-col gap-4 mt-4">
+                                {variantsDraft.map((v, idx) => {
+                                    const variantImgSrc =
+                                        typeof v.image === 'string'
+                                            ? v.image
+                                            : (v.image?.preview ?? (v.image?.file ? getVariantImagePreview(v.image) : ''));
+                                    const hasVariantImage = Boolean(variantImgSrc);
+                                    return (
+                                        <div
+                                            key={v.id || `new-${idx}`}
+                                            className="relative rounded-2 border border-neutral-4 dark:border-neutral-4 p-4 pt-5 bg-neutral-2/30 dark:bg-neutral-2/30"
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveVariant(idx)}
+                                                className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full text-neutral-5 hover:bg-danger-2 hover:text-danger-1 transition-colors cursor-pointer"
+                                                aria-label="Retirer cette variante"
+                                            >
+                                                <X size={14} />
+                                            </button>
+
+                                            <div className="flex flex-col gap-2 pr-10">
+                                                <label className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
+                                                    Nom de la variante
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={v.sku}
+                                                    onChange={(e) => updateVariant(idx, { sku: e.target.value })}
+                                                    placeholder="Ex. M, Noir / XL"
+                                                    className="w-full rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-4 py-2.5 text-sm text-neutral-8 font-poppins outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 dark:border-neutral-5 dark:text-neutral-8"
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                                                <div className="flex flex-col gap-2">
+                                                    <label className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
+                                                        Prix de vente (F)
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={v.price}
+                                                        onChange={(e) => updateVariant(idx, { price: e.target.value })}
+                                                        placeholder="Ex. 7000"
+                                                        className="w-full rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-4 py-2.5 text-sm text-neutral-8 font-poppins outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 dark:border-neutral-5 dark:text-neutral-8"
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    <label className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
+                                                        Prix barré / initial (F)
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={v.original_price}
+                                                        onChange={(e) => updateVariant(idx, { original_price: e.target.value })}
+                                                        placeholder="Optionnel"
+                                                        className="w-full rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-4 py-2.5 text-sm text-neutral-8 font-poppins outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 dark:border-neutral-5 dark:text-neutral-8"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-4 flex flex-row flex-nowrap items-end gap-3 sm:gap-4 min-w-0 overflow-x-auto pb-0.5">
+                                                <div className="flex flex-col gap-2 min-w-0 flex-1 shrink">
+                                                    <label className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8 whitespace-nowrap">
+                                                        Quantité en stock
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={v.stock}
+                                                        disabled={v.unlimited_stock}
+                                                        onChange={(e) => updateVariant(idx, { stock: e.target.value })}
+                                                        placeholder="Ex. 20"
+                                                        className="w-full min-w-22 max-w-32 rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-3 py-2.5 text-sm text-neutral-8 font-poppins outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 disabled:opacity-50 dark:border-neutral-5 dark:text-neutral-8"
+                                                    />
+                                                </div>
+
+                                                <label className="flex items-center gap-2.5 cursor-pointer select-none rounded-md border border-neutral-4 dark:border-neutral-4 px-3 py-2.5 bg-neutral-2/50 dark:bg-neutral-2/50 shrink-0">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={v.unlimited_stock}
+                                                        onChange={(e) => updateVariant(idx, { unlimited_stock: e.target.checked })}
+                                                        className="rounded border-neutral-5 text-primary-1 focus:ring-primary-5 shrink-0"
+                                                    />
+                                                    <span className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8 whitespace-nowrap">
+                                                        Toujours en stock
+                                                    </span>
+                                                </label>
+
+                                                <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
+                                                    <div className="text-right hidden sm:block min-w-0">
+                                                        <p className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8 whitespace-nowrap">
+                                                            Variante active
+                                                        </p>
+                                                        <p className="text-[10px] font-poppins text-neutral-6 whitespace-nowrap">Visible sur la boutique</p>
+                                                    </div>
+                                                    <ProductStatusToggle
+                                                        active={v.status !== false}
+                                                        onChange={(val) => updateVariant(idx, { status: val })}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col gap-2 mt-5">
+                                                <label className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
+                                                    Image de la variante
+                                                </label>
+                                                {hasVariantImage ? (
+                                                    <div className="relative w-32 h-32 rounded-2 overflow-hidden border border-neutral-4 group">
+                                                        <img
+                                                            src={variantImgSrc}
+                                                            alt=""
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => updateVariant(idx, { image: '' })}
+                                                            className="absolute inset-0 bg-neutral-8/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+                                                        >
+                                                            <Trash2 size={18} className="text-white" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => variantImageFileRefs.current[idx]?.click()}
+                                                            className="w-32 h-32 rounded-2 border-2 border-dashed border-neutral-4 flex flex-col items-center justify-center gap-2 text-neutral-6 hover:border-primary-1 hover:text-primary-1 transition-colors cursor-pointer"
+                                                        >
+                                                            <Upload size={20} />
+                                                            <span className="text-[11px] font-poppins">Fichier</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setMediaPickerTarget({ type: 'variant', index: idx });
+                                                                setMediaPickerOpen(true);
+                                                            }}
+                                                            className="w-32 h-32 rounded-2 border-2 border-dashed border-neutral-4 flex flex-col items-center justify-center gap-2 text-neutral-6 hover:border-primary-1 hover:text-primary-1 transition-colors cursor-pointer"
+                                                        >
+                                                            <Images size={20} />
+                                                            <span className="text-[11px] font-poppins">Médiathèque</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setTempImageType('variant');
+                                                                setTempImageVariantIdx(idx);
+                                                                setShowImageUrlModal(true);
+                                                            }}
+                                                            className="w-32 h-32 rounded-2 border-2 border-dashed border-neutral-4 flex flex-col items-center justify-center gap-2 text-neutral-6 hover:border-primary-1 hover:text-primary-1 transition-colors cursor-pointer"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                                            </svg>
+                                                            <span className="text-[11px] font-poppins">URL</span>
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                <input
+                                                    ref={(el) => {
+                                                        variantImageFileRefs.current[idx] = el;
+                                                    }}
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={(e) => handleVariantImageFile(idx, e)}
+                                                />
+                                            </div>
+
+                                            <div className="mt-5 flex flex-col gap-3">
+                                                <div className="flex justify-end">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleAddVariantAttribute(idx)}
+                                                        disabled={
+                                                            allowedVariantAttributes.length === 0
+                                                            || Object.keys(v.attrMap ?? {}).length >= allowedVariantAttributes.length
+                                                        }
+                                                        className="w-fit"
+                                                    >
+                                                        <Plus size={13} /> Ajouter une caractéristique existante
+                                                    </Button>
+                                                </div>
+                                                {Object.keys(v.attrMap ?? {}).length > 0 && (
+                                                    <div className="grid grid-cols-1 gap-2">
+                                                        {Object.keys(v.attrMap ?? {}).map((attrName, attrIdx) => {
+                                                            const selectedElsewhere = new Set(
+                                                                Object.keys(v.attrMap ?? {}).filter((n) => n !== attrName),
+                                                            );
+                                                            const attrOptions = allowedVariantAttributes.filter(
+                                                                (a) => !selectedElsewhere.has(a.name) || a.name === attrName,
+                                                            );
+                                                            const selectedAttrDef = allowedVariantAttributes.find((a) => a.name === attrName);
+                                                            return (
+                                                                <div key={`${idx}-${attrIdx}-${attrName}`} className="grid grid-cols-12 gap-2 items-center">
+                                                                    <select
+                                                                        value={attrName}
+                                                                        onChange={(e) => handleVariantAttributeNameChange(idx, attrName, e.target.value)}
+                                                                        className="col-span-4 sm:col-span-3 rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-3 py-2 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 cursor-pointer"
+                                                                    >
+                                                                        {attrOptions.map((opt) => (
+                                                                            <option key={opt.name} value={opt.name}>{opt.name}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <select
+                                                                        value={v.attrMap?.[attrName] ?? ''}
+                                                                        onChange={(e) => handleVariantAttributeValueChange(idx, attrName, e.target.value)}
+                                                                        className="col-span-7 sm:col-span-8 rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-3 py-2 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 cursor-pointer"
+                                                                    >
+                                                                        <option value="">Choisir une valeur</option>
+                                                                        {(selectedAttrDef?.values ?? []).map((val) => (
+                                                                            <option key={val} value={val}>{val}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRemoveVariantAttribute(idx, attrName)}
+                                                                        className="col-span-1 justify-self-center w-8 h-8 flex items-center justify-center rounded-full text-neutral-5 hover:bg-danger-2 hover:text-danger-1 transition-colors cursor-pointer"
+                                                                    >
+                                                                        <X size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="mt-5 flex flex-col gap-3">
+                                                <div className="flex justify-end">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleAddVariantDetail(idx)}
+                                                        className="w-fit"
+                                                    >
+                                                        <Plus size={13} /> Ajouter une nouvelle caractéristique
+                                                    </Button>
+                                                </div>
+                                                {(v.others_details ?? []).length > 0 && (
+                                                    <div className="flex flex-col gap-2">
+                                                        {(v.others_details ?? []).map((d, di) => (
+                                                            <div key={di} className="flex flex-wrap items-center gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    value={d.key}
+                                                                    onChange={(e) => handleVariantDetailChange(idx, di, 'key', e.target.value)}
+                                                                    placeholder="Clé"
+                                                                    className="flex-1 min-w-[120px] rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-3 py-2 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5"
+                                                                />
+                                                                <input
+                                                                    type="text"
+                                                                    value={d.value}
+                                                                    onChange={(e) => handleVariantDetailChange(idx, di, 'value', e.target.value)}
+                                                                    placeholder="Valeur"
+                                                                    className="flex-1 min-w-[120px] rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-3 py-2 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleRemoveVariantDetail(idx, di)}
+                                                                    className="w-8 h-8 flex items-center justify-center rounded-full text-neutral-5 hover:bg-danger-2 hover:text-danger-1 transition-colors cursor-pointer shrink-0"
+                                                                >
+                                                                    <X size={12} />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        <div
+                            id="product-variants-after-cards"
+                            ref={variantsAnchorAfterCardsRef}
+                            tabIndex={-1}
+                            className="scroll-mt-28 outline-none h-px w-full overflow-hidden pointer-events-none"
+                            aria-hidden
+                        />
+
+                        <div className="mt-4 pt-4 border-t border-neutral-3 dark:border-neutral-3 flex flex-wrap items-center justify-between gap-3">
+                            <p className="text-xs font-poppins text-neutral-6">
+                                {variantsDraft.length} variante{variantsDraft.length !== 1 ? 's' : ''}
+                            </p>
+                            <Button type="button" variant="outline" size="sm" onClick={handleAddVariant}>
+                                <Plus size={13} /> Variante
+                            </Button>
+                        </div>
+
+                        {errors.variants && <p className="text-xs text-danger-1 mt-2">{errors.variants}</p>}
+                    </FormSection>
                 </div>
 
                 {/* ── Colonne droite (1/3) ── */}
@@ -938,7 +1637,10 @@ const ProductFormPage = () => {
                 <>
                     <div
                         className="fixed inset-0 bg-neutral-8/60 z-40 backdrop-blur-sm"
-                        onClick={() => setShowImageUrlModal(false)}
+                        onClick={() => {
+                            setShowImageUrlModal(false);
+                            setTempImageVariantIdx(null);
+                        }}
                     />
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                         <div className="bg-neutral-0 dark:bg-neutral-0 rounded-3 shadow-xl w-full max-w-md p-6">
@@ -953,7 +1655,14 @@ const ProductFormPage = () => {
                                 hint="Formats acceptés : JPG, PNG, MP4, WEBM, YouTube, Vimeo"
                             />
                             <div className="flex justify-end gap-3 mt-4">
-                                <Button variant="ghost" size="normal" onClick={() => setShowImageUrlModal(false)}>
+                                <Button
+                                    variant="ghost"
+                                    size="normal"
+                                    onClick={() => {
+                                        setShowImageUrlModal(false);
+                                        setTempImageVariantIdx(null);
+                                    }}
+                                >
                                     Annuler
                                 </Button>
                                 <Button variant="primary" size="normal" onClick={handleAddImageUrl}>
@@ -967,11 +1676,14 @@ const ProductFormPage = () => {
 
             <MediaPickerModal
                 open={mediaPickerOpen}
-                onClose={() => setMediaPickerOpen(false)}
+                onClose={() => {
+                    setMediaPickerOpen(false);
+                    setMediaPickerTarget({ type: 'main' });
+                }}
                 onSelect={handleMediaSelect}
                 accept="image"
                 title="Choisir une image"
-                multiple={mediaPickerTarget === 'sub'}
+                multiple={mediaPickerTarget.type === 'sub'}
             />
         </div>
     );

@@ -5,10 +5,11 @@ import { useParams, useNavigate } from 'react-router';
 import {
     ArrowLeft, Pencil, Tag,
     Package, CheckCircle, XCircle, AlertTriangle, Loader2,
-    ChevronLeft, ChevronRight, Play, ImageOff
+    ChevronLeft, ChevronRight, Play, ImageOff, Layers
 } from 'lucide-react';
-import { useProducts, normalizeProduct } from '../hooks/useProducts';
+import { useProducts, normalizeProduct, normalizeOthersDetails } from '../hooks/useProducts';
 import { productsAPI } from '../api/products.api';
+import { variantsAPI } from '../api/variants.api';
 import { useCategories } from '../hooks/useCategories';
 import Button from '../components/Button';
 import ProductBadge from '../components/products/ProductBadge';
@@ -122,6 +123,23 @@ const InfoRow = ({ label, children }) => (
 );
 
 // ── Section wrapper ───────────────────────────────────────────
+const formatDetailLine = (d) => {
+    if (typeof d === 'string') return d.trim();
+    const key = String(d?.key ?? '').trim();
+    const value = String(d?.value ?? '').trim();
+    if (!key) return '';
+    return value ? `${key}: ${value}` : key;
+};
+
+const variantStockBadgeType = (v) => {
+    if (v.unlimited_stock === true) return 'unlimited-stock';
+    const s = v.stock;
+    const n = s == null ? null : Number(s);
+    if (n === 0) return 'out-of-stock';
+    if (n != null && n <= 5) return 'low-stock';
+    return null;
+};
+
 const Section = ({ title, children }) => (
     <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 overflow-hidden">
         {title && (
@@ -144,6 +162,7 @@ const ProductDetailPage = () => {
 
     const [activeIndex, setActiveIndex] = useState(0);
     const [productFromDetail, setProductFromDetail] = useState(null);
+    const [resolvedVariants, setResolvedVariants] = useState([]);
 
     const productFromList = useMemo(
         () => products.find(p => String(p.id) === String(id)) ?? null,
@@ -177,6 +196,30 @@ const ProductDetailPage = () => {
     }, [needsDetailFetch, id, navigate]);
 
     useEffect(() => { setActiveIndex(0); }, [id]);
+
+    useEffect(() => {
+        if (!product?.id) {
+            setResolvedVariants([]);
+            return;
+        }
+        let cancelled = false;
+        const embedded = Array.isArray(product.variants) ? product.variants : [];
+        if (embedded.length > 0) {
+            setResolvedVariants(embedded);
+            return;
+        }
+        (async () => {
+            try {
+                const found = await variantsAPI.listAllForProduct(product.id);
+                if (!cancelled) setResolvedVariants(found);
+            } catch {
+                if (!cancelled) setResolvedVariants([]);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [product?.id, product?.variants?.length]);
 
     if (productsLoading || (needsDetailFetch && !productFromDetail)) {
         return (
@@ -216,9 +259,11 @@ const ProductDetailPage = () => {
     const prev = () => setActiveIndex(i => (i - 1 + allMedia.length) % allMedia.length);
     const next = () => setActiveIndex(i => (i + 1) % allMedia.length);
 
-    const allDetails = (product.others_details ?? [])
-        .filter(d => typeof d === 'string' && d.trim())
-        .map(d => d.trim());
+    const allDetails = (normalizeOthersDetails(product.others_details ?? []))
+        .map(formatDetailLine)
+        .filter(Boolean);
+
+    const productAttributes = Array.isArray(product.attributes) ? product.attributes : [];
 
     const detailSizes = allDetails
         .filter(d => d.startsWith('Taille:'))
@@ -354,6 +399,9 @@ const ProductDetailPage = () => {
 
                     {/* Infos générales */}
                     <Section title="Informations">
+                        <InfoRow label="Identifiant">
+                            <span className="font-mono text-[11px] text-neutral-6 break-all">{product.id}</span>
+                        </InfoRow>
                         <InfoRow label="Catégorie">
                             <Package size={11} className="text-primary-1" />
                             {catName}
@@ -451,6 +499,140 @@ const ProductDetailPage = () => {
 
                         </Section>
                     )}
+
+                    {productAttributes.length > 0 && (
+                        <Section title="Attributs (variantes)">
+                            <div className="py-2 flex flex-col gap-3">
+                                {productAttributes.map((attr, i) => (
+                                    <div key={i} className="border-b border-neutral-4 dark:border-neutral-4 last:border-0 pb-3 last:pb-0">
+                                        <p className="text-[11px] font-semibold font-poppins text-neutral-5 uppercase tracking-wide mb-2">
+                                            {String(attr?.name ?? '—')}
+                                        </p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {(Array.isArray(attr?.values) ? attr.values : []).map((val, j) => (
+                                                <span
+                                                    key={j}
+                                                    className="px-3 py-1.5 rounded-full bg-neutral-2 dark:bg-neutral-2 border border-neutral-4 text-xs font-poppins text-neutral-8"
+                                                >
+                                                    {String(val ?? '')}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </Section>
+                    )}
+
+                    <Section title={resolvedVariants.length > 0 ? `Variantes (${resolvedVariants.length})` : 'Variantes'}>
+                        {resolvedVariants.length === 0 ? (
+                            <p className="text-xs font-poppins text-neutral-6 py-3">
+                                Aucune variante enregistrée pour ce produit.
+                            </p>
+                        ) : (
+                            <div className="py-2 flex flex-col gap-3">
+                                {resolvedVariants.map((v) => {
+                                    const vDiscount = calcDiscount(v.price, v.original_price);
+                                    const vStockBadge = variantStockBadgeType(v);
+                                    const vOthers = (normalizeOthersDetails(v.others_details ?? []))
+                                        .map(formatDetailLine)
+                                        .filter(Boolean);
+                                    const vActive = v.status !== false;
+                                    return (
+                                        <div
+                                            key={v.id ?? v.name}
+                                            className="rounded-2 border border-neutral-4 dark:border-neutral-4 p-4 bg-neutral-2/40 dark:bg-neutral-2/20"
+                                        >
+                                            <div className="flex flex-col sm:flex-row gap-4">
+                                                <div className="w-full sm:w-20 h-20 rounded-xl border border-neutral-4 overflow-hidden bg-neutral-3 shrink-0 flex items-center justify-center">
+                                                    {v.image ? (
+                                                        <img
+                                                            src={v.image}
+                                                            alt=""
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <Layers size={24} className="text-neutral-5" />
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0 flex flex-col gap-2">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="text-sm font-bold font-poppins text-neutral-8">
+                                                            {v.name ?? '—'}
+                                                        </span>
+                                                        <ProductBadge type={vActive ? 'active' : 'inactive'} />
+                                                        {vStockBadge && <ProductBadge type={vStockBadge} />}
+                                                    </div>
+                                                    {v.id && (
+                                                        <p className="text-[10px] font-mono text-neutral-5 break-all">
+                                                            {v.id}
+                                                        </p>
+                                                    )}
+                                                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs font-poppins">
+                                                        <div>
+                                                            <span className="text-neutral-6">Prix </span>
+                                                            <span className="font-semibold text-primary-1">
+                                                                {formatPrice(v.price)}
+                                                            </span>
+                                                        </div>
+                                                        {v.original_price != null && v.original_price !== '' && (
+                                                            <div>
+                                                                <span className="text-neutral-6">Prix barré </span>
+                                                                <span className="font-semibold text-neutral-5 line-through">
+                                                                    {formatPrice(v.original_price)}
+                                                                </span>
+                                                                {vDiscount != null && vDiscount > 0 && (
+                                                                    <span className="ml-2 text-success-1 font-semibold">
+                                                                        -{vDiscount}%
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <span className="text-neutral-6">Stock </span>
+                                                            <span className="font-semibold text-neutral-8">
+                                                                {v.unlimited_stock === true
+                                                                    ? 'Illimité'
+                                                                    : `${v.stock ?? 0} u.`}
+                                                            </span>
+                                                        </div>
+                                                        {v.created_at && (
+                                                            <div>
+                                                                <span className="text-neutral-6">Créée le </span>
+                                                                <span className="font-medium text-neutral-7">
+                                                                    {new Date(v.created_at).toLocaleString('fr-FR', {
+                                                                        dateStyle: 'short',
+                                                                        timeStyle: 'short',
+                                                                    })}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {vOthers.length > 0 && (
+                                                        <div className="mt-1">
+                                                            <p className="text-[11px] font-semibold text-neutral-5 uppercase tracking-wide mb-1.5">
+                                                                Détails
+                                                            </p>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {vOthers.map((line, k) => (
+                                                                    <span
+                                                                        key={k}
+                                                                        className="px-2.5 py-1 rounded-full bg-neutral-0 border border-neutral-4 text-[11px] font-poppins text-neutral-7"
+                                                                    >
+                                                                        {line}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </Section>
 
                     {/* Alertes stock */}
                     {!unlimitedStock && product.stock > 0 && product.stock <= 5 && (

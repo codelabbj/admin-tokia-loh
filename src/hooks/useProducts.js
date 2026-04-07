@@ -10,7 +10,7 @@ import { filesAPI } from "../api/files.api";
  * - File
  * - { file: File, preview }
  */
-const resolveImageUrl = async (image) => {
+export const resolveImageUrl = async (image) => {
   if (!image) return null;
 
   // Déjà une URL
@@ -34,6 +34,32 @@ const resolveImageUrl = async (image) => {
 /** Même pas que la liste paginée admin — utilisé pour parcourir toutes les pages. */
 export const PRODUCTS_PAGE_SIZE = 50;
 
+export const normalizeOthersDetails = (details) => {
+  if (!Array.isArray(details)) return [];
+  return details
+    .map((d) => {
+      if (typeof d === "string") {
+        const colonIndex = d.indexOf(":");
+        if (colonIndex > 0) {
+          return {
+            key: d.substring(0, colonIndex).trim(),
+            value: d.substring(colonIndex + 1).trim(),
+          };
+        }
+        const key = d.trim();
+        return key ? { key, value: "" } : null;
+      }
+      if (d && typeof d === "object") {
+        const key = String(d.key ?? "").trim();
+        const value = String(d.value ?? "").trim();
+        if (!key) return null;
+        return { key, value };
+      }
+      return null;
+    })
+    .filter(Boolean);
+};
+
 /**
  * Normalise les données venant de l'API → format frontend
  */
@@ -42,7 +68,9 @@ export const normalizeProduct = (p) => ({
   sale_price: p.sale_price ?? null,
   status: p.status ?? true,
   unlimited_stock: p.unlimited_stock === true,
-  others_details: p.others_details ?? [],
+  others_details: normalizeOthersDetails(p.others_details),
+  attributes: Array.isArray(p.attributes) ? p.attributes : [],
+  variants: Array.isArray(p.variants) ? p.variants : [],
 });
 
 /**
@@ -106,7 +134,6 @@ export const useProducts = (options = {}) => {
       salePrice != null
         ? { price: salePrice, original_price: initialPrice }
         : { price: initialPrice, original_price: null };
-
     const unlimited = !!formData.unlimited_stock;
 
     const payload = {
@@ -119,10 +146,9 @@ export const useProducts = (options = {}) => {
       // Images
       image: imageUrl,
       secondary_images: secondaryUrls,
-      others_details: formData.others_details ?? [],
+      others_details: normalizeOthersDetails(formData.others_details),
 
       status: formData.status ?? formData.is_active ?? true,
-      featured: formData.featured ?? false,
     };
 
     if (!unlimited) {
@@ -151,7 +177,9 @@ export const useProducts = (options = {}) => {
       if (formData.description !== undefined)
         payload.description = formData.description || null;
       if (formData.category !== undefined) payload.category = formData.category;
-      if (formData.price !== undefined) payload.price = Number(formData.price);
+      if (formData.price !== undefined) {
+        payload.price = Number(formData.price);
+      }
 
       if (formData.unlimited_stock !== undefined) {
         payload.unlimited_stock = !!formData.unlimited_stock;
@@ -185,11 +213,9 @@ export const useProducts = (options = {}) => {
         payload.status = formData.is_active;
       }
 
-      if (formData.featured !== undefined) payload.featured = formData.featured;
-
       // ✅ FORMAT ACTUEL : string[] (déjà construit par buildOthersDetails)
       if (formData.others_details !== undefined)
-        payload.others_details = formData.others_details;
+        payload.others_details = normalizeOthersDetails(formData.others_details);
 
       // Image principale
       if (formData.mainImage !== undefined) {

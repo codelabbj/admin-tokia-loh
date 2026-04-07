@@ -9,12 +9,40 @@ export const PRODUCTS_LIST_PAGE_SIZE = 25;
  * Normalise les données venant de l'API → format frontend
  * (identique à useProducts)
  */
+const normalizeOthersDetails = (details) => {
+  if (!Array.isArray(details)) return [];
+  return details
+    .map((d) => {
+      if (typeof d === "string") {
+        const colonIndex = d.indexOf(":");
+        if (colonIndex > 0) {
+          return {
+            key: d.substring(0, colonIndex).trim(),
+            value: d.substring(colonIndex + 1).trim(),
+          };
+        }
+        const key = d.trim();
+        return key ? { key, value: "" } : null;
+      }
+      if (d && typeof d === "object") {
+        const key = String(d.key ?? "").trim();
+        const value = String(d.value ?? "").trim();
+        if (!key) return null;
+        return { key, value };
+      }
+      return null;
+    })
+    .filter(Boolean);
+};
+
 const normalizeProduct = (p) => ({
   ...p,
   sale_price: p.sale_price ?? null,
   status: p.status ?? true,
   unlimited_stock: p.unlimited_stock === true,
-  others_details: p.others_details ?? [],
+  others_details: normalizeOthersDetails(p.others_details),
+  attributes: Array.isArray(p.attributes) ? p.attributes : [],
+  variants: Array.isArray(p.variants) ? p.variants : [],
 });
 
 /**

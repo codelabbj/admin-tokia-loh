@@ -102,24 +102,34 @@ const parseOthersDetails = (others_details = []) => {
     const custom = [];
 
     others_details.forEach((detail) => {
-        if (typeof detail !== 'string') return;
-        const colonIndex = detail.indexOf(':');
-        if (colonIndex > 0) {
-            const key = detail.substring(0, colonIndex).trim();
-            const value = detail.substring(colonIndex + 1).trim();
+        const normalized = typeof detail === 'string'
+            ? (() => {
+                const colonIndex = detail.indexOf(':');
+                if (colonIndex > 0) {
+                    return {
+                        key: detail.substring(0, colonIndex).trim(),
+                        value: detail.substring(colonIndex + 1).trim(),
+                    };
+                }
+                return { key: detail.trim(), value: '' };
+            })()
+            : {
+                key: String(detail?.key ?? '').trim(),
+                value: String(detail?.value ?? '').trim(),
+            };
+        const key = normalized.key;
+        const value = normalized.value;
+        if (!key) return;
 
-            if (key === 'Taille') {
-                sizes.push(value);
-            } else if (key === 'Couleur') {
-                const hexMatch = value.match(/#[0-9A-Fa-f]{6}/);
-                const hex = hexMatch ? hexMatch[0] : '#000000';
-                const name = value.replace(/\s*\(.*?\)/, '').trim();
-                colors.push({ name, hex });
-            } else {
-                custom.push({ key, value });
-            }
+        if (key === 'Taille') {
+            sizes.push(value);
+        } else if (key === 'Couleur') {
+            const hexMatch = value.match(/#[0-9A-Fa-f]{6}/);
+            const hex = hexMatch ? hexMatch[0] : '#000000';
+            const name = value.replace(/\s*\(.*?\)/, '').trim();
+            colors.push({ name, hex });
         } else {
-            custom.push({ key: detail.trim(), value: '' });
+            custom.push({ key, value });
         }
     });
 
@@ -130,20 +140,16 @@ const buildOthersDetails = (sizes, colors, custom) => {
     const result = [];
 
     sizes.forEach((size) => {
-        if (size?.trim()) result.push(`Taille: ${size.trim()}`);
+        if (size?.trim()) result.push({ key: 'Taille', value: size.trim() });
     });
 
     colors.forEach(({ name, hex }) => {
-        if (name?.trim()) result.push(`Couleur: ${name.trim()} (${hex})`);
+        if (name?.trim()) result.push({ key: 'Couleur', value: `${name.trim()} (${hex})` });
     });
 
     custom.forEach(({ key, value }) => {
         if (!key?.trim()) return;
-        if (value?.trim()) {
-            result.push(`${key.trim()}: ${value.trim()}`);
-        } else {
-            result.push(key.trim());
-        }
+        result.push({ key: key.trim(), value: value?.trim() ?? '' });
     });
 
     return result;

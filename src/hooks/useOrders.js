@@ -19,6 +19,25 @@ const extractLng = (url) => {
   return match ? parseFloat(match[2]) : null;
 };
 
+const unwrapApiData = (payload) => {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return payload;
+  }
+  if ("data" in payload && payload.data != null) return payload.data;
+  return payload;
+};
+
+const extractResults = (payload) => {
+  const data = unwrapApiData(payload);
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== "object") return [];
+  if (Array.isArray(data.results)) return data.results;
+  if (Array.isArray(data.orders)) return data.orders;
+  if (Array.isArray(data.items)) return data.items;
+  if (Array.isArray(data.data)) return data.data;
+  return [];
+};
+
 /**
  * Normalise une commande depuis /shop/dashboard/orders/
  */
@@ -64,7 +83,10 @@ export function normalizeOrder(raw) {
     reference,
 
     items: (raw.items ?? []).map((i) => ({
-      name: i.product,
+      name:
+        typeof i.product === "string"
+          ? i.product
+          : i.product?.name ?? i.name ?? "Produit",
       image: i.image ?? null,
       quantity: i.quantity,
       unitPrice: i.price,
@@ -133,9 +155,7 @@ export const useOrders = (options = {}) => {
       const { data } = await dashboardAPI.getClientOrderHistory(cId, {
         ordering: ORDERING_NEWEST_FIRST,
       });
-      const list = Array.isArray(data)
-        ? data
-        : (data.orders ?? data.results ?? []);
+      const list = extractResults(data);
       setOrders(list.map(normalizeOrder));
     } catch (err) {
       setError(err.message ?? "Erreur historique client");
@@ -157,7 +177,7 @@ export const useOrders = (options = {}) => {
         }),
       ]);
 
-      const statsData = statsRes.data;
+      const statsData = unwrapApiData(statsRes.data) ?? {};
       setStats({
         total: statsData.total_orders ?? 0,
         in_progress: statsData.in_progress_orders ?? 0,
@@ -165,10 +185,8 @@ export const useOrders = (options = {}) => {
         canceled: statsData.canceled_orders ?? 0,
       });
 
-      const ordersData = ordersRes.data;
-      const list = Array.isArray(ordersData)
-        ? ordersData
-        : (ordersData.results ?? []);
+      const ordersData = unwrapApiData(ordersRes.data) ?? {};
+      const list = extractResults(ordersData);
 
       setTotalCount(
         typeof ordersData.count === "number" ? ordersData.count : list.length,
@@ -187,7 +205,7 @@ export const useOrders = (options = {}) => {
     setError(null);
     try {
       const statsRes = await dashboardAPI.listOrdersStats();
-      const statsData = statsRes.data;
+      const statsData = unwrapApiData(statsRes.data) ?? {};
       setStats({
         total: statsData.total_orders ?? 0,
         in_progress: statsData.in_progress_orders ?? 0,
@@ -203,9 +221,10 @@ export const useOrders = (options = {}) => {
           page_size: ORDERS_LIST_PAGE_SIZE,
           ordering: ORDERING_NEWEST_FIRST,
         });
-        const list = Array.isArray(data) ? data : (data.results ?? []);
+        const pageData = unwrapApiData(data) ?? {};
+        const list = extractResults(pageData);
         merged = merged.concat(list);
-        if (!data.next || list.length === 0) break;
+        if (!pageData.next || list.length === 0) break;
         pageNum += 1;
       }
 
