@@ -15,7 +15,7 @@ import { useCategories } from '../hooks/useCategories';
 import { useToast } from '../components/ui/ToastProvider';
 import MediaPickerModal from '../components/media/MediaPickerModal';
 import { variantsAPI } from '../api/variants.api';
-
+import VariantsEditorTree, { VARIANT_TERM } from '../components/products/VariantsEditorTree';
 // ── Helpers vidéo ─────────────────────────────────────────────
 const getYouTubeThumbnail = (url) => {
     const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
@@ -68,7 +68,7 @@ const VideoThumbnail = ({ url }) => {
 };
 
 // ── Constantes ────────────────────────────────────────────────
-const PRESET_COLORS = [
+export const PRESET_COLORS = [
     { name: 'Noir', hex: '#000000' }, { name: 'Blanc', hex: '#FFFFFF' },
     { name: 'Gris', hex: '#808080' }, { name: 'Rouge', hex: '#EF4444' },
     { name: 'Rose', hex: '#EC4899' }, { name: 'Orange', hex: '#F97316' },
@@ -191,12 +191,14 @@ const normalizeVariantsForForm = (variants = [], attributes = []) => {
         return {
             id: v?.id ?? null,
             sku: String(v?.sku ?? v?.name ?? '').trim(),
+            name: String(v?.name ?? '').trim(),
             price: String(v?.price ?? '').trim(),
             original_price: v?.original_price == null ? '' : String(v.original_price),
             stock: v?.stock == null ? '' : String(v.stock),
             unlimited_stock: v?.unlimited_stock === true,
             status: v?.status ?? true,
             image: v?.image ?? '',
+            sub_variants: normalizeVariantsForForm(v?.sub_variants || [], attributes),
             secondary_images: Array.isArray(v?.secondary_images) ? v.secondary_images : [],
             others_details: normalizeOthersDetails(v?.others_details ?? []),
             attrMap,
@@ -272,9 +274,9 @@ const getVariantImagePreview = (img) => {
 };
 
 // ── Section wrapper ───────────────────────────────────────────
-const FormSection = ({ title, children }) => (
-    <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 overflow-hidden">
-        <div className="px-5 py-3 border-b border-neutral-4 dark:border-neutral-4 bg-neutral-2 dark:bg-neutral-2">
+const FormSection = ({ title, children, overflowVisible }) => (
+    <div className={`bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 ${overflowVisible ? '' : 'overflow-hidden'}`}>
+        <div className={`px-5 py-3 border-b border-neutral-4 dark:border-neutral-4 bg-neutral-2 dark:bg-neutral-2 ${overflowVisible ? 'rounded-t-3 overflow-hidden' : ''}`}>
             <p className="text-[11px] font-semibold font-poppins text-neutral-6 uppercase tracking-wider">{title}</p>
         </div>
         <div className="px-5 py-5 flex flex-col gap-4">
@@ -313,6 +315,7 @@ const ProductFormPage = () => {
     const [tempImageUrl, setTempImageUrl] = useState('');
     const [tempImageType, setTempImageType] = useState('main');
     const [tempImageVariantIdx, setTempImageVariantIdx] = useState(null);
+    const [tempImageVariantPath, setTempImageVariantPath] = useState(null);
     const [customDetails, setCustomDetails] = useState([]);
     const [newDetailKey, setNewDetailKey] = useState('');
     const [newDetailVal, setNewDetailVal] = useState('');
@@ -461,7 +464,13 @@ const ProductFormPage = () => {
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         const next = type === 'checkbox' ? checked : value;
-        setForm(prev => ({ ...prev, [name]: next }));
+        setForm(prev => {
+            const nextState = { ...prev, [name]: next };
+            if (name === 'unlimited_stock' && checked) {
+                nextState.stock = '';
+            }
+            return nextState;
+        });
         if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
     };
 
@@ -519,12 +528,47 @@ const ProductFormPage = () => {
             setVariantsDraft((prev) =>
                 prev.map((v, i) => (i === idx ? { ...v, image: picked } : v)),
             );
+        } else if (mediaPickerTarget.type === 'variantTree') {
+            const path = mediaPickerTarget.path;
+            const picked = validFiles[0].file;
+            setVariantsDraft((prev) => {
+                const updateAtPath = (list, p, file) => {
+                    if (p.length === 1) {
+                        const newList = [...list];
+                        newList[p[0]] = { ...newList[p[0]], image: file };
+                        return newList;
+                    }
+                    if (p.length === 0) return list;
+                    const newList = [...list];
+                    const targetSub = newList[p[0]].sub_variants || [];
+                    newList[p[0]] = { ...newList[p[0]], sub_variants: updateAtPath(targetSub, p.slice(1), file) };
+                    return newList;
+                };
+                return updateAtPath(prev, path, picked);
+            });
         }
     };
 
     const handleAddImageUrl = () => {
         if (!tempImageUrl.trim()) return;
-        if (tempImageType === 'variant' && tempImageVariantIdx != null) {
+        if (tempImageType === 'variantTree' && tempImageVariantPath) {
+            setVariantsDraft((prev) => {
+                const updateAtPath = (list, p, file) => {
+                    if (p.length === 1) {
+                        const newList = [...list];
+                        newList[p[0]] = { ...newList[p[0]], image: file };
+                        return newList;
+                    }
+                    if (p.length === 0) return list;
+                    const newList = [...list];
+                    const targetSub = newList[p[0]].sub_variants || [];
+                    newList[p[0]] = { ...newList[p[0]], sub_variants: updateAtPath(targetSub, p.slice(1), file) };
+                    return newList;
+                };
+                return updateAtPath(prev, tempImageVariantPath, tempImageUrl.trim());
+            });
+            setTempImageVariantPath(null);
+        } else if (tempImageType === 'variant' && tempImageVariantIdx != null) {
             setVariantsDraft((prev) =>
                 prev.map((v, i) =>
                     i === tempImageVariantIdx ? { ...v, image: tempImageUrl.trim() } : v,
@@ -554,27 +598,58 @@ const ProductFormPage = () => {
         setForm(prev => ({ ...prev, subImages: prev.subImages.filter((_, i) => i !== index) }));
 
     // ── Tailles ───────────────────────────────────────────────
-    const handleAddSize = (size) =>
-        !form.sizes.includes(size) && setForm(prev => ({ ...prev, sizes: [...prev.sizes, size] }));
-    const handleRemoveSize = (size) =>
+    const handleAddSize = (size) => {
+        if (form.sizes.includes(size)) return;
+        setForm(prev => ({ ...prev, sizes: [...prev.sizes, size] }));
+        if (form.hasSizes) {
+            setVariantsDraft(prev => [...prev, { ...createEmptyVariant(), sku: size, name: size, price: String(form.sale_price || form.price || '') }]);
+        }
+    };
+    const handleRemoveSize = (size) => {
         setForm(prev => ({ ...prev, sizes: prev.sizes.filter(s => s !== size) }));
+        if (form.hasSizes) {
+            setVariantsDraft(prev => prev.filter(v => v.sku !== size));
+        }
+    };
 
     // ── Couleurs ──────────────────────────────────────────────
-    const handleAddColor = (name, hex) =>
+    const handleAddColor = (name, hex) => {
         setForm(prev => ({ ...prev, colors: [...prev.colors, { name, hex }] }));
-    const handleRemoveColor = (index) =>
-        setForm(prev => ({ ...prev, colors: prev.colors.filter((_, i) => i !== index) }));
+        if (form.hasColors) {
+            setVariantsDraft(prev => [...prev, { ...createEmptyVariant(), sku: name, name, price: String(form.sale_price || form.price || '') }]);
+        }
+    };
+    const handleRemoveColor = (index, colorObj) => {
+        const colorName = colorObj ? colorObj.name : form.colors[index]?.name;
+        const actualIndex = index !== undefined ? index : form.colors.findIndex(c => c.name === colorName);
+        if (actualIndex >= 0) {
+            setForm(prev => ({ ...prev, colors: prev.colors.filter((_, i) => i !== actualIndex) }));
+        }
+        if (form.hasColors && colorName) {
+            setVariantsDraft(prev => prev.filter(v => v.sku !== colorName));
+        }
+    };
 
     // ── Détails personnalisés ─────────────────────────────────
     const handleAddCustomDetail = () => {
         if (!newDetailKey.trim()) return;
-        setCustomDetails(prev => [...prev, { key: newDetailKey.trim(), value: newDetailVal.trim() }]);
+        const key = newDetailKey.trim();
+        const value = newDetailVal.trim();
+        setCustomDetails(prev => [...prev, { key, value }]);
         setNewDetailKey('');
         setNewDetailVal('');
+        if (!form.hasSizes && !form.hasColors) {
+            setVariantsDraft(prev => [...prev, { ...createEmptyVariant(), sku: value || key, name: value || key, price: String(form.sale_price || form.price || '') }]);
+        }
     };
 
-    const handleRemoveCustomDetail = (index) =>
+    const handleRemoveCustomDetail = (index) => {
+        const detail = customDetails[index];
         setCustomDetails(prev => prev.filter((_, i) => i !== index));
+        if (!form.hasSizes && !form.hasColors && detail) {
+            setVariantsDraft(prev => prev.filter(v => v.sku !== (detail.value || detail.key)));
+        }
+    };
 
     const handleCustomDetailChange = (index, field, value) =>
         setCustomDetails(prev => prev.map((d, i) => i === index ? { ...d, [field]: value } : d));
@@ -681,99 +756,33 @@ const ProductFormPage = () => {
             })),
         ).filter((a) => a.name);
 
-        if (hasVariants) {
-            const seen = new Set();
-            for (let i = 0; i < variantsDraft.length; i += 1) {
-                const v = variantsDraft[i];
-                const variantLabel = String(v.sku ?? '').trim() || buildVariantName(v);
-                if (!variantLabel) {
-                    e.variants = `Nom ou référence requis pour la variante #${i + 1}.`;
-                    break;
-                }
-                const key = variantLabel.toUpperCase();
-                if (seen.has(key)) {
-                    e.variants = `Nom de variante dupliqué: ${variantLabel}.`;
-                    break;
-                }
-                seen.add(key);
-                if (!String(v.price ?? '').trim()) {
-                    e.variants = `Prix requis pour la variante #${i + 1}.`;
-                    break;
-                }
-                if (!v.unlimited_stock && (v.stock === '' || v.stock == null)) {
-                    e.variants = `Stock requis pour la variante #${i + 1}.`;
-                    break;
-                }
-                for (const [name, selectedRaw] of Object.entries(v.attrMap ?? {})) {
-                    const attrDef = attrDefsForVariants.find((a) => a.name === name);
-                    const selected = String(selectedRaw ?? '').trim();
-                    if (!attrDef || !selected || !attrDef.values.includes(selected)) {
-                        e.variants = `Attribut "${name}" invalide sur la variante #${i + 1}.`;
-                        break;
+        if (hasVariants && !form.unlimited_stock && form.stock !== '' && form.stock !== null) {
+            const countTotalLeafStock = (variantsList) => {
+                let total = 0;
+                variantsList.forEach(v => {
+                    const sub = v.sub_variants || [];
+                    if (sub.length > 0) {
+                        total += countTotalLeafStock(sub);
+                    } else if (!v.unlimited_stock) {
+                        total += Number(v.stock || 0);
                     }
-                }
-                if (e.variants) break;
+                });
+                return total;
+            };
+            const sum = countTotalLeafStock(variantsDraft);
+            if (sum > Number(form.stock)) {
+                e.variants = `La somme des stocks des déclinaisons finales (${sum}) ne doit pas dépasser le stock global défini (${form.stock}).`;
             }
+        }
+
+        if (hasVariants) {
+            // Detailed validation is delegated to API V2 for tree variants.
         }
         setErrors(e);
         return Object.keys(e).length === 0;
     };
 
-    const syncVariantsV11 = async (productId) => {
-        const { data } = await variantsAPI.list({ page_size: 500 });
-        const rows = Array.isArray(data)
-            ? data
-            : (Array.isArray(data?.results) ? data.results : []);
-        const existing = rows.filter((r) => {
-            const prod = r?.product;
-            if (typeof prod === 'string') return String(prod) === String(productId);
-            return String(prod?.id ?? '') === String(productId);
-        });
-
-        const keepIds = new Set(variantsDraft.map((v) => v.id).filter(Boolean));
-        for (const row of existing) {
-            if (!keepIds.has(row.id)) {
-                await variantsAPI.delete(row.id);
-            }
-        }
-
-        for (const v of variantsDraft) {
-            const name = String(v.sku ?? '').trim() || buildVariantName(v);
-            if (!name || !String(v.price ?? '').trim()) continue;
-            if (!v.unlimited_stock && (v.stock === '' || v.stock == null)) continue;
-
-            const price = Number(v.price);
-            const origStr = String(v.original_price ?? '').trim();
-            const original_price = origStr === '' ? null : Number(origStr);
-
-            const unlimited = v.unlimited_stock === true;
-            const stock = unlimited ? null : Number(v.stock ?? 0);
-
-            const imageUrl = (await resolveImageUrl(v.image)) ?? null;
-            const others_details = normalizeOthersDetails(v.others_details ?? []);
-
-            const body = {
-                name,
-                price,
-                original_price,
-                stock,
-                unlimited_stock: unlimited,
-                image: imageUrl,
-                others_details,
-                status: v.status !== false,
-            };
-
-            if (v.id) {
-                await variantsAPI.update(v.id, body);
-            } else {
-                await variantsAPI.create({
-                    product: productId,
-                    ...body,
-                });
-            }
-        }
-    };
-
+    // syncVariantsV11 removed since v2 uses recursive nested objects
     // ── Soumission ────────────────────────────────────────────
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -792,14 +801,13 @@ const ProductFormPage = () => {
                 mainImage: form.mainImage,
                 subImages: form.subImages,
                 others_details: buildOthersDetails(form.sizes, form.colors, customDetails),
+                variants: variantsDraft.length > 0 ? variantsDraft : undefined,
             };
 
             if (isEdit) {
                 await update(product.id, payload);
-                await syncVariantsV11(product.id);
             } else {
-                const saved = await create(payload);
-                await syncVariantsV11(saved?.id);
+                await create(payload);
             }
 
             toast.success(isEdit ? 'Produit mis à jour avec succès' : 'Produit créé avec succès');
@@ -819,6 +827,41 @@ const ProductFormPage = () => {
     };
 
     const discount = calcDiscount(form.price, form.sale_price);
+
+    const renderVariantsTree = () => (
+        <FormSection title={VARIANT_TERM.plural} overflowVisible={true}>
+            <VariantsEditorTree
+                variants={variantsDraft}
+                onChange={setVariantsDraft}
+                productPrice={form.sale_price || form.price}
+                globalUnlimitedStock={!!form.unlimited_stock}
+                rootType={form.hasSizes ? 'Taille' : (form.hasColors ? 'Couleur' : 'Autre')}
+                disableRootAdd={form.hasSizes || form.hasColors}
+                onRemoveRoot={(rootVariant) => {
+                    if (form.hasSizes) {
+                        handleRemoveSize(rootVariant.sku);
+                    } else if (form.hasColors) {
+                        const cidx = form.colors.findIndex(c => c.name === rootVariant.sku);
+                        if (cidx >= 0) handleRemoveColor(cidx);
+                    } else {
+                        const didx = customDetails.findIndex(d => (d.value || d.key) === rootVariant.sku);
+                        if (didx >= 0) handleRemoveCustomDetail(didx);
+                    }
+                }}
+                onImageSelectRequest={(path) => {
+                    setMediaPickerTarget({ type: 'variantTree', path });
+                    setMediaPickerOpen(true);
+                }}
+                onImageUrlRequest={(path) => {
+                    setTempImageType('variantTree');
+                    setTempImageVariantPath(path);
+                    setTempImageUrl('');
+                    setShowImageUrlModal(true);
+                }}
+            />
+            {errors.variants && <p className="text-xs text-danger-1 mt-2">{errors.variants}</p>}
+        </FormSection>
+    );
 
     return (
         <div className="flex flex-col gap-6">
@@ -931,9 +974,10 @@ const ProductFormPage = () => {
                                 label="Quantité en stock"
                                 name="stock"
                                 type="number"
-                                value={form.stock}
+                                value={form.unlimited_stock ? '' : form.stock}
                                 onChange={handleChange}
-                                placeholder="Ex: 20"
+                                placeholder={form.unlimited_stock ? "Illimité" : "Ex: 20"}
+                                disabled={form.unlimited_stock}
                                 error={errors.stock}
                                 required={!form.unlimited_stock}
                             />
@@ -1086,477 +1130,210 @@ const ProductFormPage = () => {
 
                     {/* Tailles */}
                     <FormSection title="Tailles">
-                        <div className="flex items-center justify-between -mt-1">
-                            <p className="text-xs font-poppins text-neutral-6">Activer les tailles pour ce produit</p>
-                            <ProductStatusToggle
-                                active={form.hasSizes}
-                                onChange={val => setForm(prev => ({ ...prev, hasSizes: val, sizes: val ? prev.sizes : [] }))}
-                            />
-                        </div>
-                        {form.hasSizes && (
-                            <div className="flex flex-col gap-3">
-                                <div className="flex flex-wrap gap-2">
-                                    {['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'].map(size => (
-                                        <button
-                                            key={size}
-                                            type="button"
-                                            onClick={() => form.sizes.includes(size) ? handleRemoveSize(size) : handleAddSize(size)}
-                                            className={`px-4 py-2 rounded-full text-xs font-semibold font-poppins transition-all cursor-pointer ${form.sizes.includes(size) ? 'bg-primary-1 text-white' : 'bg-neutral-2 text-neutral-6 hover:bg-neutral-3'}`}
-                                        >
-                                            {size}
-                                        </button>
-                                    ))}
+                        {form.hasColors ? (
+                            <div className="p-4 bg-neutral-2/50 dark:bg-neutral-2/50 rounded-md shadow-inner text-sm text-neutral-6 text-center">
+                                Vous avez commencé par les couleurs. Gérez les tailles dans les sous-variantes de l'arbre ci-dessous.
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex items-center justify-between -mt-1">
+                                    <p className="text-xs font-poppins text-neutral-6">Activer les tailles pour ce produit</p>
+                                    <ProductStatusToggle
+                                        active={form.hasSizes}
+                                        onChange={val => {
+                                            setForm(prev => ({ ...prev, hasSizes: val }));
+                                            if (!val) setVariantsDraft([]);
+                                            else if (form.sizes.length > 0) {
+                                                setVariantsDraft(form.sizes.map(s => ({ ...createEmptyVariant(), sku: s, name: s, price: String(form.sale_price || form.price || '') })));
+                                            }
+                                        }}
+                                    />
                                 </div>
-                                <input
-                                    type="text"
-                                    placeholder="Autre taille (Ex: 38, 42...)"
-                                    className="flex-1 rounded-full border border-neutral-5 bg-neutral-0 px-4 py-2 text-xs text-neutral-8 font-poppins outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5"
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            const v = e.target.value.trim();
-                                            if (v) { handleAddSize(v); e.target.value = ''; }
-                                        }
-                                    }}
-                                />
-                                {form.sizes.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 pt-2 border-t border-neutral-3">
-                                        <span className="text-xs font-semibold text-neutral-6 w-full">Sélectionnées :</span>
-                                        {form.sizes.map((size, i) => (
-                                            <div key={i} className="flex items-center gap-1 px-3 py-1 bg-primary-5 rounded-full">
-                                                <span className="text-xs font-semibold text-primary-1">{size}</span>
-                                                <button type="button" onClick={() => handleRemoveSize(size)} className="cursor-pointer">
-                                                    <X size={12} className="text-primary-1" />
+                                {form.hasSizes && (
+                                    <div className="flex flex-col gap-3">
+                                        <div className="flex flex-wrap gap-2">
+                                            {['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'].map(size => (
+                                                <button
+                                                    key={size}
+                                                    type="button"
+                                                    onClick={() => form.sizes.includes(size) ? handleRemoveSize(size) : handleAddSize(size)}
+                                                    className={`px-4 py-2 rounded-full text-xs font-semibold font-poppins transition-all cursor-pointer ${form.sizes.includes(size) ? 'bg-primary-1 text-white' : 'bg-neutral-2 text-neutral-6 hover:bg-neutral-3'}`}
+                                                >
+                                                    {size}
                                                 </button>
+                                            ))}
+                                        </div>
+                                        <input
+                                            type="text"
+                                            placeholder="Autre taille (Ex: 38, 42...)"
+                                            className="flex-1 rounded-full border border-neutral-5 bg-neutral-0 px-4 py-2 text-xs text-neutral-8 font-poppins outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5"
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    const v = e.target.value.trim();
+                                                    if (v) { handleAddSize(v); e.target.value = ''; }
+                                                }
+                                            }}
+                                        />
+                                        {form.sizes.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 pt-2 border-t border-neutral-3">
+                                                <span className="text-xs font-semibold text-neutral-6 w-full">Sélectionnées :</span>
+                                                {form.sizes.map((size, i) => (
+                                                    <div key={i} className="flex items-center gap-1 px-3 py-1 bg-primary-5 rounded-full">
+                                                        <span className="text-xs font-semibold text-primary-1">{size}</span>
+                                                        <button type="button" onClick={() => handleRemoveSize(size)} className="cursor-pointer">
+                                                            <X size={12} className="text-primary-1" />
+                                                        </button>
+                                                    </div>
+                                                ))}
                                             </div>
-                                        ))}
+                                        )}
                                     </div>
                                 )}
-                            </div>
+                            </>
                         )}
                     </FormSection>
+
+                    {form.hasSizes && renderVariantsTree()}
 
                     {/* Couleurs */}
                     <FormSection title="Couleurs">
-                        <div className="flex items-center justify-between -mt-1">
-                            <p className="text-xs font-poppins text-neutral-6">Activer les couleurs pour ce produit</p>
-                            <ProductStatusToggle
-                                active={form.hasColors}
-                                onChange={val => setForm(prev => ({ ...prev, hasColors: val, colors: val ? prev.colors : [] }))}
-                            />
-                        </div>
-                        {form.hasColors && (
-                            <div className="flex flex-col gap-3">
-                                <div className="grid grid-cols-10 gap-2">
-                                    {PRESET_COLORS.map(color => {
-                                        const isSelected = form.colors.some(c => c.hex === color.hex);
-                                        return (
-                                            <button
-                                                key={color.hex}
-                                                type="button"
-                                                onClick={() => !isSelected && handleAddColor(color.name, color.hex)}
-                                                disabled={isSelected}
-                                                title={color.name}
-                                                className={`w-full aspect-square rounded-md border-2 transition-all ${isSelected ? 'border-neutral-4 opacity-40 cursor-not-allowed' : 'border-transparent hover:border-primary-1 hover:scale-110 cursor-pointer'}`}
-                                                style={{ backgroundColor: color.hex }}
-                                            />
-                                        );
-                                    })}
+                        {form.hasSizes ? (
+                            <div className="p-4 bg-neutral-2/50 dark:bg-neutral-2/50 rounded-md shadow-inner text-sm text-neutral-6 text-center">
+                                Vous avez commencé par les tailles. Gérez les couleurs dans les sous-variantes de l'arbre ci-dessous.
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex items-center justify-between -mt-1">
+                                    <p className="text-xs font-poppins text-neutral-6">Activer les couleurs pour ce produit</p>
+                                    <ProductStatusToggle
+                                        active={form.hasColors}
+                                        onChange={val => {
+                                            setForm(prev => ({ ...prev, hasColors: val }));
+                                            if (!val) setVariantsDraft([]);
+                                            else if (form.colors.length > 0) {
+                                                setVariantsDraft(form.colors.map(c => ({ ...createEmptyVariant(), sku: c.name, name: c.name, price: String(form.sale_price || form.price || '') })));
+                                            }
+                                        }}
+                                    />
                                 </div>
-                                {form.colors.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 pt-3 border-t border-neutral-3">
-                                        {form.colors.map((color, i) => (
-                                            <div key={i} className="flex items-center gap-2 px-3 py-2 bg-neutral-2 rounded-full">
-                                                <div className="w-5 h-5 rounded-full border-2 border-neutral-4" style={{ backgroundColor: color.hex }} />
-                                                <span className="text-xs font-semibold text-neutral-8">{color.name}</span>
-                                                <button type="button" onClick={() => handleRemoveColor(i)} className="cursor-pointer">
-                                                    <X size={12} className="text-neutral-6" />
+                                {form.hasColors && (
+                                    <div className="flex flex-col gap-3">
+                                        <div className="grid grid-cols-10 gap-2">
+                                            {PRESET_COLORS.map(color => {
+                                                const isSelected = form.colors.some(c => c.hex === color.hex);
+                                                return (
+                                                    <button
+                                                        key={color.hex}
+                                                        type="button"
+                                                        onClick={() => !isSelected && handleAddColor(color.name, color.hex)}
+                                                        disabled={isSelected}
+                                                        title={color.name}
+                                                        className={`w-full aspect-square rounded-md border-2 transition-all ${isSelected ? 'border-neutral-4 opacity-40 cursor-not-allowed' : 'border-transparent hover:border-primary-1 hover:scale-110 cursor-pointer'}`}
+                                                        style={{ backgroundColor: color.hex }}
+                                                    />
+                                                );
+                                            })}
+                                        </div>
+                                        {form.colors.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 pt-3 border-t border-neutral-3">
+                                                {form.colors.map((color, i) => (
+                                                    <div key={i} className="flex items-center gap-2 px-3 py-2 bg-neutral-2 rounded-full">
+                                                        <div className="w-5 h-5 rounded-full border-2 border-neutral-4" style={{ backgroundColor: color.hex }} />
+                                                        <span className="text-xs font-semibold text-neutral-8">{color.name}</span>
+                                                        <button type="button" onClick={() => handleRemoveColor(i)} className="cursor-pointer">
+                                                            <X size={12} className="text-neutral-6" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </FormSection>
+
+                    {form.hasColors && renderVariantsTree()}
+
+                    {/* Autres caractéristiques */}
+                    <FormSection title="Autres caractéristiques">
+                        {form.hasSizes || form.hasColors ? (
+                            <div className="p-4 bg-neutral-2/50 dark:bg-neutral-2/50 rounded-md shadow-inner text-sm text-neutral-6 text-center">
+                                Seules les variantes locales (sous-variantes) sont autorisées depuis que vous avez choisi les tailles ou les couleurs comme racine.
+                            </div>
+                        ) : (
+                            <>
+                                {customDetails.length > 0 && (
+                                    <div className="flex flex-col gap-2">
+                                        {customDetails.map((detail, i) => (
+                                            <div key={i} className="flex items-center gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={detail.key}
+                                                    onChange={e => handleCustomDetailChange(i, 'key', e.target.value)}
+                                                    placeholder="Attribut"
+                                                    className="w-32 shrink-0 rounded-full border border-neutral-4 bg-neutral-2 px-3 py-1.5 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:bg-neutral-0 focus:ring-2 focus:ring-primary-5 transition-all"
+                                                />
+                                                <span className="text-neutral-5 text-xs">:</span>
+                                                <input
+                                                    type="text"
+                                                    value={detail.value}
+                                                    onChange={e => handleCustomDetailChange(i, 'value', e.target.value)}
+                                                    placeholder="Valeur (optionnel)"
+                                                    className="flex-1 rounded-full border border-neutral-4 bg-neutral-2 px-3 py-1.5 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:bg-neutral-0 focus:ring-2 focus:ring-primary-5 transition-all"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveCustomDetail(i)}
+                                                    className="w-6 h-6 flex items-center justify-center rounded-full text-neutral-5 hover:bg-danger-2 hover:text-danger-1 transition-colors cursor-pointer shrink-0"
+                                                >
+                                                    <X size={12} />
                                                 </button>
                                             </div>
                                         ))}
                                     </div>
                                 )}
-                            </div>
-                        )}
-                    </FormSection>
 
-                    {/* Autres caractéristiques */}
-                    <FormSection title="Autres caractéristiques">
-                        {customDetails.length > 0 && (
-                            <div className="flex flex-col gap-2">
-                                {customDetails.map((detail, i) => (
-                                    <div key={i} className="flex items-center gap-2">
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center gap-2">
                                         <input
                                             type="text"
-                                            value={detail.key}
-                                            onChange={e => handleCustomDetailChange(i, 'key', e.target.value)}
-                                            placeholder="Attribut"
-                                            className="w-32 shrink-0 rounded-full border border-neutral-4 bg-neutral-2 px-3 py-1.5 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:bg-neutral-0 focus:ring-2 focus:ring-primary-5 transition-all"
+                                            value={newDetailKey}
+                                            onChange={e => setNewDetailKey(e.target.value)}
+                                            placeholder="Ex: Matière"
+                                            className="w-32 shrink-0 rounded-full border border-neutral-4 bg-neutral-0 px-3 py-1.5 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 transition-all"
+                                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomDetail(); } }}
                                         />
                                         <span className="text-neutral-5 text-xs">:</span>
                                         <input
                                             type="text"
-                                            value={detail.value}
-                                            onChange={e => handleCustomDetailChange(i, 'value', e.target.value)}
-                                            placeholder="Valeur (optionnel)"
-                                            className="flex-1 rounded-full border border-neutral-4 bg-neutral-2 px-3 py-1.5 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:bg-neutral-0 focus:ring-2 focus:ring-primary-5 transition-all"
+                                            value={newDetailVal}
+                                            onChange={e => setNewDetailVal(e.target.value)}
+                                            placeholder="Ex: Coton 100% (optionnel)"
+                                            className="flex-1 rounded-full border border-neutral-4 bg-neutral-0 px-3 py-1.5 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 transition-all"
+                                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomDetail(); } }}
                                         />
                                         <button
                                             type="button"
-                                            onClick={() => handleRemoveCustomDetail(i)}
-                                            className="w-6 h-6 flex items-center justify-center rounded-full text-neutral-5 hover:bg-danger-2 hover:text-danger-1 transition-colors cursor-pointer shrink-0"
+                                            onClick={handleAddCustomDetail}
+                                            disabled={!newDetailKey.trim()}
+                                            className="w-7 h-7 flex items-center justify-center rounded-full bg-primary-1 text-white hover:bg-primary-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shrink-0"
                                         >
-                                            <X size={12} />
+                                            <Plus size={13} />
                                         </button>
                                     </div>
-                                ))}
-                            </div>
+                                    {newDetailKey.trim() && (
+                                        <p className="text-[11px] font-poppins text-warning-1 pl-1">
+                                            ⚠️ Cliquez sur <strong>+</strong> pour confirmer l'ajout, sinon la caractéristique ne sera pas enregistrée.
+                                        </p>
+                                    )}
+                                </div>
+                            </>
                         )}
-
-                        <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="text"
-                                    value={newDetailKey}
-                                    onChange={e => setNewDetailKey(e.target.value)}
-                                    placeholder="Ex: Matière"
-                                    className="w-32 shrink-0 rounded-full border border-neutral-4 bg-neutral-0 px-3 py-1.5 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 transition-all"
-                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomDetail(); } }}
-                                />
-                                <span className="text-neutral-5 text-xs">:</span>
-                                <input
-                                    type="text"
-                                    value={newDetailVal}
-                                    onChange={e => setNewDetailVal(e.target.value)}
-                                    placeholder="Ex: Coton 100% (optionnel)"
-                                    className="flex-1 rounded-full border border-neutral-4 bg-neutral-0 px-3 py-1.5 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 transition-all"
-                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomDetail(); } }}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={handleAddCustomDetail}
-                                    disabled={!newDetailKey.trim()}
-                                    className="w-7 h-7 flex items-center justify-center rounded-full bg-primary-1 text-white hover:bg-primary-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shrink-0"
-                                >
-                                    <Plus size={13} />
-                                </button>
-                            </div>
-                            {newDetailKey.trim() && (
-                                <p className="text-[11px] font-poppins text-warning-1 pl-1">
-                                    ⚠️ Cliquez sur <strong>+</strong> pour confirmer l'ajout, sinon la caractéristique ne sera pas enregistrée.
-                                </p>
-                            )}
-                        </div>
                     </FormSection>
 
-                    <FormSection title="Variantes">
-                        <p className="text-xs font-poppins text-neutral-6">
-                            Renseigner tailles, couleurs et caractéristiques plus haut pour proposer des valeurs dans « caractéristique existante ». Sinon, indiquez seulement le nom de la variante (ex. M, Noir / XL).
-                        </p>
-                        {allowedVariantAttributes.length === 0 && (
-                            <p className="text-[11px] font-poppins text-warning-1 mt-2">
-                                Sans caractéristiques produit, le bouton « existante » reste désactivé — utilisez le nom de la variante et « nouvelle caractéristique » si besoin.
-                            </p>
-                        )}
-
-                        {variantsDraft.length > 0 && (
-                            <div className="flex flex-col gap-4 mt-4">
-                                {variantsDraft.map((v, idx) => {
-                                    const variantImgSrc =
-                                        typeof v.image === 'string'
-                                            ? v.image
-                                            : (v.image?.preview ?? (v.image?.file ? getVariantImagePreview(v.image) : ''));
-                                    const hasVariantImage = Boolean(variantImgSrc);
-                                    return (
-                                        <div
-                                            key={v.id || `new-${idx}`}
-                                            className="relative rounded-2 border border-neutral-4 dark:border-neutral-4 p-4 pt-5 bg-neutral-2/30 dark:bg-neutral-2/30"
-                                        >
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRemoveVariant(idx)}
-                                                className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full text-neutral-5 hover:bg-danger-2 hover:text-danger-1 transition-colors cursor-pointer"
-                                                aria-label="Retirer cette variante"
-                                            >
-                                                <X size={14} />
-                                            </button>
-
-                                            <div className="flex flex-col gap-2 pr-10">
-                                                <label className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
-                                                    Nom de la variante
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={v.sku}
-                                                    onChange={(e) => updateVariant(idx, { sku: e.target.value })}
-                                                    placeholder="Ex. M, Noir / XL"
-                                                    className="w-full rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-4 py-2.5 text-sm text-neutral-8 font-poppins outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 dark:border-neutral-5 dark:text-neutral-8"
-                                                />
-                                            </div>
-
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                                                <div className="flex flex-col gap-2">
-                                                    <label className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
-                                                        Prix de vente (F)
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        value={v.price}
-                                                        onChange={(e) => updateVariant(idx, { price: e.target.value })}
-                                                        placeholder="Ex. 7000"
-                                                        className="w-full rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-4 py-2.5 text-sm text-neutral-8 font-poppins outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 dark:border-neutral-5 dark:text-neutral-8"
-                                                    />
-                                                </div>
-                                                <div className="flex flex-col gap-2">
-                                                    <label className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
-                                                        Prix barré / initial (F)
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        value={v.original_price}
-                                                        onChange={(e) => updateVariant(idx, { original_price: e.target.value })}
-                                                        placeholder="Optionnel"
-                                                        className="w-full rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-4 py-2.5 text-sm text-neutral-8 font-poppins outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 dark:border-neutral-5 dark:text-neutral-8"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-4 flex flex-row flex-nowrap items-end gap-3 sm:gap-4 min-w-0 overflow-x-auto pb-0.5">
-                                                <div className="flex flex-col gap-2 min-w-0 flex-1 shrink">
-                                                    <label className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8 whitespace-nowrap">
-                                                        Quantité en stock
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        value={v.stock}
-                                                        disabled={v.unlimited_stock}
-                                                        onChange={(e) => updateVariant(idx, { stock: e.target.value })}
-                                                        placeholder="Ex. 20"
-                                                        className="w-full min-w-22 max-w-32 rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-3 py-2.5 text-sm text-neutral-8 font-poppins outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 disabled:opacity-50 dark:border-neutral-5 dark:text-neutral-8"
-                                                    />
-                                                </div>
-
-                                                <label className="flex items-center gap-2.5 cursor-pointer select-none rounded-md border border-neutral-4 dark:border-neutral-4 px-3 py-2.5 bg-neutral-2/50 dark:bg-neutral-2/50 shrink-0">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={v.unlimited_stock}
-                                                        onChange={(e) => updateVariant(idx, { unlimited_stock: e.target.checked })}
-                                                        className="rounded border-neutral-5 text-primary-1 focus:ring-primary-5 shrink-0"
-                                                    />
-                                                    <span className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8 whitespace-nowrap">
-                                                        Toujours en stock
-                                                    </span>
-                                                </label>
-
-                                                <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
-                                                    <div className="text-right hidden sm:block min-w-0">
-                                                        <p className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8 whitespace-nowrap">
-                                                            Variante active
-                                                        </p>
-                                                        <p className="text-[10px] font-poppins text-neutral-6 whitespace-nowrap">Visible sur la boutique</p>
-                                                    </div>
-                                                    <ProductStatusToggle
-                                                        active={v.status !== false}
-                                                        onChange={(val) => updateVariant(idx, { status: val })}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="flex flex-col gap-2 mt-5">
-                                                <label className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
-                                                    Image de la variante
-                                                </label>
-                                                {hasVariantImage ? (
-                                                    <div className="relative w-32 h-32 rounded-2 overflow-hidden border border-neutral-4 group">
-                                                        <img
-                                                            src={variantImgSrc}
-                                                            alt=""
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => updateVariant(idx, { image: '' })}
-                                                            className="absolute inset-0 bg-neutral-8/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
-                                                        >
-                                                            <Trash2 size={18} className="text-white" />
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex flex-wrap gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => variantImageFileRefs.current[idx]?.click()}
-                                                            className="w-32 h-32 rounded-2 border-2 border-dashed border-neutral-4 flex flex-col items-center justify-center gap-2 text-neutral-6 hover:border-primary-1 hover:text-primary-1 transition-colors cursor-pointer"
-                                                        >
-                                                            <Upload size={20} />
-                                                            <span className="text-[11px] font-poppins">Fichier</span>
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setMediaPickerTarget({ type: 'variant', index: idx });
-                                                                setMediaPickerOpen(true);
-                                                            }}
-                                                            className="w-32 h-32 rounded-2 border-2 border-dashed border-neutral-4 flex flex-col items-center justify-center gap-2 text-neutral-6 hover:border-primary-1 hover:text-primary-1 transition-colors cursor-pointer"
-                                                        >
-                                                            <Images size={20} />
-                                                            <span className="text-[11px] font-poppins">Médiathèque</span>
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setTempImageType('variant');
-                                                                setTempImageVariantIdx(idx);
-                                                                setShowImageUrlModal(true);
-                                                            }}
-                                                            className="w-32 h-32 rounded-2 border-2 border-dashed border-neutral-4 flex flex-col items-center justify-center gap-2 text-neutral-6 hover:border-primary-1 hover:text-primary-1 transition-colors cursor-pointer"
-                                                        >
-                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                                            </svg>
-                                                            <span className="text-[11px] font-poppins">URL</span>
-                                                        </button>
-                                                    </div>
-                                                )}
-                                                <input
-                                                    ref={(el) => {
-                                                        variantImageFileRefs.current[idx] = el;
-                                                    }}
-                                                    type="file"
-                                                    accept="image/*"
-                                                    className="hidden"
-                                                    onChange={(e) => handleVariantImageFile(idx, e)}
-                                                />
-                                            </div>
-
-                                            <div className="mt-5 flex flex-col gap-3">
-                                                <div className="flex justify-end">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleAddVariantAttribute(idx)}
-                                                        disabled={
-                                                            allowedVariantAttributes.length === 0
-                                                            || Object.keys(v.attrMap ?? {}).length >= allowedVariantAttributes.length
-                                                        }
-                                                        className="w-fit"
-                                                    >
-                                                        <Plus size={13} /> Ajouter une caractéristique existante
-                                                    </Button>
-                                                </div>
-                                                {Object.keys(v.attrMap ?? {}).length > 0 && (
-                                                    <div className="grid grid-cols-1 gap-2">
-                                                        {Object.keys(v.attrMap ?? {}).map((attrName, attrIdx) => {
-                                                            const selectedElsewhere = new Set(
-                                                                Object.keys(v.attrMap ?? {}).filter((n) => n !== attrName),
-                                                            );
-                                                            const attrOptions = allowedVariantAttributes.filter(
-                                                                (a) => !selectedElsewhere.has(a.name) || a.name === attrName,
-                                                            );
-                                                            const selectedAttrDef = allowedVariantAttributes.find((a) => a.name === attrName);
-                                                            return (
-                                                                <div key={`${idx}-${attrIdx}-${attrName}`} className="grid grid-cols-12 gap-2 items-center">
-                                                                    <select
-                                                                        value={attrName}
-                                                                        onChange={(e) => handleVariantAttributeNameChange(idx, attrName, e.target.value)}
-                                                                        className="col-span-4 sm:col-span-3 rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-3 py-2 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 cursor-pointer"
-                                                                    >
-                                                                        {attrOptions.map((opt) => (
-                                                                            <option key={opt.name} value={opt.name}>{opt.name}</option>
-                                                                        ))}
-                                                                    </select>
-                                                                    <select
-                                                                        value={v.attrMap?.[attrName] ?? ''}
-                                                                        onChange={(e) => handleVariantAttributeValueChange(idx, attrName, e.target.value)}
-                                                                        className="col-span-7 sm:col-span-8 rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-3 py-2 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5 cursor-pointer"
-                                                                    >
-                                                                        <option value="">Choisir une valeur</option>
-                                                                        {(selectedAttrDef?.values ?? []).map((val) => (
-                                                                            <option key={val} value={val}>{val}</option>
-                                                                        ))}
-                                                                    </select>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleRemoveVariantAttribute(idx, attrName)}
-                                                                        className="col-span-1 justify-self-center w-8 h-8 flex items-center justify-center rounded-full text-neutral-5 hover:bg-danger-2 hover:text-danger-1 transition-colors cursor-pointer"
-                                                                    >
-                                                                        <X size={12} />
-                                                                    </button>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="mt-5 flex flex-col gap-3">
-                                                <div className="flex justify-end">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleAddVariantDetail(idx)}
-                                                        className="w-fit"
-                                                    >
-                                                        <Plus size={13} /> Ajouter une nouvelle caractéristique
-                                                    </Button>
-                                                </div>
-                                                {(v.others_details ?? []).length > 0 && (
-                                                    <div className="flex flex-col gap-2">
-                                                        {(v.others_details ?? []).map((d, di) => (
-                                                            <div key={di} className="flex flex-wrap items-center gap-2">
-                                                                <input
-                                                                    type="text"
-                                                                    value={d.key}
-                                                                    onChange={(e) => handleVariantDetailChange(idx, di, 'key', e.target.value)}
-                                                                    placeholder="Clé"
-                                                                    className="flex-1 min-w-[120px] rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-3 py-2 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5"
-                                                                />
-                                                                <input
-                                                                    type="text"
-                                                                    value={d.value}
-                                                                    onChange={(e) => handleVariantDetailChange(idx, di, 'value', e.target.value)}
-                                                                    placeholder="Valeur"
-                                                                    className="flex-1 min-w-[120px] rounded-lg border border-neutral-5 bg-neutral-1 dark:bg-neutral-1 px-3 py-2 text-xs font-poppins text-neutral-8 outline-none focus:border-primary-1 focus:ring-2 focus:ring-primary-5"
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleRemoveVariantDetail(idx, di)}
-                                                                    className="w-8 h-8 flex items-center justify-center rounded-full text-neutral-5 hover:bg-danger-2 hover:text-danger-1 transition-colors cursor-pointer shrink-0"
-                                                                >
-                                                                    <X size={12} />
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        <div
-                            id="product-variants-after-cards"
-                            ref={variantsAnchorAfterCardsRef}
-                            tabIndex={-1}
-                            className="scroll-mt-28 outline-none h-px w-full overflow-hidden pointer-events-none"
-                            aria-hidden
-                        />
-
-                        <div className="mt-4 pt-4 border-t border-neutral-3 dark:border-neutral-3 flex flex-wrap items-center justify-between gap-3">
-                            <p className="text-xs font-poppins text-neutral-6">
-                                {variantsDraft.length} variante{variantsDraft.length !== 1 ? 's' : ''}
-                            </p>
-                            <Button type="button" variant="outline" size="sm" onClick={handleAddVariant}>
-                                <Plus size={13} /> Variante
-                            </Button>
-                        </div>
-
-                        {errors.variants && <p className="text-xs text-danger-1 mt-2">{errors.variants}</p>}
-                    </FormSection>
+                    {(!form.hasSizes && !form.hasColors && customDetails.length > 0) && renderVariantsTree()}
                 </div>
 
                 {/* ── Colonne droite (1/3) ── */}
@@ -1640,6 +1417,7 @@ const ProductFormPage = () => {
                         onClick={() => {
                             setShowImageUrlModal(false);
                             setTempImageVariantIdx(null);
+                            setTempImageVariantPath(null);
                         }}
                     />
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1661,6 +1439,7 @@ const ProductFormPage = () => {
                                     onClick={() => {
                                         setShowImageUrlModal(false);
                                         setTempImageVariantIdx(null);
+                                        setTempImageVariantPath(null);
                                     }}
                                 >
                                     Annuler

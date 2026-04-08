@@ -42,7 +42,7 @@ class ProductsAPI {
    * }} params
    */
   list(params = {}) {
-    return api.get("/shop/products/", { params });
+    return api.get("/shop/v2/products/", { params });
   }
 
   /**
@@ -50,7 +50,7 @@ class ProductsAPI {
    * @param {object} data
    */
   create(data) {
-    return api.post("/shop/products/", data);
+    return api.post("/shop/v2/products/", data);
   }
 
   /**
@@ -58,7 +58,7 @@ class ProductsAPI {
    * @param {string} id — UUID
    */
   detail(id) {
-    return api.get(`/shop/products/${id}/`);
+    return api.get(`/shop/v2/products/${id}/`);
   }
 
   /**
@@ -68,7 +68,7 @@ class ProductsAPI {
    * @param {object} data
    */
   update(id, data) {
-    return api.patch(`/shop/products/${id}/`, data);
+    return api.patch(`/shop/v2/products/${id}/`, data);
   }
 
   /**
@@ -76,7 +76,7 @@ class ProductsAPI {
    * @param {string} id — UUID
    */
   delete(id) {
-    return api.delete(`/shop/products/${id}/`);
+    return api.delete(`/shop/v2/products/${id}/`);
   }
 }
 

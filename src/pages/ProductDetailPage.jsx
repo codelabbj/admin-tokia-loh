@@ -5,11 +5,10 @@ import { useParams, useNavigate } from 'react-router';
 import {
     ArrowLeft, Pencil, Tag,
     Package, CheckCircle, XCircle, AlertTriangle, Loader2,
-    ChevronLeft, ChevronRight, Play, ImageOff, Layers
+    ChevronLeft, ChevronRight, Play, ImageOff, Layers, ChevronDown
 } from 'lucide-react';
 import { useProducts, normalizeProduct, normalizeOthersDetails } from '../hooks/useProducts';
 import { productsAPI } from '../api/products.api';
-import { variantsAPI } from '../api/variants.api';
 import { useCategories } from '../hooks/useCategories';
 import Button from '../components/Button';
 import ProductBadge from '../components/products/ProductBadge';
@@ -153,6 +152,110 @@ const Section = ({ title, children }) => (
     </div>
 );
 
+// ── Noeud d'arbre récursif pour les déclinaisons ────────────────────
+const VariantTreeNode = ({ variant: v, level }) => {
+    const [open, setOpen] = useState(true);
+    const hasSubVariants = Array.isArray(v.sub_variants) && v.sub_variants.length > 0;
+    const vStockBadge = variantStockBadgeType(v);
+    const vOthers = (normalizeOthersDetails(v.others_details ?? []))
+        .map(formatDetailLine)
+        .filter(Boolean);
+    const vActive = v.status !== false;
+    const vDiscount = calcDiscount(v.price, v.original_price);
+
+    const depthBorderColors = [
+        'border-l-primary-1',
+        'border-l-success-1',
+        'border-l-warning-1',
+        'border-l-danger-1',
+    ];
+    const borderColor = level > 0 ? (depthBorderColors[level % depthBorderColors.length]) : '';
+    const bgColor = level === 0
+        ? 'bg-neutral-2/40 dark:bg-neutral-2/20'
+        : level === 1
+            ? 'bg-neutral-0 dark:bg-neutral-1'
+            : 'bg-neutral-2/60 dark:bg-neutral-2/40';
+
+    return (
+        <div className={`rounded-2 border border-neutral-4 dark:border-neutral-4 overflow-hidden ${level > 0 ? `border-l-4 ${borderColor}` : ''}`}>
+            {/* Header de la déclinaison */}
+            <div className={`flex items-center gap-3 px-4 py-3 ${bgColor} ${hasSubVariants ? 'cursor-pointer select-none' : ''}`}
+                onClick={hasSubVariants ? () => setOpen(o => !o) : undefined}
+            >
+                {/* Image */}
+                <div className="w-10 h-10 rounded-lg border border-neutral-4 overflow-hidden bg-neutral-3 shrink-0 flex items-center justify-center">
+                    {v.image
+                        ? <img src={v.image} alt="" className="w-full h-full object-cover" />
+                        : <Layers size={16} className="text-neutral-5" />}
+                </div>
+
+                {/* Infos principales */}
+                <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span className="text-sm font-bold font-poppins text-neutral-8 dark:text-neutral-8 truncate">
+                        {v.name ?? '—'}
+                    </span>
+                    {v.price != null && v.price !== '' && (
+                        <span className="text-xs font-semibold font-poppins text-primary-1">
+                            {formatPrice(v.price)}
+                            {vDiscount != null && vDiscount > 0 && (
+                                <span className="ml-1.5 text-[10px] text-success-1">-{vDiscount}%</span>
+                            )}
+                        </span>
+                    )}
+                    <span className="text-xs font-poppins text-neutral-6">
+                        Stock : 
+                        <span className={`font-semibold ${
+                            v.unlimited_stock === true ? 'text-primary-1'
+                            : (v.stock ?? 0) === 0 ? 'text-danger-1'
+                            : (v.stock ?? 0) <= 5 ? 'text-warning-1'
+                            : 'text-success-1'
+                        }`}>
+                            {v.unlimited_stock === true ? 'Illimité' : `${v.stock ?? 0} u.`}
+                        </span>
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                        <ProductBadge type={vActive ? 'active' : 'inactive'} />
+                        {vStockBadge && <ProductBadge type={vStockBadge} />}
+                    </div>
+                </div>
+
+                {/* Chevron si sous-déclinaisons */}
+                {hasSubVariants && (
+                    <div className="flex items-center gap-1.5 text-neutral-5 shrink-0">
+                        <span className="text-[11px] font-poppins">
+                            {v.sub_variants.length} sous-déclinaison{v.sub_variants.length > 1 ? 's' : ''}
+                        </span>
+                        <ChevronDown
+                            size={16}
+                            className={`transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`}
+                        />
+                    </div>
+                )}
+            </div>
+
+            {/* Détails extras (others_details) */}
+            {vOthers.length > 0 && (
+                <div className={`flex flex-wrap gap-1.5 px-4 pb-3 ${bgColor}`}>
+                    {vOthers.map((line, k) => (
+                        <span key={k} className="px-2.5 py-1 rounded-full bg-neutral-0 border border-neutral-4 text-[11px] font-poppins text-neutral-7">
+                            {line}
+                        </span>
+                    ))}
+                </div>
+            )}
+
+            {/* Sous-déclinaisons récursives */}
+            {hasSubVariants && open && (
+                <div className="flex flex-col gap-1.5 px-3 pb-3 pt-1 bg-neutral-2/20 dark:bg-neutral-2/10">
+                    {v.sub_variants.map((sub, i) => (
+                        <VariantTreeNode key={sub.id ?? i} variant={sub} level={level + 1} />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ── PAGE ──────────────────────────────────────────────────────
 const ProductDetailPage = () => {
     const { id } = useParams();
@@ -202,23 +305,8 @@ const ProductDetailPage = () => {
             setResolvedVariants([]);
             return;
         }
-        let cancelled = false;
         const embedded = Array.isArray(product.variants) ? product.variants : [];
-        if (embedded.length > 0) {
-            setResolvedVariants(embedded);
-            return;
-        }
-        (async () => {
-            try {
-                const found = await variantsAPI.listAllForProduct(product.id);
-                if (!cancelled) setResolvedVariants(found);
-            } catch {
-                if (!cancelled) setResolvedVariants([]);
-            }
-        })();
-        return () => {
-            cancelled = true;
-        };
+        setResolvedVariants(embedded);
     }, [product?.id, product?.variants?.length]);
 
     if (productsLoading || (needsDetailFetch && !productFromDetail)) {
@@ -501,7 +589,7 @@ const ProductDetailPage = () => {
                     )}
 
                     {productAttributes.length > 0 && (
-                        <Section title="Attributs (variantes)">
+                        <Section title="Attributs (déclinaisons)">
                             <div className="py-2 flex flex-col gap-3">
                                 {productAttributes.map((attr, i) => (
                                     <div key={i} className="border-b border-neutral-4 dark:border-neutral-4 last:border-0 pb-3 last:pb-0">
@@ -524,112 +612,16 @@ const ProductDetailPage = () => {
                         </Section>
                     )}
 
-                    <Section title={resolvedVariants.length > 0 ? `Variantes (${resolvedVariants.length})` : 'Variantes'}>
+                    <Section title={resolvedVariants.length > 0 ? `Déclinaisons (${resolvedVariants.length})` : 'Déclinaisons'}>
                         {resolvedVariants.length === 0 ? (
                             <p className="text-xs font-poppins text-neutral-6 py-3">
-                                Aucune variante enregistrée pour ce produit.
+                                Aucune déclinaison enregistrée pour ce produit.
                             </p>
                         ) : (
-                            <div className="py-2 flex flex-col gap-3">
-                                {resolvedVariants.map((v) => {
-                                    const vDiscount = calcDiscount(v.price, v.original_price);
-                                    const vStockBadge = variantStockBadgeType(v);
-                                    const vOthers = (normalizeOthersDetails(v.others_details ?? []))
-                                        .map(formatDetailLine)
-                                        .filter(Boolean);
-                                    const vActive = v.status !== false;
-                                    return (
-                                        <div
-                                            key={v.id ?? v.name}
-                                            className="rounded-2 border border-neutral-4 dark:border-neutral-4 p-4 bg-neutral-2/40 dark:bg-neutral-2/20"
-                                        >
-                                            <div className="flex flex-col sm:flex-row gap-4">
-                                                <div className="w-full sm:w-20 h-20 rounded-xl border border-neutral-4 overflow-hidden bg-neutral-3 shrink-0 flex items-center justify-center">
-                                                    {v.image ? (
-                                                        <img
-                                                            src={v.image}
-                                                            alt=""
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <Layers size={24} className="text-neutral-5" />
-                                                    )}
-                                                </div>
-                                                <div className="flex-1 min-w-0 flex flex-col gap-2">
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        <span className="text-sm font-bold font-poppins text-neutral-8">
-                                                            {v.name ?? '—'}
-                                                        </span>
-                                                        <ProductBadge type={vActive ? 'active' : 'inactive'} />
-                                                        {vStockBadge && <ProductBadge type={vStockBadge} />}
-                                                    </div>
-                                                    {v.id && (
-                                                        <p className="text-[10px] font-mono text-neutral-5 break-all">
-                                                            {v.id}
-                                                        </p>
-                                                    )}
-                                                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs font-poppins">
-                                                        <div>
-                                                            <span className="text-neutral-6">Prix </span>
-                                                            <span className="font-semibold text-primary-1">
-                                                                {formatPrice(v.price)}
-                                                            </span>
-                                                        </div>
-                                                        {v.original_price != null && v.original_price !== '' && (
-                                                            <div>
-                                                                <span className="text-neutral-6">Prix barré </span>
-                                                                <span className="font-semibold text-neutral-5 line-through">
-                                                                    {formatPrice(v.original_price)}
-                                                                </span>
-                                                                {vDiscount != null && vDiscount > 0 && (
-                                                                    <span className="ml-2 text-success-1 font-semibold">
-                                                                        -{vDiscount}%
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                        <div>
-                                                            <span className="text-neutral-6">Stock </span>
-                                                            <span className="font-semibold text-neutral-8">
-                                                                {v.unlimited_stock === true
-                                                                    ? 'Illimité'
-                                                                    : `${v.stock ?? 0} u.`}
-                                                            </span>
-                                                        </div>
-                                                        {v.created_at && (
-                                                            <div>
-                                                                <span className="text-neutral-6">Créée le </span>
-                                                                <span className="font-medium text-neutral-7">
-                                                                    {new Date(v.created_at).toLocaleString('fr-FR', {
-                                                                        dateStyle: 'short',
-                                                                        timeStyle: 'short',
-                                                                    })}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {vOthers.length > 0 && (
-                                                        <div className="mt-1">
-                                                            <p className="text-[11px] font-semibold text-neutral-5 uppercase tracking-wide mb-1.5">
-                                                                Détails
-                                                            </p>
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {vOthers.map((line, k) => (
-                                                                    <span
-                                                                        key={k}
-                                                                        className="px-2.5 py-1 rounded-full bg-neutral-0 border border-neutral-4 text-[11px] font-poppins text-neutral-7"
-                                                                    >
-                                                                        {line}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                            <div className="py-2 flex flex-col gap-2">
+                                {resolvedVariants.map((v, idx) => (
+                                    <VariantTreeNode key={v.id ?? idx} variant={v} level={0} />
+                                ))}
                             </div>
                         )}
                     </Section>

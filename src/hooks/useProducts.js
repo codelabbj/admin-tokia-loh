@@ -34,6 +34,36 @@ export const resolveImageUrl = async (image) => {
 /** Même pas que la liste paginée admin — utilisé pour parcourir toutes les pages. */
 export const PRODUCTS_PAGE_SIZE = 50;
 
+export const normalizeVariantsForAPI = (variants, globalUnlimited = true) => {
+  if (!Array.isArray(variants)) return [];
+
+  return variants.map((v) => {
+    const cleaned = { name: v.name };
+    if (v.id) cleaned.id = v.id;
+
+    if (v.price !== undefined && v.price !== null && v.price !== "") {
+      cleaned.price = Number(v.price);
+    }
+
+    cleaned.unlimited_stock = globalUnlimited ? !!v.unlimited_stock : false;
+
+    if (!cleaned.unlimited_stock && v.stock !== undefined && v.stock !== null && v.stock !== "") {
+      cleaned.stock = Number(v.stock);
+    }
+    // Si unlimited_stock est true, la propriété `stock` est purement ignorée (non envoyée)
+
+    if (v.image && typeof v.image === "string") {
+      cleaned.image = v.image;
+    }
+
+    if (Array.isArray(v.sub_variants) && v.sub_variants.length > 0) {
+      cleaned.sub_variants = normalizeVariantsForAPI(v.sub_variants, globalUnlimited);
+    }
+
+    return cleaned;
+  });
+};
+
 export const normalizeOthersDetails = (details) => {
   if (!Array.isArray(details)) return [];
   return details
@@ -149,7 +179,14 @@ export const useProducts = (options = {}) => {
       others_details: normalizeOthersDetails(formData.others_details),
 
       status: formData.status ?? formData.is_active ?? true,
+      variants: normalizeVariantsForAPI(formData.variants || [], unlimited), // Added for API v2
     };
+
+    console.log("=== DEBUG PAYLOAD BACKEND ===");
+    console.log("Raw form variants:", JSON.stringify(formData.variants, null, 2));
+    console.log("Normalized variants:", JSON.stringify(payload.variants, null, 2));
+    console.log("Final Full payload:", JSON.stringify(payload, null, 2));
+    console.log("=============================");
 
     if (!unlimited) {
       payload.stock = Number(formData.stock ?? 0);
@@ -228,6 +265,18 @@ export const useProducts = (options = {}) => {
           formData.subImages.map(resolveImageUrl),
         ).then((urls) => urls.filter(Boolean));
       }
+
+      // API v2: variants support
+      if (formData.variants !== undefined) {
+        const isUnlimited = !!formData.unlimited_stock;
+        payload.variants = normalizeVariantsForAPI(formData.variants, isUnlimited) || [];
+      }
+
+      console.log("=== DEBUG PAYLOAD UPDATE BACKEND ===");
+      console.log("Raw form variants:", JSON.stringify(formData.variants, null, 2));
+      console.log("Normalized variants:", JSON.stringify(payload.variants, null, 2));
+      console.log("Final Full payload:", JSON.stringify(payload, null, 2));
+      console.log("====================================");
 
       const { data } = await productsAPI.update(id, payload);
 
