@@ -289,10 +289,19 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
         const e = {};
         if (!form.name.trim()) e.name = 'Nom requis';
         if (!form.category) e.category = 'Catégorie requise';
+
         if (!form.price) e.price = 'Prix requis';
+        else if (parseFloat(form.price) < 0) e.price = 'Le prix ne peut pas être négatif';
+
         if (!form.unlimited_stock && (form.stock === '' || form.stock === null)) e.stock = 'Stock requis';
-        if (form.sale_price && parseFloat(form.sale_price) >= parseFloat(form.price))
-            e.sale_price = 'Le prix réduit doit être inférieur au prix initial';
+        else if (!form.unlimited_stock && parseInt(form.stock, 10) < 0) e.stock = 'Le stock ne peut pas être négatif';
+
+        if (form.sale_price) {
+            const sp = parseFloat(form.sale_price);
+            const p = parseFloat(form.price);
+            if (sp < 0) e.sale_price = 'Le prix réduit ne peut pas être négatif';
+            else if (sp >= p) e.sale_price = 'Le prix réduit doit être inférieur au prix initial';
+        }
         if (!form.mainImage) e.mainImage = 'Image principale requise';
         setErrors(e);
         return Object.keys(e).length === 0;
@@ -396,16 +405,16 @@ const ProductFormModal = ({ open, onClose, product = null, categories = [], onSa
                         <div className="flex flex-col gap-4">
                             <p className="text-xs font-semibold font-poppins text-neutral-6 uppercase tracking-wide">Prix & Stock</p>
                             <div className="grid grid-cols-2 gap-4">
-                                <InputField label="Prix initial (F)" name="price" type="number" value={form.price} onChange={handleChange} placeholder="Ex: 10000" error={errors.price} required />
+                                <InputField label="Prix initial (F)" name="price" type="number" min="0" value={form.price} onChange={handleChange} placeholder="Ex: 10000" error={errors.price} required />
                                 <div className="flex flex-col gap-1.5">
-                                    <InputField label="Prix réduit (F)" name="sale_price" type="number" value={form.sale_price} onChange={handleChange} placeholder="Ex: 7500" error={errors.sale_price} />
+                                    <InputField label="Prix réduit (F)" name="sale_price" type="number" min="0" value={form.sale_price} onChange={handleChange} placeholder="Ex: 7500" error={errors.sale_price} />
                                     {discount !== null && (
                                         <span className="text-[11px] font-semibold font-poppins text-success-1">✓ Réduction de {discount}%</span>
                                     )}
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <InputField label="Quantité en stock" name="stock" type="number" value={form.stock} onChange={handleChange} placeholder="Ex: 20" error={errors.stock} required={!form.unlimited_stock} />
+                                <InputField label="Quantité en stock" name="stock" type="number" min="0" value={form.stock} onChange={handleChange} placeholder="Ex: 20" error={errors.stock} required={!form.unlimited_stock} />
                                 {!form.unlimited_stock && form.stock !== '' && parseInt(form.stock, 10) <= 5 && parseInt(form.stock, 10) > 0 && (
                                     <div className="flex items-end pb-2">
                                         <span className="text-[11px] font-semibold font-poppins text-warning-1">⚠️ Stock faible</span>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import {
     ArrowLeft, FileText, Truck,
-    MessageSquare, User, MapPin, Phone, Loader2
+    MessageSquare, User, MapPin, Phone, Loader2, AlertCircle
 } from 'lucide-react';
 import { useOrders, normalizeOrder, resolveDeliveryFeeFromVilles } from '../hooks/useOrders';
 import { useVilles } from '../hooks/useVilles';
@@ -113,8 +113,8 @@ const OrderDetailPage = () => {
     const subtotal = order.items?.reduce((acc, i) => acc + i.quantity * i.unitPrice, 0) ?? 0;
     const total = subtotal + delivery;
 
-    const handleStatusChange = async (newStatus) => {
-        await updateStatus(order.id, newStatus);
+    const handleStatusChange = async (newStatus, cancellationReason) => {
+        await updateStatus(order.id, newStatus, cancellationReason);
         try {
             const { data } = await dashboardAPI.getOrderDetail(id);
             setOrderFromDetail(normalizeOrder(data));
@@ -188,25 +188,25 @@ const OrderDetailPage = () => {
                             </thead>
                             <tbody>
                                 {order.items?.map((item, i) => (
-                                        <tr key={i} className="border-b border-neutral-4 dark:border-neutral-4 last:border-0">
-                                            <td className="px-4 py-3 font-medium text-neutral-8 dark:text-neutral-8">
-                                                <span>{item.name}</span>
-                                                {item.variants && item.variants.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                                        {item.variants.map((v, vIdx) => (
-                                                            <span key={vIdx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-neutral-4 dark:border-neutral-5 bg-neutral-1 dark:bg-neutral-2 text-[10px] font-semibold text-neutral-7 dark:text-neutral-6">
-                                                                <span className="opacity-70 capitalize">{v.key} :</span>
-                                                                <span className="text-neutral-9 dark:text-neutral-0">{v.name}</span>
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3 text-center text-neutral-7 dark:text-neutral-7">{item.quantity}</td>
-                                            <td className="px-4 py-3 text-neutral-7 dark:text-neutral-7">{formatPrice(item.unitPrice)}</td>
-                                            <td className="px-4 py-3 font-semibold text-neutral-8 dark:text-neutral-8">{formatPrice(item.quantity * item.unitPrice)}</td>
-                                        </tr>
-                                    ))}
+                                    <tr key={i} className="border-b border-neutral-4 dark:border-neutral-4 last:border-0">
+                                        <td className="px-4 py-3 font-medium text-neutral-8 dark:text-neutral-8">
+                                            <span>{item.name}</span>
+                                            {item.variants && item.variants.length > 0 && (
+                                                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                    {item.variants.map((v, vIdx) => (
+                                                        <span key={vIdx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-neutral-4 dark:border-neutral-5 bg-neutral-1 dark:bg-neutral-2 text-[10px] font-semibold text-neutral-7 dark:text-neutral-6">
+                                                            <span className="opacity-70 capitalize">{v.key} :</span>
+                                                            <span className="text-neutral-9 dark:text-neutral-0">{v.name}</span>
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-center text-neutral-7 dark:text-neutral-7">{item.quantity}</td>
+                                        <td className="px-4 py-3 text-neutral-7 dark:text-neutral-7">{formatPrice(item.unitPrice)}</td>
+                                        <td className="px-4 py-3 font-semibold text-neutral-8 dark:text-neutral-8">{formatPrice(item.quantity * item.unitPrice)}</td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                         <div className="border-t border-neutral-4 dark:border-neutral-4 bg-neutral-2 dark:bg-neutral-2 px-5 py-3 flex flex-col gap-1.5">
@@ -231,6 +231,23 @@ const OrderDetailPage = () => {
                             <div className="flex items-start gap-2 bg-secondary-5 dark:bg-secondary-5 border border-secondary-3 rounded-2 px-4 py-3">
                                 <MessageSquare size={14} className="text-secondary-1 shrink-0 mt-0.5" />
                                 <p className="text-xs font-poppins text-neutral-8 dark:text-neutral-8 italic">"{order.note}"</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Raison d'annulation */}
+                    {order.status === 'canceled' && (
+                        <div className="bg-neutral-0 dark:bg-neutral-0 border border-danger-1/30 rounded-3 p-5 flex flex-col gap-3">
+                            <p className="text-xs font-semibold font-poppins text-neutral-6 uppercase tracking-wide">
+                                Raison d'annulation
+                            </p>
+                            <div className="flex items-start gap-2 bg-danger-2 border border-danger-1/30 rounded-2 px-4 py-3">
+                                <AlertCircle size={14} className="text-danger-1 shrink-0 mt-0.5" />
+                                <p className="text-xs font-poppins text-danger-1 italic">
+                                    {order.cancellation_reason
+                                        ? `"${order.cancellation_reason}"`
+                                        : 'Aucune raison renseignée.'}
+                                </p>
                             </div>
                         </div>
                     )}

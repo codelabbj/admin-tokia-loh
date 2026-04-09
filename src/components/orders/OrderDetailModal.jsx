@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { X, FileText, Truck, MessageSquare, User, MapPin, Phone } from 'lucide-react';
+import { X, FileText, Truck, MessageSquare, User, MapPin, Phone, AlertCircle } from 'lucide-react';
 import Button from '../Button';
 import OrderStatusBadge from './OrderStatusBadge';
 import OrderStatusStepper from './OrderStatusStepper';
@@ -43,10 +43,10 @@ const OrderDetailModal = ({ open, onClose, order, onStatusChange }) => {
 
     if (!open || !currentOrder) return null;
 
-    const handleStatusChange = (newStatus) => {
-        const updated = { ...currentOrder, status: newStatus };
+    const handleStatusChange = (newStatus, cancellationReason) => {
+        const updated = { ...currentOrder, status: newStatus, ...(newStatus === 'canceled' && { cancellation_reason: cancellationReason ?? null }) };
         setCurrentOrder(updated);
-        onStatusChange?.(currentOrder.id, newStatus);
+        onStatusChange?.(currentOrder.id, newStatus, cancellationReason);
     };
 
     const orderForPDF = {
@@ -203,6 +203,23 @@ const OrderDetailModal = ({ open, onClose, order, onStatusChange }) => {
                                     <MessageSquare size={14} className="text-secondary-1 shrink-0 mt-0.5" />
                                     <p className="text-xs font-poppins text-neutral-8 dark:text-neutral-8 italic">
                                         "{currentOrder.note}"
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Raison d'annulation */}
+                        {currentOrder.status === 'canceled' && (
+                            <div className="flex flex-col gap-2">
+                                <p className="text-xs font-semibold font-poppins text-neutral-6 uppercase tracking-wide">
+                                    Raison d'annulation
+                                </p>
+                                <div className="flex items-start gap-2 bg-danger-2 border border-danger-1/30 rounded-2 px-4 py-3">
+                                    <AlertCircle size={14} className="text-danger-1 shrink-0 mt-0.5" />
+                                    <p className="text-xs font-poppins text-danger-1 italic">
+                                        {currentOrder.cancellation_reason
+                                            ? `"${currentOrder.cancellation_reason}"`
+                                            : 'Aucune raison renseignée.'}
                                     </p>
                                 </div>
                             </div>

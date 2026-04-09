@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
     Menu, Search, Bell, ChevronDown, User, LogOut,
-    Settings, CheckCheck, Loader2, Sun, Moon, Sparkles
+    Settings, CheckCheck, Loader2, Sun, Moon, Sparkles, X
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import LogoutConfirmModal from '../LogoutConfirmModal';
@@ -55,6 +55,7 @@ const TopBar = ({ onMenuToggle, showSearch = true }) => {
 
     const [search, setSearch] = useState('');
     const [notifOpen, setNotifOpen] = useState(false);
+    const [notifPanelPos, setNotifPanelPos] = useState({ top: 0, right: 0 });
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
@@ -63,6 +64,19 @@ const TopBar = ({ onMenuToggle, showSearch = true }) => {
 
     const { notifications, loading: notifLoading, unreadCount, markRead, markAllRead } = useNotifications();
     const previewNotifs = notifications.slice(0, 5);
+
+    // Calcule la position du panel par rapport au bouton cloche
+    const openNotifPanel = () => {
+        if (notifRef.current) {
+            const rect = notifRef.current.getBoundingClientRect();
+            setNotifPanelPos({
+                top: rect.bottom + 8,
+                right: window.innerWidth - rect.right,
+            });
+        }
+        setNotifOpen(p => !p);
+        setUserMenuOpen(false);
+    };
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -139,7 +153,7 @@ const TopBar = ({ onMenuToggle, showSearch = true }) => {
                     {/* Notifications */}
                     <div className="relative" ref={notifRef}>
                         <IconButton
-                            onClick={() => { setNotifOpen(p => !p); setUserMenuOpen(false); }}
+                            onClick={openNotifPanel}
                             title="Notifications"
                             active={notifOpen}
                             badge={unreadCount}
@@ -148,100 +162,129 @@ const TopBar = ({ onMenuToggle, showSearch = true }) => {
                         </IconButton>
 
                         {notifOpen && (
-                            <div className="absolute right-0 top-11 w-80 sm:w-88 z-50
-                                bg-neutral-0 dark:bg-neutral-0
-                                border border-neutral-4 dark:border-neutral-4
-                                rounded-2xl shadow-xl overflow-hidden">
+                            <>
+                                {/* ── Overlay mobile ── */}
+                                <div
+                                    className="fixed inset-0 z-40 sm:hidden"
+                                    onClick={() => setNotifOpen(false)}
+                                />
 
-                                {/* Header notif */}
-                                <div className="flex items-center justify-between px-4 py-3
-                                    border-b border-neutral-4 dark:border-neutral-4
-                                    bg-neutral-2 dark:bg-neutral-2">
-                                    <div className="flex items-center gap-2">
-                                        <Sparkles size={12} className="text-primary-1" />
-                                        <span className="text-xs font-bold font-poppins text-neutral-8 dark:text-neutral-8">
-                                            Notifications
-                                        </span>
-                                        {unreadCount > 0 && (
-                                            <span className="inline-flex items-center justify-center
-                                                min-w-4.5 h-4.5 px-1 rounded-full
-                                                bg-primary-5 text-primary-1 text-[10px] font-bold font-poppins">
-                                                {unreadCount}
+                                {/* ── Panel notifications : fixed sur tous les écrans ── */}
+                                <div
+                                    className="fixed z-50
+                                        bg-neutral-0 dark:bg-neutral-0
+                                        border border-neutral-4 dark:border-neutral-4
+                                        rounded-2xl shadow-2xl overflow-hidden
+                                        w-[calc(100vw-1.5rem)] sm:w-80
+                                    "
+                                    style={window.innerWidth >= 640
+                                        /* Desktop : ancré sous le bouton cloche */
+                                        ? { top: notifPanelPos.top, right: notifPanelPos.right }
+                                        /* Mobile : centré horizontalement sous la topbar */
+                                        : { top: '4.5rem', left: '0.75rem', right: '0.75rem' }
+                                    }
+                                >
+                                    {/* Header notif */}
+                                    <div className="flex items-center justify-between px-4 py-3
+                                        border-b border-neutral-4 dark:border-neutral-4
+                                        bg-neutral-2 dark:bg-neutral-2">
+                                        <div className="flex items-center gap-2">
+                                            <Sparkles size={12} className="text-primary-1" />
+                                            <span className="text-xs font-bold font-poppins text-neutral-8 dark:text-neutral-8">
+                                                Notifications
                                             </span>
-                                        )}
+                                            {unreadCount > 0 && (
+                                                <span className="inline-flex items-center justify-center
+                                                    min-w-4.5 h-4.5 px-1 rounded-full
+                                                    bg-primary-5 text-primary-1 text-[10px] font-bold font-poppins">
+                                                    {unreadCount}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {unreadCount > 0 && (
+                                                <button
+                                                    onClick={markAllRead}
+                                                    className="flex items-center gap-1 text-[11px] font-poppins
+                                                        text-primary-1 hover:text-primary-6 transition-colors cursor-pointer"
+                                                >
+                                                    <CheckCheck size={11} /> Tout lire
+                                                </button>
+                                            )}
+                                            {/* Bouton fermer — mobile seulement */}
+                                            <button
+                                                onClick={() => setNotifOpen(false)}
+                                                className="sm:hidden w-6 h-6 flex items-center justify-center
+                                                    rounded-lg text-neutral-5 hover:bg-neutral-3 hover:text-neutral-8
+                                                    transition-colors cursor-pointer"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
                                     </div>
-                                    {unreadCount > 0 && (
+
+                                    {/* Liste */}
+                                    <div className="max-h-[55vh] sm:max-h-80 overflow-y-auto">
+                                        {notifLoading ? (
+                                            <div className="flex items-center justify-center py-10">
+                                                <Loader2 size={18} className="animate-spin text-primary-1" />
+                                            </div>
+                                        ) : previewNotifs.length === 0 ? (
+                                            <div className="flex flex-col items-center gap-2 py-10 text-neutral-5">
+                                                <Bell size={28} />
+                                                <p className="text-xs font-poppins">Aucune notification</p>
+                                            </div>
+                                        ) : previewNotifs.map((notif) => (
+                                            <div
+                                                key={notif.id}
+                                                onClick={() => {
+                                                    markRead(notif.id);
+                                                    navigate(getNotificationNavigatePath(notif));
+                                                    setNotifOpen(false);
+                                                }}
+                                                className={`flex items-start gap-3 px-4 py-3
+                                                    border-b border-neutral-4 dark:border-neutral-4 last:border-0
+                                                    cursor-pointer transition-all duration-150
+                                                    ${!notif.read
+                                                        ? 'bg-primary-5 dark:bg-primary-5'
+                                                        : 'hover:bg-neutral-2 dark:hover:bg-neutral-2'
+                                                    }`}
+                                            >
+                                                <div className="mt-1.5 shrink-0">
+                                                    <span className={`block w-1.5 h-1.5 rounded-full
+                                                        ${!notif.read ? 'bg-primary-1' : 'bg-neutral-4'}`}
+                                                    />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <NotificationsBadge type={notif.type} />
+                                                    <p className={`text-[11px] font-poppins mt-1 line-clamp-2
+                                                        ${!notif.read
+                                                            ? 'font-semibold text-neutral-8 dark:text-neutral-8'
+                                                            : 'text-neutral-6 dark:text-neutral-6'
+                                                        }`}>
+                                                        {notif.message}
+                                                    </p>
+                                                    <p className="text-[10px] font-poppins text-neutral-5 mt-0.5">
+                                                        {formatTimeAgo(notif.date)}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="px-4 py-2.5 border-t border-neutral-4 dark:border-neutral-4
+                                        bg-neutral-2 dark:bg-neutral-2">
                                         <button
-                                            onClick={markAllRead}
-                                            className="flex items-center gap-1 text-[11px] font-poppins
+                                            onClick={() => { navigate('/notifications'); setNotifOpen(false); }}
+                                            className="w-full text-center text-[11px] font-semibold font-poppins
                                                 text-primary-1 hover:text-primary-6 transition-colors cursor-pointer"
                                         >
-                                            <CheckCheck size={11} /> Tout lire
+                                            Voir toutes les notifications →
                                         </button>
-                                    )}
+                                    </div>
                                 </div>
-
-                                {/* Liste */}
-                                <div className="max-h-85 overflow-y-auto">
-                                    {notifLoading ? (
-                                        <div className="flex items-center justify-center py-10">
-                                            <Loader2 size={18} className="animate-spin text-primary-1" />
-                                        </div>
-                                    ) : previewNotifs.length === 0 ? (
-                                        <div className="flex flex-col items-center gap-2 py-10 text-neutral-5">
-                                            <Bell size={28} />
-                                            <p className="text-xs font-poppins">Aucune notification</p>
-                                        </div>
-                                    ) : previewNotifs.map((notif) => (
-                                        <div
-                                            key={notif.id}
-                                            onClick={() => {
-                                                markRead(notif.id);
-                                                navigate(getNotificationNavigatePath(notif));
-                                                setNotifOpen(false);
-                                            }}
-                                            className={`flex items-start gap-3 px-4 py-3
-                                                border-b border-neutral-4 dark:border-neutral-4 last:border-0
-                                                cursor-pointer transition-all duration-150
-                                                ${!notif.read
-                                                    ? 'bg-primary-5 dark:bg-primary-5'
-                                                    : 'hover:bg-neutral-2 dark:hover:bg-neutral-2'
-                                                }`}
-                                        >
-                                            <div className="mt-1.5 shrink-0">
-                                                <span className={`block w-1.5 h-1.5 rounded-full
-                                                    ${!notif.read ? 'bg-primary-1' : 'bg-neutral-4'}`}
-                                                />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <NotificationsBadge type={notif.type} />
-                                                <p className={`text-[11px] font-poppins mt-1 line-clamp-2
-                                                    ${!notif.read
-                                                        ? 'font-semibold text-neutral-8 dark:text-neutral-8'
-                                                        : 'text-neutral-6 dark:text-neutral-6'
-                                                    }`}>
-                                                    {notif.message}
-                                                </p>
-                                                <p className="text-[10px] font-poppins text-neutral-5 mt-0.5">
-                                                    {formatTimeAgo(notif.date)}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Footer */}
-                                <div className="px-4 py-2.5 border-t border-neutral-4 dark:border-neutral-4
-                                    bg-neutral-2 dark:bg-neutral-2">
-                                    <button
-                                        onClick={() => { navigate('/notifications'); setNotifOpen(false); }}
-                                        className="w-full text-center text-[11px] font-semibold font-poppins
-                                            text-primary-1 hover:text-primary-6 transition-colors cursor-pointer"
-                                    >
-                                        Voir toutes les notifications →
-                                    </button>
-                                </div>
-                            </div>
+                            </>
                         )}
                     </div>
 

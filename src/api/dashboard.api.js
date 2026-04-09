@@ -89,9 +89,14 @@ class DashboardAPI {
    * ⚠️  v3 : statut "canceled" (un seul l)
    * @param {string} id
    * @param {string} status — ex: 'canceled', 'delivered', 'in_progress'
+   * @param {string} [cancellationReason] — raison d'annulation (si status === 'canceled')
    */
-  updateOrderStatus(id, status) {
-    return api.put(`/shop/dashboard/orders/${id}/status/`, { status });
+  updateOrderStatus(id, status, cancellationReason) {
+    const body = { status };
+    if (status === 'canceled' && cancellationReason) {
+      body.cancellation_reason = cancellationReason;
+    }
+    return api.put(`/shop/dashboard/orders/${id}/status/`, body);
   }
 
   /** Facture d'une commande. */

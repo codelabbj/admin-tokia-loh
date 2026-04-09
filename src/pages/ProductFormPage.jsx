@@ -752,9 +752,17 @@ const ProductFormPage = () => {
         if (!form.category) e.category = 'Catégorie requise';
         const hasVariants = variantsDraft.length > 0;
         if (!form.price) e.price = 'Prix requis';
+        else if (parseFloat(form.price) < 0) e.price = 'Le prix ne peut pas être négatif';
+
         if (!form.unlimited_stock && (form.stock === '' || form.stock === null)) e.stock = 'Stock requis';
-        if (form.sale_price && parseFloat(form.sale_price) >= parseFloat(form.price))
-            e.sale_price = 'Le prix réduit doit être inférieur au prix initial';
+        else if (!form.unlimited_stock && parseInt(form.stock, 10) < 0) e.stock = 'Le stock ne peut pas être négatif';
+
+        if (form.sale_price) {
+            const sp = parseFloat(form.sale_price);
+            const p = parseFloat(form.price);
+            if (sp < 0) e.sale_price = 'Le prix réduit ne peut pas être négatif';
+            else if (sp >= p) e.sale_price = 'Le prix réduit doit être inférieur au prix initial';
+        }
         if (!form.mainImage) e.mainImage = 'Image principale requise';
 
         const attrDefsForVariants = mergeAttributesByName(
@@ -969,6 +977,7 @@ const ProductFormPage = () => {
                                 label="Prix initial (F)"
                                 name="price"
                                 type="number"
+                                min="0"
                                 value={form.price}
                                 onChange={handleChange}
                                 placeholder="Ex: 10000"
@@ -980,6 +989,7 @@ const ProductFormPage = () => {
                                     label="Prix réduit (F)"
                                     name="sale_price"
                                     type="number"
+                                    min="0"
                                     value={form.sale_price}
                                     onChange={handleChange}
                                     placeholder="Ex: 7500"
@@ -997,6 +1007,7 @@ const ProductFormPage = () => {
                                 label="Quantité en stock"
                                 name="stock"
                                 type="number"
+                                min="0"
                                 value={form.unlimited_stock ? '' : form.stock}
                                 onChange={handleChange}
                                 placeholder={form.unlimited_stock ? "Illimité" : "Ex: 20"}

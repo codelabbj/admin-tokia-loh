@@ -241,6 +241,7 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                         <InputField
                             label="Prix (Optionnel)"
                             type="number"
+                            min="0"
                             placeholder="Hérité"
                             value={variant.price || ''}
                             onChange={(e) => handleChange('price', e.target.value)}
@@ -249,6 +250,7 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                         <InputField
                             label="Stock (Optionnel)"
                             type="number"
+                            min="0"
                             placeholder={(globalUnlimitedStock && variant.unlimited_stock) ? "Illimité" : "Hérité / Ill."}
                             value={(globalUnlimitedStock && variant.unlimited_stock) ? '' : (variant.stock || '')}
                             onChange={(e) => {

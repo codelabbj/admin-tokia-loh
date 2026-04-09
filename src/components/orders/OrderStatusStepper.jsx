@@ -44,6 +44,7 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
     const [confirm, setConfirm] = useState(null);
     // confirm = { targetStatus: 'canceled' | 'shipping' | 'delivered', title, message, confirmLabel }
     const [confirmLoading, setConfirmLoading] = useState(false);
+    const [cancellationReason, setCancellationReason] = useState('');
 
     const deliverConfig = useMemo(() => {
         if (!nextStep || nextStep.status !== 'delivered') return null;
@@ -64,6 +65,7 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
                     'Êtes-vous sûr de vouloir annuler cette commande ? Cette action peut être irréversible.',
                 confirmLabel: 'Annuler la commande',
             });
+            setCancellationReason('');
             return;
         }
 
@@ -98,7 +100,7 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
         if (!confirm?.targetStatus) return;
         setConfirmLoading(true);
         try {
-            await onStatusChange?.(confirm.targetStatus);
+            await onStatusChange?.(confirm.targetStatus, confirm.targetStatus === 'canceled' ? cancellationReason : undefined);
             setConfirm(null);
         } finally {
             setConfirmLoading(false);
@@ -155,6 +157,26 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
                                     </p>
                                 </div>
 
+                                {/* Champ raison — uniquement pour l'annulation */}
+                                {confirm.targetStatus === 'canceled' && (
+                                    <div className="w-full flex flex-col gap-1.5">
+                                        <label className="text-xs font-semibold font-poppins text-neutral-7 dark:text-neutral-7">
+                                            Raison d'annulation <span className="text-danger-1">*</span>
+                                        </label>
+                                        <textarea
+                                            value={cancellationReason}
+                                            onChange={(e) => setCancellationReason(e.target.value)}
+                                            placeholder="Ex : rupture de stock, erreur de commande..."
+                                            rows={3}
+                                            disabled={confirmLoading}
+                                            className={`w-full resize-none rounded-xl border bg-neutral-2 dark:bg-neutral-2 px-3 py-2.5 text-xs font-poppins text-neutral-8 dark:text-neutral-8 placeholder:text-neutral-5 focus:outline-none transition-colors disabled:opacity-50 ${cancellationReason.trim() ? 'border-neutral-4 dark:border-neutral-4 focus:border-danger-1' : 'border-danger-1'}`}
+                                        />
+                                        {!cancellationReason.trim() && (
+                                            <p className="text-[11px] font-poppins text-danger-1">Ce champ est requis pour annuler la commande.</p>
+                                        )}
+                                    </div>
+                                )}
+
                                 <div className="flex flex-col-reverse sm:flex-row gap-3 w-full">
                                     <button
                                         type="button"
@@ -167,15 +189,14 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
                                     <button
                                         type="button"
                                         onClick={handleConfirm}
-                                        disabled={confirmLoading}
+                                        disabled={confirmLoading || (confirm.targetStatus === 'canceled' && !cancellationReason.trim())}
                                         className={`
                                             flex-1 px-4 py-2 rounded-full text-xs font-semibold font-poppins
-                                            ${
-                                                confirm.targetStatus === 'canceled'
-                                                    ? 'bg-danger-2 text-danger-1 hover:bg-danger-1'
-                                                    : confirm.targetStatus === 'shipping'
-                                                    ? 'bg-secondary-5 text-secondary-1 hover:bg-secondary-3'
-                                                    : 'bg-success-2 text-success-1 hover:bg-success-1'
+                                            ${confirm.targetStatus === 'canceled'
+                                                ? 'bg-danger-2 text-danger-1 hover:bg-danger-1 hover:text-white'
+                                                : confirm.targetStatus === 'shipping'
+                                                    ? 'bg-secondary-5 text-secondary-1 hover:bg-secondary-3 hover:text-white'
+                                                    : 'bg-success-2 text-success-1 hover:bg-success-1 hover:text-white'
                                             }
                                             disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer
                                             flex items-center justify-center gap-2
@@ -195,102 +216,102 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
 
             <div className="flex flex-col gap-5">
 
-            {/* ── Cas annulé ── */}
-            {isCanceled ? (
-                <div className="flex items-center gap-2 px-4 py-3 rounded-2 bg-danger-2">
-                    <XCircle size={16} className="text-danger-1" />
-                    <span className="text-xs font-semibold font-poppins text-danger-1">
-                        Commande annulée
-                    </span>
-                </div>
-            ) : (
-                <>
-                    {/* 🔥 Progress bar animée */}
-                    <div className="w-full h-2 bg-neutral-3 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-primary-1 transition-all duration-500 ease-in-out"
-                            style={{ width: `${progress}%` }}
-                        />
+                {/* ── Cas annulé ── */}
+                {isCanceled ? (
+                    <div className="flex items-center gap-2 px-4 py-3 rounded-2 bg-danger-2">
+                        <XCircle size={16} className="text-danger-1" />
+                        <span className="text-xs font-semibold font-poppins text-danger-1">
+                            Commande annulée
+                        </span>
                     </div>
+                ) : (
+                    <>
+                        {/* 🔥 Progress bar animée */}
+                        <div className="w-full h-2 bg-neutral-3 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-primary-1 transition-all duration-500 ease-in-out"
+                                style={{ width: `${progress}%` }}
+                            />
+                        </div>
 
-                    {/* ── Stepper ── */}
-                    <div className="flex items-center justify-between">
-                        {STEPS.map((step, index) => {
-                            const Icon = step.icon;
-                            const isDone = index < activeIndex;
-                            const isActive = index === activeIndex;
+                        {/* ── Stepper ── */}
+                        <div className="flex items-center justify-between">
+                            {STEPS.map((step, index) => {
+                                const Icon = step.icon;
+                                const isDone = index < activeIndex;
+                                const isActive = index === activeIndex;
 
-                            return (
-                                <div key={step.status} className="flex flex-col items-center gap-1">
-                                    <div className={`
+                                return (
+                                    <div key={step.status} className="flex flex-col items-center gap-1">
+                                        <div className={`
                                         w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300
                                         ${isDone ? 'bg-success-1 text-white scale-95' : ''}
                                         ${isActive ? 'bg-primary-1 text-white scale-110 shadow-md' : ''}
                                         ${!isDone && !isActive ? 'bg-neutral-3 text-neutral-5' : ''}
                                     `}>
-                                        <Icon size={16} />
-                                    </div>
+                                            <Icon size={16} />
+                                        </div>
 
-                                    <span className={`
+                                        <span className={`
                                         text-[11px] font-poppins text-center
                                         ${isDone ? 'text-success-1 font-semibold' : ''}
                                         ${isActive ? 'text-primary-1 font-semibold' : ''}
                                         ${!isDone && !isActive ? 'text-neutral-5' : ''}
                                     `}>
-                                        {step.label}
-                                    </span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </>
-            )}
+                                            {step.label}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
 
-            {/* ── Actions ── */}
-            {!isCanceled && !isDelivered && !disabled && (
-                <div className="flex items-center gap-3 flex-wrap">
+                {/* ── Actions ── */}
+                {!isCanceled && !isDelivered && !disabled && (
+                    <div className="flex items-center gap-3 flex-wrap">
 
-                    {nextStep && (
-                        <button
-                            onClick={() => openConfirm(nextStep.status)}
-                            className={`
+                        {nextStep && (
+                            <button
+                                onClick={() => openConfirm(nextStep.status)}
+                                className={`
                                 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold font-poppins
                                 transition-all duration-200 hover:scale-105 cursor-pointer
                                 ${nextStep.status === 'delivered'
-                                    ? 'bg-success-2 text-success-1 hover:bg-success-1 hover:text-white cursor-pointer'
-                                    : nextStep.status === 'shipping'
-                                    ? 'bg-secondary-5 text-secondary-1 hover:bg-secondary-3 cursor-pointer'
-                                    : 'bg-primary-1 text-white hover:bg-primary-6 hover:text-white cursor-pointer'}
+                                        ? 'bg-success-2 text-success-1 hover:bg-success-1 hover:text-white cursor-pointer'
+                                        : nextStep.status === 'shipping'
+                                            ? 'bg-secondary-5 text-secondary-1 hover:bg-secondary-3 cursor-pointer'
+                                            : 'bg-primary-1 text-white hover:bg-primary-6 hover:text-white cursor-pointer'}
                             `}
-                        >
-                            {nextStep.status === 'delivered' ? (
-                                <>
-                                    {deliverConfig?.label ?? 'Livrer'}
-                                    <Star size={14} />
-                                </>
-                            ) : nextStep.status === 'shipping' ? (
-                                <>
-                                    Passer en livraison
-                                    <Truck size={14} />
-                                </>
-                            ) : (
-                                <>
-                                    Passer à : {nextStep.label}
-                                    <ChevronRight size={14} />
-                                </>
-                            )}
-                        </button>
-                    )}
+                            >
+                                {nextStep.status === 'delivered' ? (
+                                    <>
+                                        {deliverConfig?.label ?? 'Livrer'}
+                                        <Star size={14} />
+                                    </>
+                                ) : nextStep.status === 'shipping' ? (
+                                    <>
+                                        Passer en livraison
+                                        <Truck size={14} />
+                                    </>
+                                ) : (
+                                    <>
+                                        Passer à : {nextStep.label}
+                                        <ChevronRight size={14} />
+                                    </>
+                                )}
+                            </button>
+                        )}
 
-                    <button
-                        onClick={() => openConfirm('canceled')}
-                        className="flex items-center gap-2 px-4 py-2 rounded-full border border-danger-1 text-danger-1 cursor-pointer text-xs font-semibold font-poppins hover:bg-danger-2 transition-all duration-200 hover:scale-105"
-                    >
-                        <XCircle size={14} />
-                        Annuler
-                    </button>
-                </div>
-            )}
+                        <button
+                            onClick={() => openConfirm('canceled')}
+                            className="flex items-center gap-2 px-4 py-2 rounded-full border border-danger-1 text-danger-1 cursor-pointer text-xs font-semibold font-poppins hover:bg-danger-2 transition-all duration-200 hover:scale-105"
+                        >
+                            <XCircle size={14} />
+                            Annuler
+                        </button>
+                    </div>
+                )}
             </div>
         </>
     );

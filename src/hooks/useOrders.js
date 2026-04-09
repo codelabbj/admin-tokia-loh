@@ -80,6 +80,7 @@ export function normalizeOrder(raw) {
     total: raw.total ?? "0.00",
     delivery_fee: raw.delivery_fee ?? 0,
     note: raw.specific_information ?? "",
+    cancellation_reason: raw.cancellation_reason ?? null,
     delivery_address: raw.delivery_address ?? null,
     reference,
 
@@ -299,12 +300,12 @@ export const useOrders = (options = {}) => {
     fetchPaginatedCb,
   ]);
 
-  const updateStatus = async (orderId, newStatus) => {
+  const updateStatus = async (orderId, newStatus, cancellationReason) => {
     setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)),
+      prev.map((o) => (o.id === orderId ? { ...o, status: newStatus, cancellation_reason: newStatus === 'canceled' ? (cancellationReason ?? null) : o.cancellation_reason } : o)),
     );
     try {
-      await dashboardAPI.updateOrderStatus(orderId, newStatus);
+      await dashboardAPI.updateOrderStatus(orderId, newStatus, cancellationReason);
       apiCache.invalidatePrefix('orders:');
       await refetch();
     } catch (err) {
