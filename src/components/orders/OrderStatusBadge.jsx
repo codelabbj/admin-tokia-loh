@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, Star, XCircle } from 'lucide-react';
+import { Package, Star, XCircle, Truck } from 'lucide-react';
 
 /**
  * STATUS_CONFIG — aligné strictement avec API v3
@@ -8,6 +8,10 @@ export const STATUS_CONFIG = {
     in_progress: {
         label: 'En cours',
         color: 'bg-primary-5 text-primary-1',
+    },
+    shipping: {
+        label: 'En livraison',
+        color: 'bg-secondary-5 text-secondary-1',
     },
     delivered: {
         label: 'Livrée',
@@ -24,6 +28,7 @@ export const STATUS_CONFIG = {
  */
 export const STATUS_ICON = {
     in_progress: Package,
+    shipping: Truck,
     delivered: Star,
     canceled: XCircle,
 };

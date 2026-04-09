@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import {
     Package,
+    Truck,
     Star,
     XCircle,
     ChevronRight,
@@ -14,6 +15,7 @@ import {
  */
 const STEPS = [
     { status: 'in_progress', label: 'En cours', icon: Package },
+    { status: 'shipping', label: 'En livraison', icon: Truck },
     { status: 'delivered', label: 'Livrée', icon: Star },
 ];
 
@@ -22,7 +24,8 @@ const STEPS = [
  */
 const getProgress = (status) => {
     if (status === 'delivered') return 100;
-    if (status === 'in_progress') return 50;
+    if (status === 'shipping') return 66;
+    if (status === 'in_progress') return 33;
     return 0;
 };
 
@@ -39,7 +42,7 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
     const progress = getProgress(status);
 
     const [confirm, setConfirm] = useState(null);
-    // confirm = { targetStatus: 'canceled' | 'delivered', title, message, confirmLabel }
+    // confirm = { targetStatus: 'canceled' | 'shipping' | 'delivered', title, message, confirmLabel }
     const [confirmLoading, setConfirmLoading] = useState(false);
 
     const deliverConfig = useMemo(() => {
@@ -60,6 +63,17 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
                 message:
                     'Êtes-vous sûr de vouloir annuler cette commande ? Cette action peut être irréversible.',
                 confirmLabel: 'Annuler la commande',
+            });
+            return;
+        }
+
+        if (targetStatus === 'shipping') {
+            setConfirm({
+                targetStatus,
+                title: 'Passer en livraison',
+                message:
+                    'Êtes-vous sûr de vouloir marquer cette commande comme en cours de livraison ?',
+                confirmLabel: 'Passer en livraison',
             });
             return;
         }
@@ -120,11 +134,13 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
                                 <div
                                     className={`
                                         w-14 h-14 rounded-full flex items-center justify-center shrink-0
-                                        ${confirm.targetStatus === 'canceled' ? 'bg-danger-2' : 'bg-success-2'}
+                                        ${confirm.targetStatus === 'canceled' ? 'bg-danger-2' : confirm.targetStatus === 'shipping' ? 'bg-secondary-5' : 'bg-success-2'}
                                     `}
                                 >
                                     {confirm.targetStatus === 'canceled' ? (
                                         <XCircle size={24} className="text-danger-1" />
+                                    ) : confirm.targetStatus === 'shipping' ? (
+                                        <Truck size={24} className="text-secondary-1" />
                                     ) : (
                                         <CheckCircle size={24} className="text-success-1" />
                                     )}
@@ -157,6 +173,8 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
                                             ${
                                                 confirm.targetStatus === 'canceled'
                                                     ? 'bg-danger-2 text-danger-1 hover:bg-danger-1'
+                                                    : confirm.targetStatus === 'shipping'
+                                                    ? 'bg-secondary-5 text-secondary-1 hover:bg-secondary-3'
                                                     : 'bg-success-2 text-success-1 hover:bg-success-1'
                                             }
                                             disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer
@@ -240,6 +258,8 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
                                 transition-all duration-200 hover:scale-105 cursor-pointer
                                 ${nextStep.status === 'delivered'
                                     ? 'bg-success-2 text-success-1 hover:bg-success-1 hover:text-white cursor-pointer'
+                                    : nextStep.status === 'shipping'
+                                    ? 'bg-secondary-5 text-secondary-1 hover:bg-secondary-3 cursor-pointer'
                                     : 'bg-primary-1 text-white hover:bg-primary-6 hover:text-white cursor-pointer'}
                             `}
                         >
@@ -247,6 +267,11 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
                                 <>
                                     {deliverConfig?.label ?? 'Livrer'}
                                     <Star size={14} />
+                                </>
+                            ) : nextStep.status === 'shipping' ? (
+                                <>
+                                    Passer en livraison
+                                    <Truck size={14} />
                                 </>
                             ) : (
                                 <>

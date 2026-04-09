@@ -8,6 +8,10 @@ const STATUS_MAP = {
         label: 'En cours',
         css: 'bg-primary-5 text-primary-1'
     },
+    shipping: {
+        label: 'En livraison',
+        css: 'bg-secondary-5 text-secondary-1'
+    },
     delivered: {
         label: 'Livrée',
         css: 'bg-success-2 text-success-1'
