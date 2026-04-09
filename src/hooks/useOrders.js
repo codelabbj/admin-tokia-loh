@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { dashboardAPI } from "../api/dashboard.api";
 import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
+import { apiCache } from "../utils/apiCache";
 
 export const ORDERS_LIST_PAGE_SIZE = 20;
 
@@ -82,15 +83,35 @@ export function normalizeOrder(raw) {
     delivery_address: raw.delivery_address ?? null,
     reference,
 
-    items: (raw.items ?? []).map((i) => ({
-      name:
-        typeof i.product === "string"
-          ? i.product
-          : i.product?.name ?? i.name ?? "Produit",
-      image: i.image ?? null,
-      quantity: i.quantity,
-      unitPrice: i.price,
-    })),
+    items: (raw.items ?? []).map((i) => {
+      let variants = [];
+      if (i.variant_hierarchy) {
+        let current = i.variant_hierarchy;
+        while (current) {
+          variants.unshift({
+            key: current.key || "Déclinaison",
+            name: current.name,
+          });
+          current = current.parent;
+        }
+      } else if (i.variant) {
+        variants.push({
+          key: i.variant_key || "Déclinaison",
+          name: i.variant,
+        });
+      }
+
+      return {
+        name:
+          typeof i.product === "string"
+            ? i.product
+            : i.product?.name ?? i.name ?? "Produit",
+        image: i.image ?? null,
+        quantity: i.quantity,
+        unitPrice: i.price,
+        variants,
+      };
+    }),
 
     client: {
       id: raw.client ?? null,
@@ -164,7 +185,19 @@ export const useOrders = (options = {}) => {
     }
   }, []);
 
-  const fetchPaginatedCb = useCallback(async () => {
+  const fetchPaginatedCb = useCallback(async ({ force = false } = {}) => {
+    const cacheKey = `orders:page:${page}`;
+    if (!force) {
+      const cached = apiCache.get(cacheKey);
+      if (cached) {
+        setOrders(cached.orders);
+        setStats(cached.stats);
+        setTotalCount(cached.totalCount);
+        setLoading(false);
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -178,21 +211,23 @@ export const useOrders = (options = {}) => {
       ]);
 
       const statsData = unwrapApiData(statsRes.data) ?? {};
-      setStats({
+      const normalizedStats = {
         total: statsData.total_orders ?? 0,
         in_progress: statsData.in_progress_orders ?? 0,
         delivered: statsData.delivered_orders ?? 0,
         canceled: statsData.canceled_orders ?? 0,
-      });
+      };
+      setStats(normalizedStats);
 
       const ordersData = unwrapApiData(ordersRes.data) ?? {};
       const list = extractResults(ordersData);
+      const count = typeof ordersData.count === "number" ? ordersData.count : list.length;
+      const normalizedOrders = applyStatsAndNormalizeList(statsData, list);
 
-      setTotalCount(
-        typeof ordersData.count === "number" ? ordersData.count : list.length,
-      );
+      setTotalCount(count);
+      setOrders(normalizedOrders);
 
-      setOrders(applyStatsAndNormalizeList(statsData, list));
+      apiCache.set(cacheKey, { orders: normalizedOrders, stats: normalizedStats, totalCount: count });
     } catch (err) {
       setError(err.message ?? "Erreur lors du chargement des commandes");
     } finally {
@@ -270,9 +305,11 @@ export const useOrders = (options = {}) => {
     );
     try {
       await dashboardAPI.updateOrderStatus(orderId, newStatus);
+      apiCache.invalidatePrefix('orders:');
       await refetch();
     } catch (err) {
       setError(err.message ?? "Erreur mise à jour statut");
+      apiCache.invalidatePrefix('orders:');
       await refetch();
     }
   };

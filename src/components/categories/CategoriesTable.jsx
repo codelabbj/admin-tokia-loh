@@ -5,7 +5,7 @@ import ProductStatusToggle from '../products/ProductStatusToggle';
 
 const CategoryAvatar = ({ name, icon }) => {
     if (icon) return (
-        <img src={icon} alt={name} className="w-9 h-9 rounded-md object-cover shrink-0" />
+        <img src={icon} alt={name} className="w-9 h-9 rounded-md object-cover shrink-0" loading="lazy" />
     );
     return (
         <div className="w-9 h-9 rounded-md bg-primary-5 flex items-center justify-center shrink-0">

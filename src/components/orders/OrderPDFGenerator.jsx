@@ -380,12 +380,19 @@ export const generateInvoice = async (order) => {
     autoTable(doc, {
         startY: y,
         head: [['Produit', 'Qté', 'Prix unitaire', 'Total']],
-        body: order.items.map(item => [
-            item.name,
-            item.quantity,
-            formatMoney(item.unitPrice),
-            formatMoney(item.quantity * item.unitPrice),
-        ]),
+        body: order.items.map(item => {
+            let nameDisplay = item.name;
+            if (item.variants && item.variants.length > 0) {
+                nameDisplay += '\n' + item.variants.map(v => `• ${v.key ? v.key.charAt(0).toUpperCase() + v.key.slice(1) : 'Déclinaison'} : ${v.name}`).join('\n');
+            }
+            return [
+                nameDisplay,
+                item.quantity,
+                formatMoney(item.unitPrice),
+                formatMoney(item.quantity * item.unitPrice),
+            ];
+        }),
+
         alternateRowStyles: { fillColor: [245, 247, 250] },
         styles: { fontSize: 8.2, font: 'helvetica', cellPadding: 2, overflow: 'hidden' },
         headStyles: { fillColor: BLUE, textColor: [255, 255, 255], fontStyle: 'bold' },

@@ -189,7 +189,19 @@ const OrderDetailPage = () => {
                             <tbody>
                                 {order.items?.map((item, i) => (
                                         <tr key={i} className="border-b border-neutral-4 dark:border-neutral-4 last:border-0">
-                                            <td className="px-4 py-3 font-medium text-neutral-8 dark:text-neutral-8">{item.name}</td>
+                                            <td className="px-4 py-3 font-medium text-neutral-8 dark:text-neutral-8">
+                                                <span>{item.name}</span>
+                                                {item.variants && item.variants.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                        {item.variants.map((v, vIdx) => (
+                                                            <span key={vIdx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-neutral-4 dark:border-neutral-5 bg-neutral-1 dark:bg-neutral-2 text-[10px] font-semibold text-neutral-7 dark:text-neutral-6">
+                                                                <span className="opacity-70 capitalize">{v.key} :</span>
+                                                                <span className="text-neutral-9 dark:text-neutral-0">{v.name}</span>
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="px-4 py-3 text-center text-neutral-7 dark:text-neutral-7">{item.quantity}</td>
                                             <td className="px-4 py-3 text-neutral-7 dark:text-neutral-7">{formatPrice(item.unitPrice)}</td>
                                             <td className="px-4 py-3 font-semibold text-neutral-8 dark:text-neutral-8">{formatPrice(item.quantity * item.unitPrice)}</td>

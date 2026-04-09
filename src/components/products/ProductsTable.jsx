@@ -26,7 +26,7 @@ const getStockBadgeType = (stock, unlimitedStock) => {
 
 const ProductAvatar = ({ name, image }) => {
     if (image) return (
-        <img src={image} alt={name} className="w-10 h-10 rounded-md object-cover shrink-0" />
+        <img src={image} alt={name} className="w-10 h-10 rounded-md object-cover shrink-0" loading="lazy" />
     );
     return (
         <div className="w-10 h-10 rounded-md bg-secondary-5 flex items-center justify-center shrink-0">

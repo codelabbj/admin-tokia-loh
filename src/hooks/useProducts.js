@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { productsAPI } from "../api/products.api";
 import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
 import { filesAPI } from "../api/files.api";
+import { apiCache } from "../utils/apiCache";
 
 /**
  * Résout une image avant envoi à l'API.
@@ -40,6 +41,7 @@ export const normalizeVariantsForAPI = (variants, globalUnlimited = true) => {
   return variants.map((v) => {
     const cleaned = { name: v.name };
     if (v.id) cleaned.id = v.id;
+    if (v.key) cleaned.key = v.key;
 
     if (v.price !== undefined && v.price !== null && v.price !== "") {
       cleaned.price = Number(v.price);
@@ -115,7 +117,17 @@ export const useProducts = (options = {}) => {
   const [error, setError] = useState(null);
 
   // ── FETCH (toutes les pages, pour compteurs / catégories / fallback liste) ──
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async ({ force = false } = {}) => {
+    // Servir depuis le cache si les données sont encore fraîches
+    if (!force) {
+      const cached = apiCache.get('products:all');
+      if (cached) {
+        setProducts(cached);
+        setLoading(false);
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -134,6 +146,7 @@ export const useProducts = (options = {}) => {
         pageNum += 1;
       }
 
+      apiCache.set('products:all', merged);
       setProducts(merged);
     } catch (err) {
       setError(err.message ?? "Erreur lors du chargement des produits");
@@ -182,17 +195,13 @@ export const useProducts = (options = {}) => {
       variants: normalizeVariantsForAPI(formData.variants || [], unlimited), // Added for API v2
     };
 
-    console.log("=== DEBUG PAYLOAD BACKEND ===");
-    console.log("Raw form variants:", JSON.stringify(formData.variants, null, 2));
-    console.log("Normalized variants:", JSON.stringify(payload.variants, null, 2));
-    console.log("Final Full payload:", JSON.stringify(payload, null, 2));
-    console.log("=============================");
 
     if (!unlimited) {
       payload.stock = Number(formData.stock ?? 0);
     }
 
     const { data } = await productsAPI.create(payload);
+    apiCache.invalidate('products:all');
     if (!skipInitialFetch) {
       setProducts((prev) => [...prev, normalizeProduct(data)]);
     }
@@ -272,13 +281,8 @@ export const useProducts = (options = {}) => {
         payload.variants = normalizeVariantsForAPI(formData.variants, isUnlimited) || [];
       }
 
-      console.log("=== DEBUG PAYLOAD UPDATE BACKEND ===");
-      console.log("Raw form variants:", JSON.stringify(formData.variants, null, 2));
-      console.log("Normalized variants:", JSON.stringify(payload.variants, null, 2));
-      console.log("Final Full payload:", JSON.stringify(payload, null, 2));
-      console.log("====================================");
-
       const { data } = await productsAPI.update(id, payload);
+      apiCache.invalidate('products:all');
 
       if (!skipInitialFetch) {
         setProducts((prev) =>
@@ -302,6 +306,7 @@ export const useProducts = (options = {}) => {
 
     try {
       await productsAPI.delete(id);
+      apiCache.invalidate('products:all');
     } catch (err) {
       setError(err.message ?? "Erreur suppression produit");
       if (!skipInitialFetch) fetchAll();

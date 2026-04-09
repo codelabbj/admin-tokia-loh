@@ -188,8 +188,15 @@ const normalizeVariantsForForm = (variants = [], attributes = []) => {
             if (!key) return;
             attrMap[key] = String(av?.value ?? '').trim();
         });
+        const keyStr = String(v?.key ?? '').toLowerCase().trim();
+        let uiTypeVal = undefined;
+        if (keyStr === 'taille') uiTypeVal = 'Taille';
+        else if (keyStr === 'couleur') uiTypeVal = 'Couleur';
+
         return {
             id: v?.id ?? null,
+            key: v?.key ?? '',
+            _uiType: uiTypeVal,
             sku: String(v?.sku ?? v?.name ?? '').trim(),
             name: String(v?.name ?? '').trim(),
             price: String(v?.price ?? '').trim(),
@@ -602,7 +609,7 @@ const ProductFormPage = () => {
         if (form.sizes.includes(size)) return;
         setForm(prev => ({ ...prev, sizes: [...prev.sizes, size] }));
         if (form.hasSizes) {
-            setVariantsDraft(prev => [...prev, { ...createEmptyVariant(), sku: size, name: size, price: String(form.sale_price || form.price || '') }]);
+            setVariantsDraft(prev => [...prev, { ...createEmptyVariant(), key: 'taille', sku: size, name: size, price: String(form.sale_price || form.price || '') }]);
         }
     };
     const handleRemoveSize = (size) => {
@@ -616,7 +623,7 @@ const ProductFormPage = () => {
     const handleAddColor = (name, hex) => {
         setForm(prev => ({ ...prev, colors: [...prev.colors, { name, hex }] }));
         if (form.hasColors) {
-            setVariantsDraft(prev => [...prev, { ...createEmptyVariant(), sku: name, name, price: String(form.sale_price || form.price || '') }]);
+            setVariantsDraft(prev => [...prev, { ...createEmptyVariant(), key: 'couleur', sku: name, name, price: String(form.sale_price || form.price || '') }]);
         }
     };
     const handleRemoveColor = (index, colorObj) => {
@@ -639,7 +646,7 @@ const ProductFormPage = () => {
         setNewDetailKey('');
         setNewDetailVal('');
         if (!form.hasSizes && !form.hasColors) {
-            setVariantsDraft(prev => [...prev, { ...createEmptyVariant(), sku: value || key, name: value || key, price: String(form.sale_price || form.price || '') }]);
+            setVariantsDraft(prev => [...prev, { ...createEmptyVariant(), key: key, sku: value || key, name: value || key, price: String(form.sale_price || form.price || '') }]);
         }
     };
 
@@ -656,6 +663,7 @@ const ProductFormPage = () => {
 
     const createEmptyVariant = () => ({
         id: null,
+        key: '',
         sku: '',
         price: '',
         original_price: '',
@@ -782,13 +790,28 @@ const ProductFormPage = () => {
         return Object.keys(e).length === 0;
     };
 
-    // syncVariantsV11 removed since v2 uses recursive nested objects
     // ── Soumission ────────────────────────────────────────────
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!validate()) return;
         setLoading(true);
         try {
+            const rootType = form.hasSizes ? 'Taille' : (form.hasColors ? 'Couleur' : 'Autre');
+            const cleanVariantsPayload = (list, inheritedType) => {
+                return list.map(v => {
+                    const uiType = v._uiType || inheritedType;
+                    let k = v.key;
+                    if (uiType === 'Taille') k = 'taille';
+                    if (uiType === 'Couleur') k = 'couleur';
+                    return {
+                        ...v,
+                        key: k,
+                        sub_variants: Array.isArray(v.sub_variants) ? cleanVariantsPayload(v.sub_variants, null) : []
+                    };
+                });
+            };
+            const variantsToSubmit = variantsDraft.length > 0 ? cleanVariantsPayload(variantsDraft, rootType) : undefined;
+
             const payload = {
                 name: form.name,
                 description: form.description || null,
@@ -801,7 +824,7 @@ const ProductFormPage = () => {
                 mainImage: form.mainImage,
                 subImages: form.subImages,
                 others_details: buildOthersDetails(form.sizes, form.colors, customDetails),
-                variants: variantsDraft.length > 0 ? variantsDraft : undefined,
+                variants: variantsToSubmit,
             };
 
             if (isEdit) {

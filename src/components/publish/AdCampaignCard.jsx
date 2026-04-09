@@ -74,7 +74,7 @@ const AdCampaignCard = ({ campaign, onEdit, onDelete, onDuplicate, onTogglePause
                 {/* Image ou bande couleur */}
                 {campaign.image ? (
                     <div className="h-28 overflow-hidden">
-                        <img src={campaign.image} alt={campaign.title} className="w-full h-full object-cover" />
+                        <img src={campaign.image} alt={campaign.title} className="w-full h-full object-cover" loading="lazy" />
                     </div>
                 ) : (
                     <div className="h-2 w-full bg-primary-1" />

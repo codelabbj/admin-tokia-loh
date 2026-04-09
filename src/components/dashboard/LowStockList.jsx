@@ -76,7 +76,7 @@ const LowStockList = ({ products = [] }) => {
                         >
                             <div className="flex items-center gap-3 min-w-0">
                                 {product.image
-                                    ? <img src={product.image} alt={product.name} className="w-9 h-9 rounded-2 object-cover shrink-0" />
+                                    ? <img src={product.image} alt={product.name} className="w-9 h-9 rounded-2 object-cover shrink-0" loading="lazy" />
                                     : <ProductAvatar name={product.name} />
                                 }
                                 <span className="text-xs font-medium font-poppins text-neutral-8 dark:text-neutral-8 truncate">

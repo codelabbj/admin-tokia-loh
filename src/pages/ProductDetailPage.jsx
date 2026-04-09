@@ -190,7 +190,12 @@ const VariantTreeNode = ({ variant: v, level }) => {
                 </div>
 
                 {/* Infos principales */}
-                <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    {v.key && (
+                        <span className="text-[10px] font-bold font-poppins px-2 py-0.5 rounded border border-neutral-4 text-neutral-6 uppercase tracking-wider bg-neutral-0 dark:bg-neutral-2 shadow-sm">
+                            {v.key}
+                        </span>
+                    )}
                     <span className="text-sm font-bold font-poppins text-neutral-8 dark:text-neutral-8 truncate">
                         {v.name ?? '—'}
                     </span>

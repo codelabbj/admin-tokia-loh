@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import { Plus, Trash2, ChevronRight, ChevronDown, Image as ImageIcon, X, Loader2 } from 'lucide-react';
 import InputField from '../InputField';
 import Button from '../Button';
@@ -62,7 +62,7 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
             const defaultPrice = variant.price || parentPrice || '';
             onUpdate({
                 ...variant,
-                sub_variants: [...currentSub, { id: null, name: '', price: defaultPrice, stock: '', image: '', sub_variants: [], _uiType: typeUI }]
+                sub_variants: [...currentSub, { id: null, key: '', name: '', price: defaultPrice, stock: '', image: '', sub_variants: [], _uiType: typeUI }]
             });
         } else {
             setDraftSubType(typeUI);
@@ -82,7 +82,7 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
             const defaultPrice = variant.price || parentPrice || '';
             onUpdate({
                 ...variant,
-                sub_variants: [...currentSubs, { id: null, name, price: defaultPrice, stock: '', image: '', sub_variants: [], _uiType: typeUI }]
+                sub_variants: [...currentSubs, { id: null, key: '', name, price: defaultPrice, stock: '', image: '', sub_variants: [], _uiType: typeUI }]
             });
             setExpanded(true);
         }
@@ -198,33 +198,46 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                 </div>
 
                 {/* Main Inputs */}
-                <div className="flex-1 flex flex-col gap-3 w-full">
-                    {/* Ligne 1: Nom & Prix */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex-1 flex flex-col gap-2.5 w-full">
+                    {/* Ligne 1: Nom */}
+                    <div className="w-full">
                         {currentType === 'Couleur' || currentType === 'Taille' ? (
-                            <div className="flex flex-col gap-1.5 pt-1.5">
-                                <span className="text-[11px] font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-semibold font-poppins text-neutral-5 uppercase tracking-wide">
                                     {currentType}
                                 </span>
-                                <div className="h-10 px-4 mt-0.5 rounded-md border border-neutral-4 dark:border-neutral-5 bg-neutral-2/50 dark:bg-neutral-2/30 flex items-center gap-2 select-none overflow-hidden">
+                                <div className="h-9 px-3 rounded-md border border-neutral-4 dark:border-neutral-5 bg-neutral-2/50 dark:bg-neutral-2/30 flex items-center gap-2 select-none overflow-hidden">
                                     {currentType === 'Couleur' && (
                                         <div 
-                                            className="w-4 h-4 rounded-full border border-neutral-4 flex-shrink-0 shadow-sm" 
+                                            className="w-3.5 h-3.5 rounded-full border border-neutral-4 flex-shrink-0 shadow-sm" 
                                             style={{ backgroundColor: PRESET_COLORS.find(c => c.name === variant.name)?.hex || '#ccc' }} 
                                         />
                                     )}
-                                    <span className="text-xs font-semibold text-neutral-8 truncate block w-full">{variant.name || 'N/A'}</span>
+                                    <span className="text-[11px] font-semibold text-neutral-8 truncate block w-full">{variant.name || 'N/A'}</span>
                                 </div>
                             </div>
                         ) : (
-                            <InputField
-                                label={`Nom ${level > 0 ? VARIANT_TERM.sub : VARIANT_TERM.singular} *`}
-                                placeholder="Ex: Coton..."
-                                value={variant.name || ''}
-                                onChange={(e) => handleChange('name', e.target.value)}
-                                error=""
-                            />
+                            <div className="grid grid-cols-2 gap-3">
+                                <InputField
+                                    label="Clé caractéristique"
+                                    placeholder="Ex: matiere"
+                                    value={variant.key || ''}
+                                    onChange={(e) => handleChange('key', e.target.value)}
+                                    error=""
+                                />
+                                <InputField
+                                    label="Valeur *"
+                                    placeholder="Ex: Coton..."
+                                    value={variant.name || ''}
+                                    onChange={(e) => handleChange('name', e.target.value)}
+                                    error=""
+                                />
+                            </div>
                         )}
+                    </div>
+                    
+                    {/* Ligne 2: Prix, Stock et Illimité */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                         <InputField
                             label="Prix (Optionnel)"
                             type="number"
@@ -233,16 +246,12 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                             onChange={(e) => handleChange('price', e.target.value)}
                             error=""
                         />
-                    </div>
-                    {/* Ligne 2: Stock et Illimité */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end pt-1">
                         <InputField
                             label="Stock (Optionnel)"
                             type="number"
                             placeholder={(globalUnlimitedStock && variant.unlimited_stock) ? "Illimité" : "Hérité / Ill."}
                             value={(globalUnlimitedStock && variant.unlimited_stock) ? '' : (variant.stock || '')}
                             onChange={(e) => {
-                                // Mettre à jour et forcer unlimited_stock à false si on tape un nombre alors que le global est off
                                 if (!globalUnlimitedStock && variant.unlimited_stock) {
                                     handleChange({ stock: e.target.value, unlimited_stock: false });
                                 } else {
@@ -252,7 +261,7 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                             disabled={globalUnlimitedStock && variant.unlimited_stock}
                             error=""
                         />
-                        {globalUnlimitedStock ? (
+                        {globalUnlimitedStock && (
                             <label className="flex items-center gap-2 cursor-pointer select-none pb-2.5">
                                 <input
                                     type="checkbox"
@@ -266,10 +275,8 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                                     }}
                                     className="w-4 h-4 rounded border-neutral-5 text-primary-1 focus:ring-primary-5"
                                 />
-                                <span className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-8">Toujours en stock (illimité)</span>
+                                <span className="text-[11px] font-semibold font-poppins text-neutral-7 dark:text-neutral-7">Toujours en stock</span>
                             </label>
-                        ) : (
-                            <div className="pb-2.5"></div>
                         )}
                     </div>
                 </div>
@@ -404,18 +411,33 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
     );
 };
 
-const VariantsEditorTree = ({ variants, onChange, onImageSelectRequest, onImageUrlRequest, disableRootAdd, suggestedSubVariantType, onRemoveRoot, productPrice, rootType, globalUnlimitedStock }) => {
-    const handleAddRoot = () => {
-        onChange([...variants, { id: null, name: '', price: String(productPrice || ''), stock: '', image: '', sub_variants: [] }]);
-    };
+/**
+ * Mémoïsation : VariantNode ne se re-rend que si ses propres données changent.
+ * Cela évite qu'une frappe dans une variante déclenche le re-render de toutes les autres.
+ */
+const MemoVariantNode = memo(VariantNode, (prev, next) => {
+    return (
+        prev.variant === next.variant &&
+        prev.level === next.level &&
+        prev.parentPrice === next.parentPrice &&
+        prev.ancestorTypes === next.ancestorTypes &&
+        prev.globalUnlimitedStock === next.globalUnlimitedStock &&
+        prev.path?.join(',') === next.path?.join(',')
+    );
+});
 
-    const handleUpdateRoot = (index, updatedVariant) => {
+const VariantsEditorTree = ({ variants, onChange, onImageSelectRequest, onImageUrlRequest, disableRootAdd, suggestedSubVariantType, onRemoveRoot, productPrice, rootType, globalUnlimitedStock }) => {
+    const handleAddRoot = useCallback(() => {
+        onChange([...variants, { id: null, key: '', name: '', price: String(productPrice || ''), stock: '', image: '', sub_variants: [] }]);
+    }, [variants, onChange, productPrice]);
+
+    const handleUpdateRoot = useCallback((index, updatedVariant) => {
         const newV = [...variants];
         newV[index] = updatedVariant;
         onChange(newV);
-    };
+    }, [variants, onChange]);
 
-    const handleRemoveRoot = (index) => {
+    const handleRemoveRoot = useCallback((index) => {
         if (disableRootAdd && onRemoveRoot) {
             onRemoveRoot(variants[index]);
             return;
@@ -423,7 +445,7 @@ const VariantsEditorTree = ({ variants, onChange, onImageSelectRequest, onImageU
         const newV = [...variants];
         newV.splice(index, 1);
         onChange(newV);
-    };
+    }, [disableRootAdd, onRemoveRoot, variants, onChange]);
 
     return (
         <div className="w-full">
@@ -447,7 +469,7 @@ const VariantsEditorTree = ({ variants, onChange, onImageSelectRequest, onImageU
             ) : (
                 <div className="space-y-4">
                     {variants.map((v, i) => (
-                        <VariantNode
+                        <MemoVariantNode
                             key={v.id || i}
                             variant={v}
                             path={[i]}

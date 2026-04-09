@@ -17,7 +17,7 @@ const calcDiscount = (price, salePrice) =>
 
 const CategoryAvatar = ({ name, icon, size = 'md' }) => {
     const sizes = { md: 'w-12 h-12 text-sm', lg: 'w-16 h-16 text-xl' };
-    if (icon) return <img src={icon} alt={name} className={`${sizes[size]} rounded-md object-cover shrink-0`} />;
+    if (icon) return <img src={icon} alt={name} className={`${sizes[size]} rounded-md object-cover shrink-0`} loading="lazy" />;
     return (
         <div className={`${sizes[size]} rounded-md bg-primary-5 flex items-center justify-center shrink-0`}>
             <span className="font-bold font-poppins text-primary-1 uppercase">{name?.slice(0, 2) ?? '??'}</span>
@@ -59,7 +59,7 @@ const CategoryProductsTable = ({ products, onUpdate, navigate }) => {
                                 <td className="px-4 py-3">
                                     <div className="flex items-center gap-3">
                                         {product.image
-                                            ? <img src={product.image} alt={product.name} className="w-9 h-9 rounded-md object-cover shrink-0" />
+                                            ? <img src={product.image} alt={product.name} className="w-9 h-9 rounded-md object-cover shrink-0" loading="lazy" />
                                             : <div className="w-9 h-9 rounded-md bg-secondary-5 flex items-center justify-center shrink-0">
                                                 <span className="text-[10px] font-bold font-poppins text-secondary-1 uppercase">{product.name?.slice(0, 2)}</span>
                                             </div>
