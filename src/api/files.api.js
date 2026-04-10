@@ -14,8 +14,18 @@ class FilesAPI {
    * @param {File} file — objet File (input type="file")
    */
   upload(file) {
+    // Renommer le fichier en UUID + extension d'origine avant envoi
+    const ext = file.name.includes(".")
+      ? "." + file.name.split(".").pop().toLowerCase()
+      : "";
+    const renamedFile = new File(
+      [file],
+      `${crypto.randomUUID()}${ext}`,
+      { type: file.type },
+    );
+
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", renamedFile);
     return api.post("/shop/files/", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
