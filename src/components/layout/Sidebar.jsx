@@ -12,8 +12,8 @@ import LogoutConfirmModal from '../LogoutConfirmModal';
 // ── Navigation ────────────────────────────────────────────────
 const navMain = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/products', icon: Package, label: 'Produits' },
     { to: '/categories', icon: Grid2X2, label: 'Catégories' },
+    { to: '/products', icon: Package, label: 'Produits' },
     { to: '/orders', icon: ShoppingCart, label: 'Commandes' },
     { to: '/clients', icon: Users, label: 'Clients' },
     { to: '/cities', icon: MapPin, label: 'Villes' },
