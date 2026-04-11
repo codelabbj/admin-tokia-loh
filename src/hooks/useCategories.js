@@ -16,6 +16,10 @@ export const normalizeCategory = (c) => ({
   is_active: c.status ?? c.is_active ?? true,
 });
 
+/** Clé de comparaison pour détecter les noms en double (trim + casse, locale fr). */
+export const normalizeCategoryNameKey = (name) =>
+  String(name ?? "").trim().toLocaleLowerCase("fr");
+
 const MOCK_CATEGORIES = [
   {
     id: "cat-001",
@@ -103,34 +107,42 @@ export const useCategories = (options = {}) => {
   const [loading, setLoading] = useState(!skipInitialFetch);
   const [error, setError] = useState(null);
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  /**
+   * @param {{ silent?: boolean }} [opts] — silent: true → ne pas basculer `loading` (ex. vérif doublons pendant l’édition)
+   * @returns {Promise<Array>} liste normalisée (vide si erreur)
+   */
+  const fetchAll = useCallback(async (opts = {}) => {
+    const silent = opts.silent === true;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       if (USE_MOCK) {
         await new Promise((r) => setTimeout(r, 400));
         setCategories(MOCK_CATEGORIES);
-      } else {
-        let merged = [];
-        let pageNum = 1;
-        for (;;) {
-          const { data } = await categoriesAPI.list({
-            page: pageNum,
-            page_size: CATEGORIES_PAGE_SIZE,
-            ordering: ORDERING_NEWEST_FIRST,
-          });
-          const list = Array.isArray(data) ? data : (data.results ?? []);
-          merged = merged.concat(list.map(normalizeCategory));
-          if (!data.next || list.length === 0) break;
-          pageNum += 1;
-        }
-        // Fallback front : sécurité si le backend n'applique pas `ordering`.
-        setCategories(merged);
+        return MOCK_CATEGORIES;
       }
+      let merged = [];
+      let pageNum = 1;
+      for (;;) {
+        const { data } = await categoriesAPI.list({
+          page: pageNum,
+          page_size: CATEGORIES_PAGE_SIZE,
+          ordering: ORDERING_NEWEST_FIRST,
+        });
+        const list = Array.isArray(data) ? data : (data.results ?? []);
+        merged = merged.concat(list.map(normalizeCategory));
+        if (!data.next || list.length === 0) break;
+        pageNum += 1;
+      }
+      setCategories(merged);
+      return merged;
     } catch (err) {
       setError(err.message ?? "Erreur lors du chargement des catégories");
+      return [];
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 

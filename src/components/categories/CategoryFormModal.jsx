@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { X, Upload, Trash2 } from 'lucide-react';
 import InputField from '../InputField';
 import Button from '../Button';
 import ProductStatusToggle from '../products/ProductStatusToggle';
 import { useToast } from '../ui/ToastProvider';
+import { parseBackendErrorResponse, getBackendErrorMessage } from '../../utils/apiErrorResponse';
 
 const EMPTY_FORM = {
     name: '',
@@ -22,6 +24,7 @@ const EMPTY_FORM = {
   - onSave   : (payload) => Promise
 */
 const CategoryFormModal = ({ open, onClose, category = null, onSave }) => {
+    const navigate = useNavigate();
     const [form, setForm] = useState(EMPTY_FORM);
     const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
@@ -143,14 +146,32 @@ const CategoryFormModal = ({ open, onClose, category = null, onSave }) => {
 
             onClose();
         } catch (error) {
-            if (err.response?.data?.file?.[0].includes('filename has at most 100 characters')) {
-                toast.error('Le nom du fichier ne doit pas contenir plus de 100 caractères. Vérifier vos nom de fichiers.');
-            }
-            else if (err.response?.data?.file) {
-                toast.error('Une erreur est survenue lors de la sauvegarde d\'image : ' + err.response?.data?.file);
-            }
-            else {
-                toast.error('Une erreur est survenue, veullez réessayer.');
+            const file0 = error.response?.data?.file?.[0];
+            if (typeof file0 === 'string' && file0.includes('filename has at most 100 characters')) {
+                toast.error('Le nom du fichier ne doit pas contenir plus de 100 caractères. Vérifiez vos noms de fichiers.');
+            } else if (error.response?.data?.file) {
+                toast.error('Une erreur est survenue lors de la sauvegarde d\'image : ' + error.response?.data?.file);
+            } else {
+                const { message, existingId } = parseBackendErrorResponse(error);
+                const dup =
+                    message &&
+                    existingId &&
+                    error.response?.status === 400;
+                if (dup) {
+                    toast.error(
+                        `${message} — Cliquez pour ouvrir la fiche existante.`,
+                        {
+                            duration: 8000,
+                            onClick: () => navigate(`/categories/${existingId}`),
+                        },
+                    );
+                } else if (message) {
+                    toast.error(message);
+                } else {
+                    toast.error(
+                        getBackendErrorMessage(error, 'Une erreur est survenue, veuillez réessayer.'),
+                    );
+                }
             }
             setErrors(prev => ({ ...prev, form: "Erreur lors de la sauvegarde" }));
         } finally {

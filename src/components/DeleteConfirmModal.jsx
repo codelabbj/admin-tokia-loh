@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import Button from './Button';
 import { Trash2, AlertCircle, UserCheck } from 'lucide-react';
 import { useToast } from './ui/ToastProvider';
-import { toFrenchUserMessage } from '../utils/apiMessagesFr';
+import { getBackendErrorMessage } from '../utils/apiErrorResponse';
 
 /**
  * DeleteConfirmModal
@@ -83,15 +83,7 @@ const DeleteConfirmModal = ({
                     toast.success(successMessage);
                 }
             } catch (err) {
-                const raw =
-                    err instanceof Error && err.message?.trim()
-                        ? err.message.trim()
-                        : '';
-                toast.error(
-                    raw
-                        ? toFrenchUserMessage(raw, fallbackError)
-                        : fallbackError,
-                );
+                toast.error(getBackendErrorMessage(err, fallbackError));
                 onCancel?.();
             } finally {
                 setIsLoading(false);

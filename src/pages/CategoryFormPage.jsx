@@ -5,9 +5,14 @@ import InputField from '../components/InputField';
 import Button from '../components/Button';
 import ProductStatusToggle from '../components/products/ProductStatusToggle';
 import MediaPickerModal from '../components/media/MediaPickerModal';
-import { useCategories, normalizeCategory } from '../hooks/useCategories';
+import {
+    useCategories,
+    normalizeCategory,
+    normalizeCategoryNameKey,
+} from '../hooks/useCategories';
 import { categoriesAPI } from '../api/categories.api';
 import { useToast } from '../components/ui/ToastProvider';
+import { parseBackendErrorResponse } from '../utils/apiErrorResponse';
 
 // ── Formulaire vide ───────────────────────────────────────────
 const EMPTY_FORM = {
@@ -35,7 +40,7 @@ const FormSection = ({ title, children }) => (
 const CategoryFormPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { categories, loading: categoriesLoading, create, update } = useCategories();
+    const { categories, loading: categoriesLoading, create, update, refetch } = useCategories();
     const { toast } = useToast();
     const [categoryFromDetail, setCategoryFromDetail] = useState(null);
 
@@ -194,6 +199,19 @@ const CategoryFormPage = () => {
         if (!validate()) return;
         setLoading(true);
         try {
+            const freshList = await refetch({ silent: true });
+            const nameKey = normalizeCategoryNameKey(form.name);
+            const excludeId = isEdit ? category.id : null;
+            const nameTaken = freshList.some(
+                (c) =>
+                    normalizeCategoryNameKey(c.name) === nameKey &&
+                    String(c.id) !== String(excludeId),
+            );
+            if (nameTaken) {
+                toast.error('Cette catégorie existe déjà');
+                return;
+            }
+
             const payload = {
                 name: form.name,
                 description: form.description || null,
@@ -221,7 +239,24 @@ const CategoryFormPage = () => {
             } else if (err.response?.data?.file) {
                 toast.error("Erreur lors de la sauvegarde de l'image : " + err.response?.data?.file);
             } else {
-                toast.error('Une erreur est survenue, veuillez réessayer.');
+                const { message, existingId } = parseBackendErrorResponse(err);
+                const dup =
+                    message &&
+                    existingId &&
+                    err.response?.status === 400;
+                if (dup) {
+                    toast.error(
+                        `${message} — Cliquez pour ouvrir la fiche existante.`,
+                        {
+                            duration: 8000,
+                            onClick: () => navigate(`/categories/${existingId}`),
+                        },
+                    );
+                } else if (message) {
+                    toast.error(message);
+                } else {
+                    toast.error('Une erreur est survenue, veuillez réessayer.');
+                }
             }
         } finally {
             setLoading(false);

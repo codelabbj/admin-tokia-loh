@@ -5,13 +5,15 @@ import { useParams, useNavigate } from 'react-router';
 import {
     ArrowLeft, Pencil, Tag,
     Package, CheckCircle, XCircle, AlertTriangle, Loader2,
-    ChevronLeft, ChevronRight, Play, ImageOff, Layers, ChevronDown
+    ChevronLeft, ChevronRight, Play, ImageOff, Layers, ChevronDown,
+    Copy, Check,
 } from 'lucide-react';
 import { useProducts, normalizeProduct, normalizeOthersDetails } from '../hooks/useProducts';
 import { productsAPI } from '../api/products.api';
 import { useCategories } from '../hooks/useCategories';
 import Button from '../components/Button';
 import ProductBadge from '../components/products/ProductBadge';
+import { useToast } from '../components/ui/ToastProvider';
 
 // ── Helpers ───────────────────────────────────────────────────
 const formatPrice = (p) => `${Number(p).toLocaleString('fr-FR')} F`;
@@ -267,8 +269,10 @@ const ProductDetailPage = () => {
     const navigate = useNavigate();
     const { products, loading: productsLoading, update } = useProducts();
     const { categories } = useCategories();
+    const { toast } = useToast();
 
     const [activeIndex, setActiveIndex] = useState(0);
+    const [idCopied, setIdCopied] = useState(false);
     const [productFromDetail, setProductFromDetail] = useState(null);
     const [resolvedVariants, setResolvedVariants] = useState([]);
 
@@ -304,6 +308,7 @@ const ProductDetailPage = () => {
     }, [needsDetailFetch, id, navigate]);
 
     useEffect(() => { setActiveIndex(0); }, [id]);
+    useEffect(() => { setIdCopied(false); }, [id]);
 
     useEffect(() => {
         if (!product?.id) {
@@ -493,7 +498,31 @@ const ProductDetailPage = () => {
                     {/* Infos générales */}
                     <Section title="Informations">
                         <InfoRow label="Identifiant">
-                            <span className="font-mono text-[11px] text-neutral-6 break-all">{product.id}</span>
+                            <span className="font-mono text-[11px] text-neutral-7 dark:text-neutral-7 break-all text-right max-w-[min(100%,14rem)] sm:max-w-none">
+                                {String(product.id)}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const idStr = String(product.id);
+                                    try {
+                                        await navigator.clipboard.writeText(idStr);
+                                        toast.success('Identifiant copié dans le presse-papiers.');
+                                        setIdCopied(true);
+                                        window.setTimeout(() => setIdCopied(false), 2000);
+                                    } catch {
+                                        toast.error('Impossible de copier. Sélectionnez l’identifiant manuellement.');
+                                    }
+                                }}
+                                title="Copier l’identifiant"
+                                aria-label="Copier l’identifiant produit"
+                                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-neutral-4 dark:border-neutral-4
+                                    text-primary-1 hover:bg-primary-5 dark:hover:bg-primary-1/15
+                                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-1 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-neutral-0
+                                    transition-colors cursor-pointer"
+                            >
+                                {idCopied ? <Check size={15} strokeWidth={2.25} className="text-success-1" /> : <Copy size={15} strokeWidth={2.25} />}
+                            </button>
                         </InfoRow>
                         <InfoRow label="Catégorie">
                             <Package size={11} className="text-primary-1" />

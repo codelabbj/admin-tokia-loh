@@ -13,6 +13,7 @@ import {
 import { productsAPI } from '../api/products.api';
 import { useCategories } from '../hooks/useCategories';
 import { useToast } from '../components/ui/ToastProvider';
+import { parseBackendErrorResponse } from '../utils/apiErrorResponse';
 import MediaPickerModal from '../components/media/MediaPickerModal';
 import { variantsAPI } from '../api/variants.api';
 import VariantsEditorTree, { VARIANT_TERM } from '../components/products/VariantsEditorTree';
@@ -850,7 +851,24 @@ const ProductFormPage = () => {
             } else if (err.response?.data?.file) {
                 toast.error("Une erreur est survenue lors de la sauvegarde d'image : " + err.response?.data?.file);
             } else {
-                toast.error('Une erreur est survenue, veuillez réessayer.');
+                const { message, existingId } = parseBackendErrorResponse(err);
+                const dup =
+                    message &&
+                    existingId &&
+                    err.response?.status === 400;
+                if (dup) {
+                    toast.error(
+                        `${message} — Cliquez pour ouvrir la fiche existante.`,
+                        {
+                            duration: 8000,
+                            onClick: () => navigate(`/products/${existingId}`),
+                        },
+                    );
+                } else if (message) {
+                    toast.error(message);
+                } else {
+                    toast.error('Une erreur est survenue, veuillez réessayer.');
+                }
             }
         } finally {
             setLoading(false);
