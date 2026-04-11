@@ -1253,22 +1253,29 @@ const ProductFormPage = () => {
                                 </div>
                                 {form.hasColors && (
                                     <div className="flex flex-col gap-3">
-                                        <div className="grid grid-cols-10 gap-2">
-                                            {PRESET_COLORS.map(color => {
-                                                const isSelected = form.colors.some(c => c.hex === color.hex);
-                                                return (
-                                                    <button
-                                                        key={color.hex}
-                                                        type="button"
-                                                        onClick={() => !isSelected && handleAddColor(color.name, color.hex)}
-                                                        disabled={isSelected}
-                                                        title={color.name}
-                                                        className={`w-full aspect-square rounded-md border-2 transition-all ${isSelected ? 'border-neutral-4 opacity-40 cursor-not-allowed' : 'border-transparent hover:border-primary-1 hover:scale-110 cursor-pointer'}`}
-                                                        style={{ backgroundColor: color.hex }}
-                                                    />
-                                                );
-                                            })}
-                                        </div>
+                                        {(() => {
+                                            const available = PRESET_COLORS.filter(
+                                                (c) => !form.colors.some((x) => x.hex === c.hex),
+                                            );
+                                            return available.length === 0 ? (
+                                                <p className="text-[11px] font-poppins text-neutral-6 dark:text-neutral-5 leading-relaxed">
+                                                    Toutes les couleurs prédéfinies sont déjà sélectionnées. Retirez un nuancier ci-dessous pour en ajouter une autre.
+                                                </p>
+                                            ) : (
+                                                <div className="grid grid-cols-10 gap-2">
+                                                    {available.map((color) => (
+                                                        <button
+                                                            key={color.hex}
+                                                            type="button"
+                                                            onClick={() => handleAddColor(color.name, color.hex)}
+                                                            title={color.name}
+                                                            className="w-full aspect-square rounded-md border-2 border-transparent hover:border-primary-1 hover:scale-110 cursor-pointer transition-all"
+                                                            style={{ backgroundColor: color.hex }}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
                                         {form.colors.length > 0 && (
                                             <div className="flex flex-wrap gap-2 pt-3 border-t border-neutral-3">
                                                 {form.colors.map((color, i) => (

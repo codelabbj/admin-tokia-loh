@@ -272,11 +272,22 @@ const ProductsTable = ({
                                                 <Pencil size={14} />
                                             </button>
                                             <button
-                                                onClick={() => onDelete?.(product)}
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    e.preventDefault();
+                                                    onDelete?.(product);
+                                                }}
                                                 title="Supprimer"
-                                                className="w-7 h-7 flex items-center justify-center rounded-md text-neutral-6 hover:bg-danger-2 hover:text-danger-1 transition-colors duration-150 cursor-pointer"
+                                                aria-label={`Supprimer ${product.name ?? 'le produit'}`}
+                                                className="w-7 h-7 flex items-center justify-center rounded-md shrink-0
+                                                    text-danger-1 dark:text-rose-400
+                                                    border border-danger-2/40 dark:border-rose-400/35
+                                                    hover:bg-danger-2 dark:hover:bg-rose-950/50 hover:text-danger-1 dark:hover:text-rose-300
+                                                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-1 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-neutral-0
+                                                    transition-colors duration-150 cursor-pointer"
                                             >
-                                                <Trash2 size={14} />
+                                                <Trash2 size={14} strokeWidth={2.25} className="opacity-95 dark:opacity-100" />
                                             </button>
                                         </div>
                                     </td>

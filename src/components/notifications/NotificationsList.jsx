@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { CheckCheck, Trash2, Loader2, AlertCircle, Bell, RefreshCw, BellOff } from 'lucide-react';
 import NotificationsBadge, { NOTIF_TYPE_CONFIG } from './NotificationsBadge';
 import Button from '../Button';
+import DeleteConfirmModal from '../DeleteConfirmModal';
 import { useNotifications } from '../../hooks/useNotifications';
 import { getNotificationNavigatePath } from '../../utils/notificationTargets';
 
@@ -53,6 +54,14 @@ const NotificationsList = () => {
     } = useNotifications();
 
     const [filter, setFilter] = useState('unread');
+    const [deleteTarget, setDeleteTarget] = useState(null);
+
+    const handleConfirmDeleteNotif = async () => {
+        if (!deleteTarget?.id) return;
+        const id = deleteTarget.id;
+        await deleteNotif(id);
+        setDeleteTarget(null);
+    };
 
     const filtered = notifications.filter(n => {
         if (filter === 'all') return true;
@@ -223,20 +232,40 @@ const NotificationsList = () => {
                                 <div className="flex items-center gap-1 shrink-0 pt-0.5">
                                     {!notif.read && (
                                         <button
-                                            onClick={() => markRead(notif.id)}
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                markRead(notif.id);
+                                            }}
                                             title="Marquer comme lu"
-                                            className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-4 hover:bg-primary-5 hover:text-primary-1 active:scale-95 transition-all cursor-pointer"
+                                            aria-label={`Marquer comme lu : ${notif.title ?? 'notification'}`}
+                                            className="w-8 h-8 flex items-center justify-center rounded-xl shrink-0
+                                                text-primary-1 dark:text-primary-1
+                                                border border-primary-5 dark:border-primary-1/45
+                                                bg-primary-5/40 dark:bg-primary-1/10
+                                                hover:bg-primary-5 dark:hover:bg-primary-1/20 hover:text-primary-2 dark:hover:text-primary-1
+                                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-1 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-neutral-0
+                                                active:scale-95 transition-all cursor-pointer"
                                         >
-                                            <CheckCheck size={15} />
+                                            <CheckCheck size={15} strokeWidth={2.25} className="opacity-95 dark:opacity-100" />
                                         </button>
                                     )}
                                     <button
                                         type="button"
-                                        onClick={() => deleteNotif(notif.id)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setDeleteTarget(notif);
+                                        }}
                                         title="Supprimer"
-                                        className="w-8 h-8 flex items-center justify-center rounded-xl text-neutral-4 hover:bg-danger-2 hover:text-danger-1 active:scale-95 transition-all cursor-pointer"
+                                        aria-label={`Supprimer la notification : ${notif.title ?? ''}`}
+                                        className="w-8 h-8 flex items-center justify-center rounded-xl shrink-0
+                                            text-danger-1 dark:text-rose-400
+                                            border border-danger-2/40 dark:border-rose-400/35
+                                            hover:bg-danger-2 dark:hover:bg-rose-950/50 hover:text-danger-1 dark:hover:text-rose-300
+                                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-1 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-neutral-0
+                                            active:scale-95 transition-all cursor-pointer"
                                     >
-                                        <Trash2 size={15} />
+                                        <Trash2 size={15} strokeWidth={2.25} className="opacity-95 dark:opacity-100" />
                                     </button>
                                 </div>
                             </div>
@@ -256,6 +285,25 @@ const NotificationsList = () => {
                     </Button>
                 </div>
             )}
+
+            <DeleteConfirmModal
+                isOpen={!!deleteTarget}
+                onCancel={() => setDeleteTarget(null)}
+                onConfirm={handleConfirmDeleteNotif}
+                title="Supprimer la notification"
+                message={
+                    deleteTarget
+                        ? (() => {
+                            const raw = String(deleteTarget.title ?? '').trim();
+                            const preview = raw.length > 100 ? `${raw.slice(0, 100)}…` : raw;
+                            return preview
+                                ? `Voulez-vous vraiment supprimer « ${preview} » ? Elle sera définitivement retirée de votre historique.`
+                                : 'Voulez-vous vraiment supprimer cette notification ? Elle sera définitivement retirée de votre historique.';
+                        })()
+                        : ''
+                }
+                successMessage="Notification supprimée."
+            />
         </div>
     );
 };

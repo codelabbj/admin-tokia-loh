@@ -15,6 +15,7 @@ import { toFrenchUserMessage } from '../utils/apiMessagesFr';
  * @param {string}   [message]       - Message de confirmation (optionnel)
  * @param {string}   [confirmLabel]  - Libellé du bouton de confirmation (défaut : Supprimer)
  * @param {string}   [successMessage] - Toast après succès de onConfirm (défaut : message suppression)
+ * @param {boolean}  [suppressSuccessToast] - Si true, pas de toast après onConfirm (ex. suppression locale UI)
  * @param {'danger'|'primary'} [confirmVariant] - Style du bouton / icône (défaut : danger)
  * @param {string}   [mode]          - 'confirm' | 'error'
  *
@@ -31,6 +32,7 @@ const DeleteConfirmModal = ({
     message = 'Êtes-vous sûr de vouloir supprimer cet élément ? Cette action est irréversible.',
     confirmLabel = 'Supprimer',
     successMessage = 'Élément supprimé avec succès.',
+    suppressSuccessToast = false,
     confirmVariant = 'danger',
     mode = 'confirm',
 }) => {
@@ -77,7 +79,9 @@ const DeleteConfirmModal = ({
                 'Une erreur est survenue. Veuillez réessayer.';
             try {
                 await onConfirm();
-                toast.success(successMessage);
+                if (!suppressSuccessToast) {
+                    toast.success(successMessage);
+                }
             } catch (err) {
                 const raw =
                     err instanceof Error && err.message?.trim()

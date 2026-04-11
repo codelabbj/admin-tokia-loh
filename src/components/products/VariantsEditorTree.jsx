@@ -2,6 +2,7 @@ import React, { useState, useCallback, memo } from 'react';
 import { Plus, Trash2, ChevronRight, ChevronDown, Image as ImageIcon, X, Loader2 } from 'lucide-react';
 import InputField from '../InputField';
 import Button from '../Button';
+import DeleteConfirmModal from '../DeleteConfirmModal';
 import { filesAPI } from '../../api/files.api';
 import { useToast } from '../ui/ToastProvider';
 
@@ -19,12 +20,18 @@ export const PRESET_SIZES = [
     'Unique'
 ];
 
+const variantDisplayLabel = (v) => {
+    const s = String(v?.name ?? v?.sku ?? '').trim();
+    return s || null;
+};
+
 const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest, onImageUrlRequest, path, parentPrice, ancestorTypes, globalUnlimitedStock }) => {
     const [expanded, setExpanded] = useState(true);
     const [showAddMenu, setShowAddMenu] = useState(false);
     const [showImageMenu, setShowImageMenu] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [draftSubType, setDraftSubType] = useState(null);
+    const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
     const { toast } = useToast();
     const fileInputRef = React.useRef(null);
 
@@ -74,7 +81,7 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
     const handleToggleSubVariantName = (name, typeUI) => {
         const currentSubs = variant.sub_variants || [];
         const existingIdx = currentSubs.findIndex(s => s.name === name && s._uiType === typeUI);
-        
+
         if (existingIdx >= 0) {
             handleRemoveSubVariant(existingIdx);
             if (currentSubs.length === 1) setDraftSubType(typeUI);
@@ -102,6 +109,11 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
 
     const hasSubVariants = variant.sub_variants && variant.sub_variants.length > 0;
 
+    const removeLabel = variantDisplayLabel(variant) ?? `cette ${VARIANT_TERM.singular.toLowerCase()}`;
+    const removeMessage = hasSubVariants
+        ? `Voulez-vous vraiment supprimer « ${removeLabel} » ? Toutes les sous-déclinaisons de cette branche seront supprimées.`
+        : `Voulez-vous vraiment supprimer « ${removeLabel} » ?`;
+
     // Resolve preview if it's an object with {preview, file} or just url
     let imgPreview = variant.image;
     if (typeof variant.image === 'object' && variant.image?.preview) {
@@ -111,12 +123,13 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
     }
 
     return (
+        <>
         <div className="border border-neutral-4 dark:border-neutral-5 rounded-2xl mb-3 bg-neutral-0 dark:bg-neutral-1 transition-all duration-200">
             {/* Header / Main fields */}
             <div className={`p-4 flex flex-col md:flex-row gap-4 items-start md:items-center relative ${expanded && hasSubVariants ? 'border-b border-neutral-4 dark:border-neutral-5' : ''}`}>
 
                 {/* Image Section */}
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                     {imgPreview ? (
                         <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-neutral-4 dark:border-neutral-5 group">
                             <img src={imgPreview} alt="variant" className="w-full h-full object-cover" />
@@ -167,11 +180,11 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                                 </>
                             )}
                             {/* Hidden file input must remain mounted to receive the onChange event after the menu closes */}
-                            <input 
-                                type="file" 
-                                ref={fileInputRef} 
-                                accept="image/*" 
-                                className="hidden" 
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                accept="image/*"
+                                className="hidden"
                                 onChange={async (e) => {
                                     if (e.target.files?.length > 0) {
                                         const f = e.target.files[0];
@@ -208,9 +221,9 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                                 </span>
                                 <div className="h-9 px-3 rounded-md border border-neutral-4 dark:border-neutral-5 bg-neutral-2/50 dark:bg-neutral-2/30 flex items-center gap-2 select-none overflow-hidden">
                                     {currentType === 'Couleur' && (
-                                        <div 
-                                            className="w-3.5 h-3.5 rounded-full border border-neutral-4 flex-shrink-0 shadow-sm" 
-                                            style={{ backgroundColor: PRESET_COLORS.find(c => c.name === variant.name)?.hex || '#ccc' }} 
+                                        <div
+                                            className="w-3.5 h-3.5 rounded-full border border-neutral-4 shrink-0 shadow-sm"
+                                            style={{ backgroundColor: PRESET_COLORS.find(c => c.name === variant.name)?.hex || '#ccc' }}
                                         />
                                     )}
                                     <span className="text-[11px] font-semibold text-neutral-8 truncate block w-full">{variant.name || 'N/A'}</span>
@@ -235,7 +248,7 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                             </div>
                         )}
                     </div>
-                    
+
                     {/* Ligne 2: Prix, Stock et Illimité */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                         <InputField
@@ -314,11 +327,12 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                     </div>
                     <button
                         type="button"
-                        onClick={onRemove}
-                        className="p-2 text-danger cursor-pointer hover:bg-danger/10 rounded-xl transition-colors"
+                        onClick={() => setConfirmRemoveOpen(true)}
+                        className="p-2 text-danger-1 dark:text-rose-400 cursor-pointer hover:bg-danger-2/30 dark:hover:bg-rose-950/45 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-1"
                         title={`Supprimer cette ${VARIANT_TERM.singular.toLowerCase()}`}
+                        aria-label={`Supprimer cette ${VARIANT_TERM.singular.toLowerCase()}`}
                     >
-                        <Trash2 size={18} />
+                        <Trash2 size={18} strokeWidth={2.25} />
                     </button>
                     {hasSubVariants && (
                         <button
@@ -337,79 +351,114 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                 const activeSubType = variant.sub_variants?.[0]?._uiType || draftSubType;
                 const showBank = activeSubType === 'Couleur' || activeSubType === 'Taille';
                 return (
-                <div className="p-4 bg-neutral-2/30 dark:bg-neutral-2/10 border-l-[3px] border-l-primary-1 pl-4 md:pl-8 flex flex-col gap-4">
-                    
-                    {/* Chip Bank */}
-                    {showBank && (
-                        <div className="p-3 bg-neutral-0 dark:bg-neutral-1 rounded-xl border border-neutral-4 dark:border-neutral-5 mb-2 shadow-sm">
-                            <div className="flex items-center justify-between mb-3 border-b border-neutral-2 dark:border-neutral-4 pb-2">
-                                <h4 className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-0">
-                                    Sélectionnez les {activeSubType.toLowerCase()}s
-                                </h4>
-                                <button type="button" onClick={() => {
-                                    if (!hasSubVariants) setDraftSubType(null);
-                                }} className="text-neutral-5 hover:text-danger-1 transition-colors cursor-pointer p-1">
-                                    {!hasSubVariants && <X size={14} />}
-                                </button>
+                    <div className="p-4 bg-neutral-2/30 dark:bg-neutral-2/10 border-l-[3px] border-l-primary-1 pl-4 md:pl-8 flex flex-col gap-4">
+
+                        {/* Chip Bank */}
+                        {showBank && (
+                            <div className="p-3 bg-neutral-0 dark:bg-neutral-1 rounded-xl border border-neutral-4 dark:border-neutral-5 mb-2 shadow-sm">
+                                <div className="flex items-center justify-between mb-3 border-b border-neutral-2 dark:border-neutral-4 pb-2">
+                                    <h4 className="text-xs font-semibold font-poppins text-neutral-8 dark:text-neutral-0">
+                                        Sélectionnez les {activeSubType.toLowerCase()}s
+                                    </h4>
+                                    <button type="button" onClick={() => {
+                                        if (!hasSubVariants) setDraftSubType(null);
+                                    }} className="text-neutral-5 hover:text-danger-1 transition-colors cursor-pointer p-1">
+                                        {!hasSubVariants && <X size={14} />}
+                                    </button>
+                                </div>
+
+                                {activeSubType === 'Couleur' && (() => {
+                                    const subs = variant.sub_variants || [];
+                                    const available = PRESET_COLORS.filter(
+                                        (c) => !subs.some((s) => s.name === c.name && s._uiType === 'Couleur'),
+                                    );
+                                    return (
+                                        <div className="flex flex-col gap-2">
+                                            {available.length === 0 ? (
+                                                <p className="text-[11px] font-poppins text-neutral-6 dark:text-neutral-5 leading-relaxed">
+                                                    Toutes les couleurs prédéfinies sont déjà ajoutées. Retirez une déclinaison ci-dessous pour en choisir une autre.
+                                                </p>
+                                            ) : (
+                                                <div className="grid grid-cols-10 gap-2">
+                                                    {available.map((color) => (
+                                                        <button
+                                                            key={color.hex}
+                                                            type="button"
+                                                            onClick={() => handleToggleSubVariantName(color.name, 'Couleur')}
+                                                            title={color.name}
+                                                            className="w-full shrink-0 aspect-square rounded-md border-2 border-transparent hover:border-primary-1 hover:scale-110 opacity-90 hover:opacity-100 transition-all cursor-pointer"
+                                                            style={{ backgroundColor: color.hex }}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+
+                                {activeSubType === 'Taille' && (() => {
+                                    const subs = variant.sub_variants || [];
+                                    const available = PRESET_SIZES.filter(
+                                        (sz) => !subs.some((s) => s.name === sz && s._uiType === 'Taille'),
+                                    );
+                                    return (
+                                        <div className="flex flex-col gap-2">
+                                            {available.length === 0 ? (
+                                                <p className="text-[11px] font-poppins text-neutral-6 dark:text-neutral-5 leading-relaxed">
+                                                    Toutes les tailles prédéfinies sont déjà ajoutées. Retirez une déclinaison ci-dessous pour en réactiver une dans la liste.
+                                                </p>
+                                            ) : (
+                                                <div className="flex flex-wrap gap-2">
+                                                    {available.map((size) => (
+                                                        <button
+                                                            key={size}
+                                                            type="button"
+                                                            onClick={() => handleToggleSubVariantName(size, 'Taille')}
+                                                            className="px-4 py-2 rounded-full text-[11px] font-semibold font-poppins transition-all cursor-pointer bg-neutral-2 dark:bg-neutral-2 text-neutral-6 dark:text-neutral-6 hover:bg-neutral-3 border border-transparent"
+                                                        >
+                                                            {size}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
-                            
-                            {activeSubType === 'Couleur' && (
-                                <div className="grid grid-cols-10 gap-2">
-                                    {PRESET_COLORS.map(color => {
-                                        const isSelected = (variant.sub_variants || []).some(s => s.name === color.name && s._uiType === 'Couleur');
-                                        return (
-                                            <button
-                                                key={color.hex}
-                                                type="button"
-                                                onClick={() => handleToggleSubVariantName(color.name, 'Couleur')}
-                                                title={color.name}
-                                                className={`w-full flex-shrink-0 aspect-square rounded-md border-2 transition-all cursor-pointer ${isSelected ? 'border-neutral-4 opacity-40 shadow-inner' : 'border-transparent hover:border-primary-1 hover:scale-110 opacity-90 hover:opacity-100'}`}
-                                                style={{ backgroundColor: color.hex }}
-                                            />
-                                        );
-                                    })}
-                                </div>
-                            )}
+                        )}
 
-                            {activeSubType === 'Taille' && (
-                                <div className="flex flex-wrap gap-2">
-                                    {PRESET_SIZES.map(size => {
-                                        const isSelected = (variant.sub_variants || []).some(s => s.name === size && s._uiType === 'Taille');
-                                        return (
-                                            <button
-                                                key={size}
-                                                type="button"
-                                                onClick={() => handleToggleSubVariantName(size, 'Taille')}
-                                                className={`px-4 py-2 rounded-full text-[11px] font-semibold font-poppins transition-all cursor-pointer ${isSelected ? 'bg-primary-1 text-white' : 'bg-neutral-2 text-neutral-6 hover:bg-neutral-3 border border-transparent'}`}
-                                            >
-                                                {size}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {(variant.sub_variants || []).map((sub, i) => (
-                        <VariantNode
-                            key={sub.id || i}
-                            variant={sub}
-                            path={[...path, i]}
-                            level={level + 1}
-                            parentPrice={variant.price || parentPrice}
-                            globalUnlimitedStock={globalUnlimitedStock}
-                            ancestorTypes={mySubAncestorTypes}
-                            onImageSelectRequest={onImageSelectRequest}
-                            onImageUrlRequest={onImageUrlRequest}
-                            onUpdate={(updatedSub) => handleUpdateSubVariant(i, updatedSub)}
-                            onRemove={() => handleRemoveSubVariant(i)}
-                        />
-                    ))}
-                </div>
+                        {(variant.sub_variants || []).map((sub, i) => (
+                            <VariantNode
+                                key={sub.id || i}
+                                variant={sub}
+                                path={[...path, i]}
+                                level={level + 1}
+                                parentPrice={variant.price || parentPrice}
+                                globalUnlimitedStock={globalUnlimitedStock}
+                                ancestorTypes={mySubAncestorTypes}
+                                onImageSelectRequest={onImageSelectRequest}
+                                onImageUrlRequest={onImageUrlRequest}
+                                onUpdate={(updatedSub) => handleUpdateSubVariant(i, updatedSub)}
+                                onRemove={() => handleRemoveSubVariant(i)}
+                            />
+                        ))}
+                    </div>
                 );
             })()}
         </div>
+
+        <DeleteConfirmModal
+            isOpen={confirmRemoveOpen}
+            onCancel={() => setConfirmRemoveOpen(false)}
+            onConfirm={async () => {
+                onRemove();
+                setConfirmRemoveOpen(false);
+            }}
+            title={`Supprimer cette ${VARIANT_TERM.singular.toLowerCase()} ?`}
+            message={removeMessage}
+            suppressSuccessToast
+        />
+        </>
     );
 };
 
