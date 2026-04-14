@@ -182,7 +182,7 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
                                         type="button"
                                         onClick={closeConfirm}
                                         disabled={confirmLoading}
-                                        className="flex-1 px-4 py-2 rounded-full text-xs font-semibold font-poppins bg-neutral-2/80 hover:bg-neutral-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                        className="flex-1 px-4 py-2 rounded-full text-xs font-semibold font-poppins bg-neutral-2/80 hover:bg-neutral-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer text-white"
                                     >
                                         Retour
                                     </button>
