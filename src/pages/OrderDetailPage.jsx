@@ -254,7 +254,7 @@ const OrderDetailPage = () => {
 
                     {/* Carte */}
                     <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 overflow-hidden">
-                        <OrderMap client={order.client} orderId={order.id} />
+                        <OrderMap client={order.client} orderId={order.id} orderReference={order.reference} />
                     </div>
                 </div>
 

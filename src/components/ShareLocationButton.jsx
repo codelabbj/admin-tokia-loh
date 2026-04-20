@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Share2, Copy, Mail, MessageCircle } from 'lucide-react';
+import { Share2, Copy, Mail, MessageCircle, Check } from 'lucide-react';
 
-const ShareLocationButton = ({ client, orderId }) => {
+const ShareLocationButton = ({ client, orderId, orderReference }) => {
     const [showMenu, setShowMenu] = useState(false);
     const [copied, setCopied] = useState(false);
 
     const { latitude, longitude, firstName, lastName, address, city } = client;
     const googleMapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
-    const message = `📍 Livraison commande #${orderId}
+    const displayOrderRef = orderReference ?? orderId;
+    const message = `📍 Livraison commande #${displayOrderRef}
 ${firstName} ${lastName}
 ${address}, ${city}
 ${googleMapsUrl}`;
@@ -17,7 +18,7 @@ ${googleMapsUrl}`;
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: `Livraison commande #${orderId}`,
+                    title: `Livraison commande #${displayOrderRef}`,
                     text: message,
                 });
                 return;
@@ -43,7 +44,7 @@ ${googleMapsUrl}`;
     };
 
     const shareViaEmail = () => {
-        window.location.href = `mailto:?subject=Livraison commande #${orderId}&body=${encodeURIComponent(message)}`;
+        window.location.href = `mailto:?subject=Livraison commande #${displayOrderRef}&body=${encodeURIComponent(message)}`;
         setShowMenu(false);
     };
 

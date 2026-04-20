@@ -226,7 +226,11 @@ const OrderDetailModal = ({ open, onClose, order, onStatusChange }) => {
                         )}
 
                         {/* Carte de localisation */}
-                        <OrderMap client={currentOrder.client} orderId={currentOrder.id} />
+                        <OrderMap
+                            client={currentOrder.client}
+                            orderId={currentOrder.id}
+                            orderReference={currentOrder.reference}
+                        />
 
                         {/* Date */}
                         <p className="text-[11px] font-poppins text-neutral-5">

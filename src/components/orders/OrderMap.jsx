@@ -1,24 +1,13 @@
 import React from 'react';
 import Map, { Marker, NavigationControl } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { MapPin, Share2 } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import ShareLocationButton from '../ShareLocationButton';
 
-const OrderMap = ({ client, orderId }) => {
-    const { latitude, longitude, firstName, lastName, address, city } = client;
+const OrderMap = ({ client, orderId, orderReference }) => {
+    const { latitude, longitude, address, city } = client;
 
     if (!latitude || !longitude) return null;
-
-    const handleShareLocation = () => {
-        const googleMapsUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
-        const message = `📍 Livraison commande #${orderId}\n${firstName} ${lastName}\n${address}, ${city}\n${googleMapsUrl}`;
-
-        navigator.clipboard.writeText(message).then(() => {
-            alert('Position copiée ! Vous pouvez maintenant l\'envoyer au livreur.');
-        }).catch(() => {
-            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-        });
-    };
 
     const openInMaps = () => {
         window.open(`https://www.google.com/maps?q=${latitude},${longitude}`, '_blank');
@@ -31,7 +20,7 @@ const OrderMap = ({ client, orderId }) => {
                     Localisation du client
                 </p>
                 <div>
-                    <ShareLocationButton client={client} orderId={orderId} />
+                    <ShareLocationButton client={client} orderId={orderId} orderReference={orderReference} />
                 </div>
             </div>
 
