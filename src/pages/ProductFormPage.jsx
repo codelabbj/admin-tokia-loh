@@ -8,7 +8,6 @@ import {
     useProducts,
     normalizeProduct,
     normalizeOthersDetails,
-    resolveImageUrl,
 } from '../hooks/useProducts';
 import { productsAPI } from '../api/products.api';
 import { useCategories } from '../hooks/useCategories';
@@ -17,6 +16,7 @@ import { parseBackendErrorResponse } from '../utils/apiErrorResponse';
 import MediaPickerModal from '../components/media/MediaPickerModal';
 import { variantsAPI } from '../api/variants.api';
 import VariantsEditorTree, { VARIANT_TERM } from '../components/products/VariantsEditorTree';
+import { PRESET_COLORS } from '../constants/productPresetColors';
 // ── Helpers vidéo ─────────────────────────────────────────────
 const getYouTubeThumbnail = (url) => {
     const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
@@ -67,20 +67,6 @@ const VideoThumbnail = ({ url }) => {
     );
     return <img src={thumbnail} alt="video thumbnail" className="w-full h-full object-cover" onError={() => setError(true)} />;
 };
-
-// ── Constantes ────────────────────────────────────────────────
-export const PRESET_COLORS = [
-    { name: 'Noir', hex: '#000000' }, { name: 'Blanc', hex: '#FFFFFF' },
-    { name: 'Gris', hex: '#808080' }, { name: 'Rouge', hex: '#EF4444' },
-    { name: 'Rose', hex: '#EC4899' }, { name: 'Orange', hex: '#F97316' },
-    { name: 'Jaune', hex: '#EAB308' }, { name: 'Vert', hex: '#10B981' },
-    { name: 'Bleu', hex: '#3B82F6' }, { name: 'Indigo', hex: '#6366F1' },
-    { name: 'Violet', hex: '#8B5CF6' }, { name: 'Marron', hex: '#92400E' },
-    { name: 'Beige', hex: '#D4C5B9' }, { name: 'Kaki', hex: '#8D7B68' },
-    { name: 'Marine', hex: '#1E3A8A' }, { name: 'Bordeaux', hex: '#7F1D1D' },
-    { name: 'Turquoise', hex: '#14B8A6' }, { name: 'Corail', hex: '#FB7185' },
-    { name: 'Or', hex: '#D97706' }, { name: 'Argent', hex: '#94A3B8' },
-];
 
 const EMPTY_FORM = {
     name: '',
@@ -214,27 +200,6 @@ const normalizeVariantsForForm = (variants = [], attributes = []) => {
     });
 };
 
-const mergeAttributesByName = (attributes = []) => {
-    const map = new Map();
-    attributes.forEach((a) => {
-        const name = String(a?.name ?? '').trim();
-        if (!name) return;
-        const values = Array.isArray(a?.values)
-            ? a.values.map((v) => String(v ?? '').trim()).filter(Boolean)
-            : [];
-        if (!map.has(name)) {
-            map.set(name, new Set(values));
-            return;
-        }
-        const set = map.get(name);
-        values.forEach((v) => set.add(v));
-    });
-    return Array.from(map.entries()).map(([name, set]) => ({
-        name,
-        values: Array.from(set),
-    }));
-};
-
 const buildAllowedVariantAttributes = (form, customDetails) => {
     const map = new Map();
     if (form?.hasSizes && Array.isArray(form?.sizes) && form.sizes.length > 0) {
@@ -260,25 +225,6 @@ const buildAllowedVariantAttributes = (form, customDetails) => {
         }
     });
     return Array.from(map.entries()).map(([name, values]) => ({ name, values }));
-};
-
-const buildVariantName = (variant) => {
-    const attrs = Object.entries(variant?.attrMap ?? {})
-        .map(([k, v]) => [String(k ?? '').trim(), String(v ?? '').trim()])
-        .filter(([, v]) => !!v)
-        .map(([, v]) => v);
-    if (attrs.length > 0) return attrs.join(' / ');
-    return String(variant?.sku ?? '').trim() || 'Variante';
-};
-
-const getVariantImagePreview = (img) => {
-    if (!img) return null;
-    if (typeof img === 'string') return img;
-    if (typeof img === 'object') {
-        if (img.preview) return img.preview;
-        if (img.file instanceof File) return URL.createObjectURL(img.file);
-    }
-    return null;
 };
 
 // ── Section wrapper ───────────────────────────────────────────
@@ -332,12 +278,11 @@ const ProductFormPage = () => {
     const [variantSourceTick, setVariantSourceTick] = useState(0);
     const allowedVariantAttributes = useMemo(
         () => buildAllowedVariantAttributes(form, customDetails),
-        [form.hasSizes, form.sizes, form.hasColors, form.colors, customDetails],
+        [form, customDetails],
     );
 
     const mainImageRef = useRef(null);
     const subImageRef = useRef(null);
-    const variantImageFileRefs = useRef([]);
     /** Ancre sous la liste des cartes variantes (scroll après « + Variante »). */
     const variantsAnchorAfterCardsRef = useRef(null);
     const scrollToVariantsAnchorPendingRef = useRef(false);
@@ -489,15 +434,6 @@ const ProductFormPage = () => {
         const file = e.target.files[0];
         if (!file) return;
         setForm(prev => ({ ...prev, mainImage: { file, preview: URL.createObjectURL(file) } }));
-    };
-
-    const handleVariantImageFile = (variantIndex, e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        updateVariant(variantIndex, {
-            image: { file, preview: URL.createObjectURL(file) },
-        });
-        e.target.value = '';
     };
 
     /* const handleMediaSelect = (file) => {
@@ -676,76 +612,6 @@ const ProductFormPage = () => {
         others_details: [],
         attrMap: {},
     });
-    const handleAddVariant = () => {
-        scrollToVariantsAnchorPendingRef.current = true;
-        setVariantsDraft((prev) => [...prev, createEmptyVariant()]);
-    };
-    const handleRemoveVariant = (index) =>
-        setVariantsDraft((prev) => prev.filter((_, i) => i !== index));
-    const updateVariant = (index, patch) =>
-        setVariantsDraft((prev) => prev.map((v, i) => (i === index ? { ...v, ...patch } : v)));
-
-    const handleAddVariantAttribute = (variantIndex) => {
-        const variant = variantsDraft[variantIndex];
-        if (!variant) return;
-        const selected = new Set(Object.keys(variant.attrMap ?? {}));
-        const nextAttr = allowedVariantAttributes.find((a) => !selected.has(a.name));
-        if (!nextAttr) return;
-        updateVariant(variantIndex, {
-            attrMap: {
-                ...(variant.attrMap ?? {}),
-                [nextAttr.name]: nextAttr.values?.[0] ?? '',
-            },
-        });
-    };
-    const handleRemoveVariantAttribute = (variantIndex, attrName) => {
-        const variant = variantsDraft[variantIndex];
-        if (!variant) return;
-        const nextMap = { ...(variant.attrMap ?? {}) };
-        delete nextMap[attrName];
-        updateVariant(variantIndex, { attrMap: nextMap });
-    };
-    const handleVariantAttributeNameChange = (variantIndex, oldName, newName) => {
-        const variant = variantsDraft[variantIndex];
-        if (!variant) return;
-        const attrDef = allowedVariantAttributes.find((a) => a.name === newName);
-        const nextMap = { ...(variant.attrMap ?? {}) };
-        delete nextMap[oldName];
-        nextMap[newName] = nextMap[newName] ?? attrDef?.values?.[0] ?? '';
-        updateVariant(variantIndex, { attrMap: nextMap });
-    };
-    const handleVariantAttributeValueChange = (variantIndex, attrName, value) => {
-        const variant = variantsDraft[variantIndex];
-        if (!variant) return;
-        updateVariant(variantIndex, {
-            attrMap: { ...(variant.attrMap ?? {}), [attrName]: value },
-        });
-    };
-
-    const handleAddVariantDetail = (variantIndex) => {
-        const variant = variantsDraft[variantIndex];
-        if (!variant) return;
-        updateVariant(variantIndex, {
-            others_details: [...(variant.others_details ?? []), { key: '', value: '' }],
-        });
-    };
-    const handleRemoveVariantDetail = (variantIndex, detailIndex) => {
-        const variant = variantsDraft[variantIndex];
-        if (!variant) return;
-        updateVariant(variantIndex, {
-            others_details: (variant.others_details ?? []).filter((_, i) => i !== detailIndex),
-        });
-    };
-    const handleVariantDetailChange = (variantIndex, detailIndex, field, value) => {
-        const variant = variantsDraft[variantIndex];
-        if (!variant) return;
-        updateVariant(variantIndex, {
-            others_details: (variant.others_details ?? []).map((d, i) =>
-                i === detailIndex ? { ...d, [field]: value } : d,
-            ),
-        });
-    };
-
     // ── Validation ────────────────────────────────────────────
     const validate = () => {
         const e = {};
@@ -765,13 +631,6 @@ const ProductFormPage = () => {
             else if (sp >= p) e.sale_price = 'Le prix réduit doit être inférieur au prix initial';
         }
         if (!form.mainImage) e.mainImage = 'Image principale requise';
-
-        const attrDefsForVariants = mergeAttributesByName(
-            allowedVariantAttributes.map((a) => ({
-                name: String(a?.name ?? '').trim(),
-                values: (a.values ?? []).map((v) => String(v ?? '').trim()).filter(Boolean),
-            })),
-        ).filter((a) => a.name);
 
         if (hasVariants && !form.unlimited_stock && form.stock !== '' && form.stock !== null) {
             const countTotalLeafStock = (variantsList) => {

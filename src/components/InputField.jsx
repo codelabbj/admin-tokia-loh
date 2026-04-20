@@ -19,6 +19,7 @@ const InputField = ({
     ...props
 }) => {
     const [showPassword, setShowPassword] = useState(false);
+    const { onWheel: onWheelProp, ...restProps } = props;
 
     const isPassword = type === 'password';
     const inputType = isPassword ? (showPassword ? 'text' : 'password') : type;
@@ -118,11 +119,18 @@ const InputField = ({
                     placeholder={placeholder}
                     value={value}
                     onChange={onChange}
+                    onWheel={(e) => {
+                        if (type === 'number') {
+                            // Empêche le changement de valeur involontaire à la molette.
+                            e.currentTarget.blur();
+                        }
+                        onWheelProp?.(e);
+                    }}
                     required={required}
                     disabled={disabled}
                     className={`${baseInput} relative z-0`}
                     autoComplete={autoComplete ?? 'off'}
-                    {...props}
+                    {...restProps}
                 />
 
                 {/* Toggle mot de passe */}

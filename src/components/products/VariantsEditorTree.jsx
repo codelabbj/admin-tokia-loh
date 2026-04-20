@@ -5,14 +5,13 @@ import Button from '../Button';
 import DeleteConfirmModal from '../DeleteConfirmModal';
 import { filesAPI } from '../../api/files.api';
 import { useToast } from '../ui/ToastProvider';
+import { PRESET_COLORS } from '../../constants/productPresetColors';
 
 export const VARIANT_TERM = {
     singular: "Déclinaison",
     plural: "Déclinaisons",
     sub: "Sous-déclinaison"
 };
-
-import { PRESET_COLORS } from '../../pages/ProductFormPage';
 
 export const PRESET_SIZES = [
     'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL',
