@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useProducts, normalizeProduct, normalizeOthersDetails } from '../hooks/useProducts';
 import { productsAPI } from '../api/products.api';
+import { variantsAPI } from '../api/variants.api';
 import { useCategories } from '../hooks/useCategories';
 import Button from '../components/Button';
 import ProductBadge from '../components/products/ProductBadge';
@@ -132,6 +133,27 @@ const formatDetailLine = (d) => {
     return value ? `${key}: ${value}` : key;
 };
 
+const updateVariantInTreeById = (variants, variantId, patchData) => {
+    if (!Array.isArray(variants)) return [];
+    const idStr = String(variantId);
+    return variants.map((item) => {
+        const currentId = item?.id == null ? null : String(item.id);
+        if (currentId === idStr) {
+            return {
+                ...item,
+                ...patchData,
+            };
+        }
+        if (Array.isArray(item?.sub_variants) && item.sub_variants.length > 0) {
+            return {
+                ...item,
+                sub_variants: updateVariantInTreeById(item.sub_variants, variantId, patchData),
+            };
+        }
+        return item;
+    });
+};
+
 const variantStockBadgeType = (v) => {
     if (v.unlimited_stock === true) return 'unlimited-stock';
     const s = v.stock;
@@ -155,8 +177,17 @@ const Section = ({ title, children }) => (
 );
 
 // ── Noeud d'arbre récursif pour les déclinaisons ────────────────────
-const VariantTreeNode = ({ variant: v, level }) => {
+const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }) => {
     const [open, setOpen] = useState(true);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState({
+        key: '',
+        name: '',
+        price: '',
+        stock: '',
+        unlimited_stock: false,
+        status: true,
+    });
     const hasSubVariants = Array.isArray(v.sub_variants) && v.sub_variants.length > 0;
     const vStockBadge = variantStockBadgeType(v);
     const vOthers = (normalizeOthersDetails(v.others_details ?? []))
@@ -164,6 +195,42 @@ const VariantTreeNode = ({ variant: v, level }) => {
         .filter(Boolean);
     const vActive = v.status !== false;
     const vDiscount = calcDiscount(v.price, v.original_price);
+    const vSecondaryImages = Array.isArray(v.secondary_images)
+        ? v.secondary_images.filter(Boolean)
+        : [];
+    const canEdit = !!v?.id;
+    const savingThisVariant = isVariantSaving?.(v?.id) === true;
+
+    useEffect(() => {
+        setEditForm({
+            key: String(v?.key ?? ''),
+            name: String(v?.name ?? ''),
+            price: v?.price == null ? '' : String(v.price),
+            stock: v?.stock == null ? '' : String(v.stock),
+            unlimited_stock: v?.unlimited_stock === true,
+            status: v?.status !== false,
+        });
+    }, [v?.id, v?.key, v?.name, v?.price, v?.stock, v?.unlimited_stock, v?.status]);
+
+    const handleVariantSave = async (e) => {
+        e.stopPropagation();
+        if (!canEdit || !onUpdateVariant) return;
+        const payload = {
+            key: String(editForm.key ?? '').trim(),
+            name: String(editForm.name ?? '').trim(),
+            status: editForm.status !== false,
+            unlimited_stock: editForm.unlimited_stock === true,
+        };
+        if (payload.name === '') return;
+        if (editForm.price !== '') payload.price = Number(editForm.price);
+        if (payload.unlimited_stock) {
+            payload.stock = null;
+        } else if (editForm.stock !== '') {
+            payload.stock = Number(editForm.stock);
+        }
+        await onUpdateVariant(v.id, payload);
+        setIsEditing(false);
+    };
 
     const depthBorderColors = [
         'border-l-primary-1',
@@ -181,18 +248,50 @@ const VariantTreeNode = ({ variant: v, level }) => {
     return (
         <div className={`rounded-2 border border-neutral-4 dark:border-neutral-4 overflow-hidden ${level > 0 ? `border-l-4 ${borderColor}` : ''}`}>
             {/* Header de la déclinaison */}
-            <div className={`flex items-center gap-3 px-4 py-3 ${bgColor} ${hasSubVariants ? 'cursor-pointer select-none' : ''}`}
+            <div className={`flex flex-col gap-2 px-4 py-3 ${bgColor} ${hasSubVariants ? 'cursor-pointer select-none' : ''}`}
                 onClick={hasSubVariants ? () => setOpen(o => !o) : undefined}
             >
-                {/* Image */}
-                <div className="w-10 h-10 rounded-lg border border-neutral-4 overflow-hidden bg-neutral-3 shrink-0 flex items-center justify-center">
-                    {v.image
-                        ? <img src={v.image} alt="" className="w-full h-full object-cover" />
-                        : <Layers size={16} className="text-neutral-5" />}
+                {/* Ligne 1 : Médias */}
+                <div className="flex items-start justify-between gap-3">
+                    <div className="shrink-0 flex items-center gap-1.5">
+                        <div className="w-10 h-10 rounded-lg border border-neutral-4 overflow-hidden bg-neutral-3 flex items-center justify-center">
+                            {v.image
+                                ? <img src={v.image} alt="" className="w-full h-full object-cover" />
+                                : <Layers size={16} className="text-neutral-5" />}
+                        </div>
+                        {vSecondaryImages.length > 0 && (
+                            <div className="flex items-center gap-1">
+                                {vSecondaryImages.slice(0, 3).map((img, i) => (
+                                    <div
+                                        key={`${img}-${i}`}
+                                        className="w-7 h-7 rounded-md border border-neutral-4 overflow-hidden bg-neutral-3"
+                                    >
+                                        <img src={img} alt="" className="w-full h-full object-cover" />
+                                    </div>
+                                ))}
+                                {vSecondaryImages.length > 3 && (
+                                    <span className="text-[10px] font-semibold font-poppins text-neutral-6">
+                                        +{vSecondaryImages.length - 3}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    {hasSubVariants && (
+                        <div className="flex items-center gap-1.5 text-neutral-5 shrink-0">
+                            <span className="text-[11px] font-poppins">
+                                {v.sub_variants.length} sous-déclinaison{v.sub_variants.length > 1 ? 's' : ''}
+                            </span>
+                            <ChevronDown
+                                size={16}
+                                className={`transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`}
+                            />
+                        </div>
+                    )}
                 </div>
 
-                {/* Infos principales */}
-                <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-3 gap-y-1">
+                {/* Ligne 2 : Caractéristiques */}
+                <div className="min-w-0 flex flex-wrap items-center gap-x-3 gap-y-1">
                     {v.key && (
                         <span className="text-[10px] font-bold font-poppins px-2 py-0.5 rounded border border-neutral-4 text-neutral-6 uppercase tracking-wider bg-neutral-0 dark:bg-neutral-2 shadow-sm">
                             {v.key}
@@ -224,21 +323,99 @@ const VariantTreeNode = ({ variant: v, level }) => {
                         <ProductBadge type={vActive ? 'active' : 'inactive'} />
                         {vStockBadge && <ProductBadge type={vStockBadge} />}
                     </div>
+                    {canEdit && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsEditing((prev) => !prev);
+                            }}
+                            className="px-2 py-1 rounded-lg border border-neutral-4 text-[11px] font-poppins text-neutral-7 hover:text-primary-1 hover:border-primary-3 transition-colors cursor-pointer"
+                        >
+                            {isEditing ? 'Fermer' : 'Modifier'}
+                        </button>
+                    )}
                 </div>
-
-                {/* Chevron si sous-déclinaisons */}
-                {hasSubVariants && (
-                    <div className="flex items-center gap-1.5 text-neutral-5 shrink-0">
-                        <span className="text-[11px] font-poppins">
-                            {v.sub_variants.length} sous-déclinaison{v.sub_variants.length > 1 ? 's' : ''}
-                        </span>
-                        <ChevronDown
-                            size={16}
-                            className={`transition-transform duration-200 ${open ? 'rotate-0' : '-rotate-90'}`}
-                        />
-                    </div>
-                )}
             </div>
+
+            {isEditing && canEdit && (
+                <div
+                    className="px-4 pb-3"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                        <input
+                            value={editForm.key}
+                            onChange={(e) => setEditForm((prev) => ({ ...prev, key: e.target.value }))}
+                            placeholder="Clé"
+                            className="h-9 px-3 rounded-xl border border-neutral-4 bg-neutral-0 text-xs font-poppins"
+                        />
+                        <input
+                            value={editForm.name}
+                            onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                            placeholder="Valeur / nom"
+                            className="h-9 px-3 rounded-xl border border-neutral-4 bg-neutral-0 text-xs font-poppins"
+                        />
+                        <input
+                            type="number"
+                            min="0"
+                            value={editForm.price}
+                            onChange={(e) => setEditForm((prev) => ({ ...prev, price: e.target.value }))}
+                            placeholder="Prix"
+                            className="h-9 px-3 rounded-xl border border-neutral-4 bg-neutral-0 text-xs font-poppins"
+                        />
+                        <input
+                            type="number"
+                            min="0"
+                            value={editForm.stock}
+                            onChange={(e) => setEditForm((prev) => ({ ...prev, stock: e.target.value, unlimited_stock: false }))}
+                            placeholder="Stock"
+                            disabled={editForm.unlimited_stock}
+                            className="h-9 px-3 rounded-xl border border-neutral-4 bg-neutral-0 text-xs font-poppins disabled:bg-neutral-2"
+                        />
+                        <label className="h-9 px-3 rounded-xl border border-neutral-4 bg-neutral-0 text-xs font-poppins flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={editForm.unlimited_stock}
+                                onChange={(e) => setEditForm((prev) => ({
+                                    ...prev,
+                                    unlimited_stock: e.target.checked,
+                                    stock: e.target.checked ? '' : prev.stock,
+                                }))}
+                            />
+                            Toujours en stock
+                        </label>
+                        <label className="h-9 px-3 rounded-xl border border-neutral-4 bg-neutral-0 text-xs font-poppins flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={editForm.status}
+                                onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.checked }))}
+                            />
+                            Active
+                        </label>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                        <button
+                            type="button"
+                            onClick={handleVariantSave}
+                            disabled={savingThisVariant || String(editForm.name ?? '').trim() === ''}
+                            className="px-3 h-8 rounded-lg bg-primary-1 text-white text-xs font-semibold font-poppins disabled:opacity-60 cursor-pointer"
+                        >
+                            {savingThisVariant ? 'Enregistrement...' : 'Enregistrer'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsEditing(false);
+                            }}
+                            className="px-3 h-8 rounded-lg border border-neutral-4 text-xs font-poppins cursor-pointer"
+                        >
+                            Annuler
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Détails extras (others_details) */}
             {vOthers.length > 0 && (
@@ -255,7 +432,13 @@ const VariantTreeNode = ({ variant: v, level }) => {
             {hasSubVariants && open && (
                 <div className="flex flex-col gap-1.5 px-3 pb-3 pt-1 bg-neutral-2/20 dark:bg-neutral-2/10">
                     {v.sub_variants.map((sub, i) => (
-                        <VariantTreeNode key={sub.id ?? i} variant={sub} level={level + 1} />
+                        <VariantTreeNode
+                            key={sub.id ?? i}
+                            variant={sub}
+                            level={level + 1}
+                            onUpdateVariant={onUpdateVariant}
+                            isVariantSaving={isVariantSaving}
+                        />
                     ))}
                 </div>
             )}
@@ -267,7 +450,7 @@ const VariantTreeNode = ({ variant: v, level }) => {
 const ProductDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { products, loading: productsLoading, update } = useProducts();
+    const { products, loading: productsLoading } = useProducts();
     const { categories } = useCategories();
     const { toast } = useToast();
 
@@ -275,19 +458,17 @@ const ProductDetailPage = () => {
     const [idCopied, setIdCopied] = useState(false);
     const [productFromDetail, setProductFromDetail] = useState(null);
     const [resolvedVariants, setResolvedVariants] = useState([]);
+    const [savingVariantIds, setSavingVariantIds] = useState([]);
 
     const productFromList = useMemo(
         () => products.find(p => String(p.id) === String(id)) ?? null,
         [products, id],
     );
-    const product = productFromList ?? productFromDetail;
+    // Priorise la source la plus fraîche (detail fetch / patch variante)
+    const product = productFromDetail ?? productFromList;
 
     const needsDetailFetch =
         !!id && !productsLoading && !productFromList;
-
-    useEffect(() => {
-        if (productFromList) setProductFromDetail(null);
-    }, [productFromList]);
 
     useEffect(() => {
         if (product) document.title = `Admin Tokia-Loh | ${product.name}`;
@@ -317,7 +498,7 @@ const ProductDetailPage = () => {
         }
         const embedded = Array.isArray(product.variants) ? product.variants : [];
         setResolvedVariants(embedded);
-    }, [product?.id, product?.variants?.length]);
+    }, [product]);
 
     if (productsLoading || (needsDetailFetch && !productFromDetail)) {
         return (
@@ -385,6 +566,33 @@ const ProductDetailPage = () => {
     const videoCount = videoUrls.length;
 
     const handleEdit = () => navigate(`/products/${product.id}/edit`);
+    const isVariantSaving = (variantId) =>
+        variantId != null && savingVariantIds.includes(String(variantId));
+
+    const handleUpdateVariant = async (variantId, payload) => {
+        const key = String(variantId);
+        setSavingVariantIds((prev) => (prev.includes(key) ? prev : [...prev, key]));
+        try {
+            const { data } = await variantsAPI.update(variantId, payload);
+            const patchedVariant = (data && typeof data === 'object') ? data : payload;
+            setResolvedVariants((prev) =>
+                updateVariantInTreeById(prev, variantId, patchedVariant),
+            );
+            setProductFromDetail((prev) => {
+                if (!prev || !Array.isArray(prev.variants)) return prev;
+                return {
+                    ...prev,
+                    variants: updateVariantInTreeById(prev.variants, variantId, patchedVariant),
+                };
+            });
+            toast.success('Déclinaison mise à jour.');
+        } catch (err) {
+            toast.error(err?.message ?? 'Impossible de mettre à jour cette déclinaison.');
+            throw err;
+        } finally {
+            setSavingVariantIds((prev) => prev.filter((idItem) => idItem !== key));
+        }
+    };
 
     return (
         <div className="flex flex-col gap-6">
@@ -654,7 +862,13 @@ const ProductDetailPage = () => {
                         ) : (
                             <div className="py-2 flex flex-col gap-2">
                                 {resolvedVariants.map((v, idx) => (
-                                    <VariantTreeNode key={v.id ?? idx} variant={v} level={0} />
+                                    <VariantTreeNode
+                                        key={v.id ?? idx}
+                                        variant={v}
+                                        level={0}
+                                        onUpdateVariant={handleUpdateVariant}
+                                        isVariantSaving={isVariantSaving}
+                                    />
                                 ))}
                             </div>
                         )}
