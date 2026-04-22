@@ -270,6 +270,7 @@ const ProductFormPage = () => {
     const [tempImageType, setTempImageType] = useState('main');
     const [tempImageVariantIdx, setTempImageVariantIdx] = useState(null);
     const [tempImageVariantPath, setTempImageVariantPath] = useState(null);
+    const [tempImageVariantKind, setTempImageVariantKind] = useState('primary');
     const [customDetails, setCustomDetails] = useState([]);
     const [newDetailKey, setNewDetailKey] = useState('');
     const [newDetailVal, setNewDetailVal] = useState('');
@@ -474,18 +475,29 @@ const ProductFormPage = () => {
             );
         } else if (mediaPickerTarget.type === 'variantTree') {
             const path = mediaPickerTarget.path;
-            const picked = validFiles[0].file;
+            const picked = validFiles.map((f) => f.file);
             setVariantsDraft((prev) => {
-                const updateAtPath = (list, p, file) => {
+                const updateAtPath = (list, p, filesToAdd) => {
                     if (p.length === 1) {
                         const newList = [...list];
-                        newList[p[0]] = { ...newList[p[0]], image: file };
+                        const target = newList[p[0]];
+                        if (mediaPickerTarget.kind === 'secondary') {
+                            const currentSecondary = Array.isArray(target.secondary_images)
+                                ? target.secondary_images
+                                : [];
+                            newList[p[0]] = {
+                                ...target,
+                                secondary_images: [...currentSecondary, ...filesToAdd],
+                            };
+                        } else {
+                            newList[p[0]] = { ...target, image: filesToAdd[0] };
+                        }
                         return newList;
                     }
                     if (p.length === 0) return list;
                     const newList = [...list];
                     const targetSub = newList[p[0]].sub_variants || [];
-                    newList[p[0]] = { ...newList[p[0]], sub_variants: updateAtPath(targetSub, p.slice(1), file) };
+                    newList[p[0]] = { ...newList[p[0]], sub_variants: updateAtPath(targetSub, p.slice(1), filesToAdd) };
                     return newList;
                 };
                 return updateAtPath(prev, path, picked);
@@ -500,7 +512,18 @@ const ProductFormPage = () => {
                 const updateAtPath = (list, p, file) => {
                     if (p.length === 1) {
                         const newList = [...list];
-                        newList[p[0]] = { ...newList[p[0]], image: file };
+                        const target = newList[p[0]];
+                        if (tempImageVariantKind === 'secondary') {
+                            const currentSecondary = Array.isArray(target.secondary_images)
+                                ? target.secondary_images
+                                : [];
+                            newList[p[0]] = {
+                                ...target,
+                                secondary_images: [...currentSecondary, file],
+                            };
+                        } else {
+                            newList[p[0]] = { ...target, image: file };
+                        }
                         return newList;
                     }
                     if (p.length === 0) return list;
@@ -512,6 +535,7 @@ const ProductFormPage = () => {
                 return updateAtPath(prev, tempImageVariantPath, tempImageUrl.trim());
             });
             setTempImageVariantPath(null);
+            setTempImageVariantKind('primary');
         } else if (tempImageType === 'variant' && tempImageVariantIdx != null) {
             setVariantsDraft((prev) =>
                 prev.map((v, i) =>
@@ -757,12 +781,24 @@ const ProductFormPage = () => {
                     }
                 }}
                 onImageSelectRequest={(path) => {
-                    setMediaPickerTarget({ type: 'variantTree', path });
+                    setMediaPickerTarget({ type: 'variantTree', path, kind: 'primary' });
                     setMediaPickerOpen(true);
                 }}
                 onImageUrlRequest={(path) => {
                     setTempImageType('variantTree');
                     setTempImageVariantPath(path);
+                    setTempImageVariantKind('primary');
+                    setTempImageUrl('');
+                    setShowImageUrlModal(true);
+                }}
+                onSecondaryImageSelectRequest={(path) => {
+                    setMediaPickerTarget({ type: 'variantTree', path, kind: 'secondary' });
+                    setMediaPickerOpen(true);
+                }}
+                onSecondaryImageUrlRequest={(path) => {
+                    setTempImageType('variantTree');
+                    setTempImageVariantPath(path);
+                    setTempImageVariantKind('secondary');
                     setTempImageUrl('');
                     setShowImageUrlModal(true);
                 }}

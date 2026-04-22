@@ -24,15 +24,30 @@ const variantDisplayLabel = (v) => {
     return s || null;
 };
 
-const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest, onImageUrlRequest, path, parentPrice, ancestorTypes, globalUnlimitedStock }) => {
+const VariantNode = ({
+    variant,
+    onUpdate,
+    onRemove,
+    level,
+    onImageSelectRequest,
+    onImageUrlRequest,
+    onSecondaryImageSelectRequest,
+    onSecondaryImageUrlRequest,
+    path,
+    parentPrice,
+    ancestorTypes,
+    globalUnlimitedStock,
+}) => {
     const [expanded, setExpanded] = useState(true);
     const [showAddMenu, setShowAddMenu] = useState(false);
     const [showImageMenu, setShowImageMenu] = useState(false);
+    const [uploadingSecondary, setUploadingSecondary] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [draftSubType, setDraftSubType] = useState(null);
     const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
     const { toast } = useToast();
     const fileInputRef = React.useRef(null);
+    const secondaryFileInputRef = React.useRef(null);
 
     // Derived types for children
     const mySubAncestorTypes = [...(ancestorTypes || []), variant._uiType].filter(Boolean);
@@ -68,7 +83,7 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
             const defaultPrice = variant.price || parentPrice || '';
             onUpdate({
                 ...variant,
-                sub_variants: [...currentSub, { id: null, key: '', name: '', price: defaultPrice, stock: '', image: '', sub_variants: [], _uiType: typeUI }]
+                sub_variants: [...currentSub, { id: null, key: '', name: '', price: defaultPrice, stock: '', image: '', secondary_images: [], sub_variants: [], _uiType: typeUI }]
             });
         } else {
             setDraftSubType(typeUI);
@@ -88,7 +103,7 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
             const defaultPrice = variant.price || parentPrice || '';
             onUpdate({
                 ...variant,
-                sub_variants: [...currentSubs, { id: null, key: '', name, price: defaultPrice, stock: '', image: '', sub_variants: [], _uiType: typeUI }]
+                sub_variants: [...currentSubs, { id: null, key: '', name, price: defaultPrice, stock: '', image: '', secondary_images: [], sub_variants: [], _uiType: typeUI }]
             });
             setExpanded(true);
         }
@@ -120,28 +135,39 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
     } else if (typeof variant.image === 'object' && variant.image?.file instanceof File) {
         imgPreview = URL.createObjectURL(variant.image.file);
     }
+    const secondaryImages = Array.isArray(variant.secondary_images)
+        ? variant.secondary_images.filter(Boolean)
+        : [];
+    const secondaryPreviews = secondaryImages.map((img) => {
+        if (typeof img === 'string') return img;
+        if (img?.preview) return img.preview;
+        if (img instanceof File) return URL.createObjectURL(img);
+        if (img?.file instanceof File) return URL.createObjectURL(img.file);
+        return '';
+    }).filter(Boolean);
 
     return (
         <>
         <div className="border border-neutral-4 dark:border-neutral-5 rounded-2xl mb-3 bg-neutral-0 dark:bg-neutral-1 transition-all duration-200">
             {/* Header / Main fields */}
-            <div className={`p-4 flex flex-col md:flex-row gap-4 items-start md:items-center relative ${expanded && hasSubVariants ? 'border-b border-neutral-4 dark:border-neutral-5' : ''}`}>
-
-                {/* Image Section */}
-                <div className="shrink-0">
-                    {imgPreview ? (
-                        <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-neutral-4 dark:border-neutral-5 group">
-                            <img src={imgPreview} alt="variant" className="w-full h-full object-cover" />
-                            <button
-                                type="button"
-                                onClick={() => handleChange('image', '')}
-                                className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="relative">
+            <div className={`p-4 flex gap-4 items-start justify-between relative ${expanded && hasSubVariants ? 'border-b border-neutral-4 dark:border-neutral-5' : ''}`}>
+                <div className="flex-1 flex flex-col gap-3 min-w-0">
+                    <div className="flex flex-wrap items-start gap-3">
+                        {/* Image Section */}
+                        <div className="shrink-0">
+                            <div className="relative">
+                        {imgPreview ? (
+                            <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-neutral-4 dark:border-neutral-5 group">
+                                <img src={imgPreview} alt="variant" className="w-full h-full object-cover" />
+                                <button
+                                    type="button"
+                                    onClick={() => handleChange('image', '')}
+                                    className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        ) : (
                             <button
                                 type="button"
                                 disabled={uploading}
@@ -150,67 +176,158 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                             >
                                 {uploading ? <Loader2 size={20} className="animate-spin text-primary-1" /> : <ImageIcon size={20} />}
                             </button>
-                            {showImageMenu && (
-                                <>
-                                    <div className="fixed inset-0 z-40" onClick={() => setShowImageMenu(false)} />
-                                    <div className="absolute left-0 top-full mt-1 w-56 bg-neutral-0 dark:bg-neutral-1 border border-neutral-3 shadow-lg rounded-xl z-50 flex flex-col p-1 gap-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => { fileInputRef.current?.click(); setShowImageMenu(false); }}
-                                            className="text-xs px-3 py-2 text-left rounded-lg text-neutral-8 hover:bg-neutral-2 transition-colors cursor-pointer"
-                                        >
-                                            Depuis cet ordinateur
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => { onImageSelectRequest(path); setShowImageMenu(false); }}
-                                            className="text-xs px-3 py-2 text-left rounded-lg text-neutral-8 hover:bg-neutral-2 transition-colors cursor-pointer"
-                                        >
-                                            Depuis la bibliothèque Tokia
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => { onImageUrlRequest?.(path); setShowImageMenu(false); }}
-                                            className="text-xs px-3 py-2 text-left rounded-lg text-neutral-8 hover:bg-neutral-2 transition-colors cursor-pointer"
-                                        >
-                                            Ajouter via lien (URL)
-                                        </button>
-                                    </div>
-                                </>
-                            )}
-                            {/* Hidden file input must remain mounted to receive the onChange event after the menu closes */}
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                accept="image/*"
-                                className="hidden"
-                                onChange={async (e) => {
-                                    if (e.target.files?.length > 0) {
-                                        const f = e.target.files[0];
-                                        setUploading(true);
-                                        try {
-                                            const { data: response } = await filesAPI.upload(f);
-                                            const url = response?.data?.file ?? response?.file ?? response?.url;
-                                            if (url) {
-                                                handleChange('image', url);
-                                            } else {
-                                                toast.error("Format de réponse d'upload invalide.");
-                                            }
-                                        } catch (err) {
-                                            toast.error("Erreur lors de l'upload de l'image.");
-                                        } finally {
-                                            setUploading(false);
-                                            e.target.value = '';
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => setShowImageMenu(!showImageMenu)}
+                            className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full border border-neutral-4 dark:border-neutral-5 bg-neutral-0 dark:bg-neutral-1 text-neutral-7 hover:text-primary-1 shadow-sm flex items-center justify-center cursor-pointer"
+                            title="Gérer les images"
+                            aria-label="Gérer les images de la déclinaison"
+                        >
+                            <Plus size={12} />
+                        </button>
+                        {showImageMenu && (
+                            <>
+                                <div className="fixed inset-0 z-40" onClick={() => setShowImageMenu(false)} />
+                                <div className="absolute left-0 top-full mt-1 w-56 bg-neutral-0 dark:bg-neutral-1 border border-neutral-3 shadow-lg rounded-xl z-50 flex flex-col p-1 gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => { fileInputRef.current?.click(); setShowImageMenu(false); }}
+                                        className="text-xs px-3 py-2 text-left rounded-lg text-neutral-8 hover:bg-neutral-2 transition-colors cursor-pointer"
+                                    >
+                                        Image principale (ordinateur)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { onImageSelectRequest(path); setShowImageMenu(false); }}
+                                        className="text-xs px-3 py-2 text-left rounded-lg text-neutral-8 hover:bg-neutral-2 transition-colors cursor-pointer"
+                                    >
+                                        Image principale (bibliothèque)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { onImageUrlRequest?.(path); setShowImageMenu(false); }}
+                                        className="text-xs px-3 py-2 text-left rounded-lg text-neutral-8 hover:bg-neutral-2 transition-colors cursor-pointer"
+                                    >
+                                        Image principale (URL)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { secondaryFileInputRef.current?.click(); setShowImageMenu(false); }}
+                                        className="text-xs px-3 py-2 text-left rounded-lg text-neutral-8 hover:bg-neutral-2 transition-colors cursor-pointer"
+                                    >
+                                        Ajouter images secondaires (ordinateur)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { onSecondaryImageSelectRequest?.(path); setShowImageMenu(false); }}
+                                        className="text-xs px-3 py-2 text-left rounded-lg text-neutral-8 hover:bg-neutral-2 transition-colors cursor-pointer"
+                                    >
+                                        Ajouter images secondaires (bibliothèque)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { onSecondaryImageUrlRequest?.(path); setShowImageMenu(false); }}
+                                        className="text-xs px-3 py-2 text-left rounded-lg text-neutral-8 hover:bg-neutral-2 transition-colors cursor-pointer"
+                                    >
+                                        Ajouter images secondaires (URL)
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                        {/* Hidden file input must remain mounted to receive the onChange event after the menu closes */}
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                                if (e.target.files?.length > 0) {
+                                    const f = e.target.files[0];
+                                    setUploading(true);
+                                    try {
+                                        const { data: response } = await filesAPI.upload(f);
+                                        const url = response?.data?.file ?? response?.file ?? response?.url;
+                                        if (url) {
+                                            handleChange('image', url);
+                                        } else {
+                                            toast.error("Format de réponse d'upload invalide.");
                                         }
+                                    } catch (err) {
+                                        toast.error("Erreur lors de l'upload de l'image.");
+                                    } finally {
+                                        setUploading(false);
+                                        e.target.value = '';
                                     }
-                                }}
-                            />
+                                }
+                            }}
+                        />
+                        <input
+                            type="file"
+                            ref={secondaryFileInputRef}
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={async (e) => {
+                                const files = Array.from(e.target.files ?? []);
+                                if (files.length === 0) return;
+                                setUploadingSecondary(true);
+                                try {
+                                    const uploadedUrls = (await Promise.all(
+                                        files.map(async (f) => {
+                                            const { data: response } = await filesAPI.upload(f);
+                                            return response?.data?.file ?? response?.file ?? response?.url ?? null;
+                                        }),
+                                    )).filter(Boolean);
+                                    if (uploadedUrls.length > 0) {
+                                        handleChange('secondary_images', [
+                                            ...secondaryImages,
+                                            ...uploadedUrls,
+                                        ]);
+                                    }
+                                } catch {
+                                    toast.error("Erreur lors de l'upload des images secondaires.");
+                                } finally {
+                                    setUploadingSecondary(false);
+                                    e.target.value = '';
+                                }
+                            }}
+                        />
+                            </div>
                         </div>
-                    )}
-                </div>
+                        <div className="flex flex-col gap-2 min-w-[11rem] flex-1">
+                            <p className="text-[10px] font-semibold font-poppins text-neutral-5 uppercase tracking-wide">
+                                Images secondaires
+                            </p>
+                            {secondaryImages.length === 0 ? (
+                                <p className="text-[11px] font-poppins text-neutral-5">
+                                    Aucune image secondaire
+                                </p>
+                            ) : (
+                                <div className="flex flex-wrap gap-1.5">
+                                    {secondaryPreviews.map((img, i) => (
+                                        <div key={`${img}-${i}`} className="relative w-10 h-10 rounded-md overflow-hidden border border-neutral-4 dark:border-neutral-5">
+                                            <img src={img} alt={`secondary-${i}`} className="w-full h-full object-cover" />
+                                            <button
+                                                type="button"
+                                                onClick={() => handleChange('secondary_images', secondaryImages.filter((_, idx) => idx !== i))}
+                                                className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/55 text-white flex items-center justify-center"
+                                                title="Retirer"
+                                            >
+                                                <X size={10} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            {uploadingSecondary && (
+                                <p className="text-[11px] font-poppins text-primary-1">Upload en cours...</p>
+                            )}
+                        </div>
+                    </div>
 
-                {/* Main Inputs */}
-                <div className="flex-1 flex flex-col gap-2.5 w-full">
+                    {/* Main Inputs */}
+                    <div className="flex flex-col gap-2.5 w-full">
                     {/* Ligne 1: Nom */}
                     <div className="w-full">
                         {currentType === 'Couleur' || currentType === 'Taille' ? (
@@ -293,10 +410,11 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                             </label>
                         )}
                     </div>
+                    </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 self-end md:self-center mt-2 md:mt-0">
+                <div className="flex items-center gap-2 self-start mt-1">
                     <div className="relative">
                         <button
                             type="button"
@@ -437,6 +555,8 @@ const VariantNode = ({ variant, onUpdate, onRemove, level, onImageSelectRequest,
                                 ancestorTypes={mySubAncestorTypes}
                                 onImageSelectRequest={onImageSelectRequest}
                                 onImageUrlRequest={onImageUrlRequest}
+                            onSecondaryImageSelectRequest={onSecondaryImageSelectRequest}
+                            onSecondaryImageUrlRequest={onSecondaryImageUrlRequest}
                                 onUpdate={(updatedSub) => handleUpdateSubVariant(i, updatedSub)}
                                 onRemove={() => handleRemoveSubVariant(i)}
                             />
@@ -476,9 +596,22 @@ const MemoVariantNode = memo(VariantNode, (prev, next) => {
     );
 });
 
-const VariantsEditorTree = ({ variants, onChange, onImageSelectRequest, onImageUrlRequest, disableRootAdd, suggestedSubVariantType, onRemoveRoot, productPrice, rootType, globalUnlimitedStock }) => {
+const VariantsEditorTree = ({
+    variants,
+    onChange,
+    onImageSelectRequest,
+    onImageUrlRequest,
+    onSecondaryImageSelectRequest,
+    onSecondaryImageUrlRequest,
+    disableRootAdd,
+    suggestedSubVariantType,
+    onRemoveRoot,
+    productPrice,
+    rootType,
+    globalUnlimitedStock,
+}) => {
     const handleAddRoot = useCallback(() => {
-        onChange([...variants, { id: null, key: '', name: '', price: String(productPrice || ''), stock: '', image: '', sub_variants: [] }]);
+        onChange([...variants, { id: null, key: '', name: '', price: String(productPrice || ''), stock: '', image: '', secondary_images: [], sub_variants: [] }]);
     }, [variants, onChange, productPrice]);
 
     const handleUpdateRoot = useCallback((index, updatedVariant) => {
@@ -529,6 +662,8 @@ const VariantsEditorTree = ({ variants, onChange, onImageSelectRequest, onImageU
                             globalUnlimitedStock={globalUnlimitedStock}
                             onImageSelectRequest={onImageSelectRequest}
                             onImageUrlRequest={onImageUrlRequest}
+                            onSecondaryImageSelectRequest={onSecondaryImageSelectRequest}
+                            onSecondaryImageUrlRequest={onSecondaryImageUrlRequest}
                             onUpdate={(updated) => handleUpdateRoot(i, updated)}
                             onRemove={() => handleRemoveRoot(i)}
                         />

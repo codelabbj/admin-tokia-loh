@@ -35,10 +35,9 @@ export const resolveImageUrl = async (image) => {
 /** Même pas que la liste paginée admin — utilisé pour parcourir toutes les pages. */
 export const PRODUCTS_PAGE_SIZE = 50;
 
-export const normalizeVariantsForAPI = (variants, globalUnlimited = true) => {
+export const normalizeVariantsForAPI = async (variants, globalUnlimited = true) => {
   if (!Array.isArray(variants)) return [];
-
-  return variants.map((v) => {
+  const normalized = await Promise.all(variants.map(async (v) => {
     const cleaned = { name: v.name };
     if (v.id) cleaned.id = v.id;
     if (v.key) cleaned.key = v.key;
@@ -54,16 +53,23 @@ export const normalizeVariantsForAPI = (variants, globalUnlimited = true) => {
     }
     // Si unlimited_stock est true, la propriété `stock` est purement ignorée (non envoyée)
 
-    if (v.image && typeof v.image === "string") {
-      cleaned.image = v.image;
+    if (v.image) {
+      const resolvedImage = await resolveImageUrl(v.image);
+      if (resolvedImage) cleaned.image = resolvedImage;
+    }
+    if (Array.isArray(v.secondary_images)) {
+      cleaned.secondary_images = (
+        await Promise.all(v.secondary_images.map((img) => resolveImageUrl(img)))
+      ).filter(Boolean);
     }
 
     if (Array.isArray(v.sub_variants) && v.sub_variants.length > 0) {
-      cleaned.sub_variants = normalizeVariantsForAPI(v.sub_variants, globalUnlimited);
+      cleaned.sub_variants = await normalizeVariantsForAPI(v.sub_variants, globalUnlimited);
     }
 
     return cleaned;
-  });
+  }));
+  return normalized;
 };
 
 export const normalizeOthersDetails = (details) => {
@@ -192,7 +198,7 @@ export const useProducts = (options = {}) => {
       others_details: normalizeOthersDetails(formData.others_details),
 
       status: formData.status ?? formData.is_active ?? true,
-      variants: normalizeVariantsForAPI(formData.variants || [], unlimited), // Added for API v2
+      variants: await normalizeVariantsForAPI(formData.variants || [], unlimited), // Added for API v2
     };
 
 
@@ -278,7 +284,7 @@ export const useProducts = (options = {}) => {
       // API v2: variants support
       if (formData.variants !== undefined) {
         const isUnlimited = !!formData.unlimited_stock;
-        payload.variants = normalizeVariantsForAPI(formData.variants, isUnlimited) || [];
+        payload.variants = await normalizeVariantsForAPI(formData.variants, isUnlimited) || [];
       }
 
       const { data } = await productsAPI.update(id, payload);
