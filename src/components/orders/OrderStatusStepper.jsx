@@ -63,7 +63,7 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
                 title: 'Confirmer l’annulation',
                 message:
                     'Êtes-vous sûr de vouloir annuler cette commande ? Cette action peut être irréversible.',
-                confirmLabel: 'Annuler la commande',
+                confirmLabel: 'Confirmer',
             });
             setCancellationReason('');
             return;
@@ -182,7 +182,7 @@ const OrderStatusStepper = ({ status, onStatusChange, disabled = false }) => {
                                         type="button"
                                         onClick={closeConfirm}
                                         disabled={confirmLoading}
-                                        className="flex-1 px-4 py-2 rounded-full text-xs font-semibold font-poppins bg-neutral-2/80 hover:bg-neutral-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer text-white"
+                                        className="flex-1 px-4 py-2 rounded-full text-xs font-semibold font-poppins border border-neutral-4 dark:border-neutral-5 bg-neutral-1 dark:bg-neutral-4 hover:bg-neutral-2 dark:hover:bg-neutral-3 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer text-neutral-8 dark:text-white"
                                     >
                                         Retour
                                     </button>

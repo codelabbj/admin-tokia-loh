@@ -6,7 +6,7 @@ import {
     ArrowLeft, Pencil, Tag,
     Package, CheckCircle, XCircle, AlertTriangle, Loader2,
     ChevronLeft, ChevronRight, Play, ImageOff, Layers, ChevronDown,
-    Copy, Check,
+    Copy, Check, X,
 } from 'lucide-react';
 import { useProducts, normalizeProduct, normalizeOthersDetails } from '../hooks/useProducts';
 import { productsAPI } from '../api/products.api';
@@ -180,6 +180,8 @@ const Section = ({ title, children }) => (
 const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }) => {
     const [open, setOpen] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
+    const [viewerOpen, setViewerOpen] = useState(false);
+    const [viewerIndex, setViewerIndex] = useState(0);
     const [editForm, setEditForm] = useState({
         key: '',
         name: '',
@@ -198,6 +200,7 @@ const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }
     const vSecondaryImages = Array.isArray(v.secondary_images)
         ? v.secondary_images.filter(Boolean)
         : [];
+    const variantMedia = [v.image, ...vSecondaryImages].filter(Boolean);
     const canEdit = !!v?.id;
     const savingThisVariant = isVariantSaving?.(v?.id) === true;
 
@@ -231,6 +234,22 @@ const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }
         await onUpdateVariant(v.id, payload);
         setIsEditing(false);
     };
+    const openViewerAt = (index, e) => {
+        e?.stopPropagation?.();
+        if (!variantMedia.length) return;
+        setViewerIndex(index);
+        setViewerOpen(true);
+    };
+    const prevViewer = (e) => {
+        e?.stopPropagation?.();
+        if (!variantMedia.length) return;
+        setViewerIndex((i) => (i - 1 + variantMedia.length) % variantMedia.length);
+    };
+    const nextViewer = (e) => {
+        e?.stopPropagation?.();
+        if (!variantMedia.length) return;
+        setViewerIndex((i) => (i + 1) % variantMedia.length);
+    };
 
     const depthBorderColors = [
         'border-l-primary-1',
@@ -254,20 +273,28 @@ const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }
                 {/* Ligne 1 : Médias */}
                 <div className="flex items-start justify-between gap-3">
                     <div className="shrink-0 flex items-center gap-1.5">
-                        <div className="w-10 h-10 rounded-lg border border-neutral-4 overflow-hidden bg-neutral-3 flex items-center justify-center">
+                        <button
+                            type="button"
+                            onClick={(e) => openViewerAt(0, e)}
+                            className="w-10 h-10 rounded-lg border border-neutral-4 overflow-hidden bg-neutral-3 flex items-center justify-center cursor-pointer"
+                            title="Voir l'image principale"
+                        >
                             {v.image
                                 ? <img src={v.image} alt="" className="w-full h-full object-cover" />
                                 : <Layers size={16} className="text-neutral-5" />}
-                        </div>
+                        </button>
                         {vSecondaryImages.length > 0 && (
                             <div className="flex items-center gap-1">
                                 {vSecondaryImages.slice(0, 3).map((img, i) => (
-                                    <div
+                                    <button
+                                        type="button"
+                                        onClick={(e) => openViewerAt(i + 1, e)}
                                         key={`${img}-${i}`}
-                                        className="w-7 h-7 rounded-md border border-neutral-4 overflow-hidden bg-neutral-3"
+                                        className="w-7 h-7 rounded-md border border-neutral-4 overflow-hidden bg-neutral-3 cursor-pointer"
+                                        title={`Voir image secondaire ${i + 1}`}
                                     >
                                         <img src={img} alt="" className="w-full h-full object-cover" />
-                                    </div>
+                                    </button>
                                 ))}
                                 {vSecondaryImages.length > 3 && (
                                     <span className="text-[10px] font-semibold font-poppins text-neutral-6">
@@ -330,7 +357,7 @@ const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }
                                 e.stopPropagation();
                                 setIsEditing((prev) => !prev);
                             }}
-                            className="px-2 py-1 rounded-lg border border-neutral-4 text-[11px] font-poppins text-neutral-7 hover:text-primary-1 hover:border-primary-3 transition-colors cursor-pointer"
+                            className="px-2 py-1 rounded-lg border border-neutral-4 dark:border-neutral-6 bg-neutral-0 dark:bg-neutral-2 text-[11px] font-poppins text-neutral-7 dark:text-white/90 hover:text-primary-1 hover:border-primary-3 transition-colors cursor-pointer"
                         >
                             {isEditing ? 'Fermer' : 'Modifier'}
                         </button>
@@ -348,13 +375,13 @@ const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }
                             value={editForm.key}
                             onChange={(e) => setEditForm((prev) => ({ ...prev, key: e.target.value }))}
                             placeholder="Clé"
-                            className="h-9 px-3 rounded-xl border border-neutral-4 bg-neutral-0 text-xs font-poppins"
+                            className="h-9 px-3 rounded-xl border border-neutral-4 dark:border-neutral-6 bg-neutral-0 dark:bg-neutral-2 text-xs font-poppins text-neutral-8 dark:text-white placeholder:text-neutral-5 dark:placeholder:text-white/45"
                         />
                         <input
                             value={editForm.name}
                             onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
                             placeholder="Valeur / nom"
-                            className="h-9 px-3 rounded-xl border border-neutral-4 bg-neutral-0 text-xs font-poppins"
+                            className="h-9 px-3 rounded-xl border border-neutral-4 dark:border-neutral-6 bg-neutral-0 dark:bg-neutral-2 text-xs font-poppins text-neutral-8 dark:text-white placeholder:text-neutral-5 dark:placeholder:text-white/45"
                         />
                         <input
                             type="number"
@@ -362,7 +389,7 @@ const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }
                             value={editForm.price}
                             onChange={(e) => setEditForm((prev) => ({ ...prev, price: e.target.value }))}
                             placeholder="Prix"
-                            className="h-9 px-3 rounded-xl border border-neutral-4 bg-neutral-0 text-xs font-poppins"
+                            className="h-9 px-3 rounded-xl border border-neutral-4 dark:border-neutral-6 bg-neutral-0 dark:bg-neutral-2 text-xs font-poppins text-neutral-8 dark:text-white placeholder:text-neutral-5 dark:placeholder:text-white/45"
                         />
                         <input
                             type="number"
@@ -371,9 +398,9 @@ const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }
                             onChange={(e) => setEditForm((prev) => ({ ...prev, stock: e.target.value, unlimited_stock: false }))}
                             placeholder="Stock"
                             disabled={editForm.unlimited_stock}
-                            className="h-9 px-3 rounded-xl border border-neutral-4 bg-neutral-0 text-xs font-poppins disabled:bg-neutral-2"
+                            className="h-9 px-3 rounded-xl border border-neutral-4 dark:border-neutral-6 bg-neutral-0 dark:bg-neutral-2 text-xs font-poppins text-neutral-8 dark:text-white placeholder:text-neutral-5 dark:placeholder:text-white/45 disabled:bg-neutral-2 dark:disabled:bg-neutral-3"
                         />
-                        <label className="h-9 px-3 rounded-xl border border-neutral-4 bg-neutral-0 text-xs font-poppins flex items-center gap-2 cursor-pointer">
+                        <label className="h-9 px-3 rounded-xl border border-neutral-4 dark:border-neutral-6 bg-neutral-0 dark:bg-neutral-2 text-xs font-poppins text-neutral-8 dark:text-white flex items-center gap-2 cursor-pointer">
                             <input
                                 type="checkbox"
                                 checked={editForm.unlimited_stock}
@@ -383,15 +410,15 @@ const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }
                                     stock: e.target.checked ? '' : prev.stock,
                                 }))}
                             />
-                            Toujours en stock
+                            <span className="text-neutral-8 dark:text-white">Toujours en stock</span>
                         </label>
-                        <label className="h-9 px-3 rounded-xl border border-neutral-4 bg-neutral-0 text-xs font-poppins flex items-center gap-2 cursor-pointer">
+                        <label className="h-9 px-3 rounded-xl border border-neutral-4 dark:border-neutral-6 bg-neutral-0 dark:bg-neutral-2 text-xs font-poppins text-neutral-8 dark:text-white flex items-center gap-2 cursor-pointer">
                             <input
                                 type="checkbox"
                                 checked={editForm.status}
                                 onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.checked }))}
                             />
-                            Active
+                            <span className="text-neutral-8 dark:text-white">Active</span>
                         </label>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
@@ -409,10 +436,67 @@ const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }
                                 e.stopPropagation();
                                 setIsEditing(false);
                             }}
-                            className="px-3 h-8 rounded-lg border border-neutral-4 text-xs font-poppins cursor-pointer"
+                            className="px-3 h-8 rounded-lg border border-neutral-4 dark:border-neutral-6 bg-neutral-0 dark:bg-neutral-2 text-xs font-poppins text-neutral-7 dark:text-white/90 cursor-pointer"
                         >
                             Annuler
                         </button>
+                    </div>
+                </div>
+            )}
+            {viewerOpen && variantMedia.length > 0 && (
+                <div
+                    className="fixed inset-0 z-50 bg-black/70 p-4 flex items-center justify-center"
+                    onClick={() => setViewerOpen(false)}
+                >
+                    <div
+                        className="w-full max-w-3xl rounded-2xl border border-neutral-4 dark:border-neutral-5 bg-neutral-0 dark:bg-neutral-1 p-3 flex flex-col gap-3"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setViewerOpen(false)}
+                                className="w-8 h-8 rounded-lg border border-neutral-4 dark:border-neutral-5 bg-neutral-0 dark:bg-neutral-2 text-neutral-8 dark:text-white hover:text-danger-1 dark:hover:text-danger-2 hover:border-danger-1 dark:hover:border-danger-2 transition-colors cursor-pointer flex items-center justify-center"
+                                title="Fermer"
+                                aria-label="Fermer la modale"
+                            >
+                                <X size={15} />
+                            </button>
+                        </div>
+                        <div className="relative aspect-video rounded-xl overflow-hidden border border-neutral-4 dark:border-neutral-5 bg-neutral-2">
+                            <MediaViewer url={variantMedia[viewerIndex]} />
+                            {variantMedia.length > 1 && (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={prevViewer}
+                                        className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-neutral-0/90 border border-neutral-4 flex items-center justify-center text-neutral-7 hover:text-neutral-8 cursor-pointer"
+                                    >
+                                        <ChevronLeft size={15} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={nextViewer}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-neutral-0/90 border border-neutral-4 flex items-center justify-center text-neutral-7 hover:text-neutral-8 cursor-pointer"
+                                    >
+                                        <ChevronRight size={15} />
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="flex gap-2 flex-wrap">
+                                {variantMedia.map((url, i) => (
+                                    <MediaThumb
+                                        key={`${url}-${i}`}
+                                        url={url}
+                                        index={i}
+                                        active={i === viewerIndex}
+                                        onClick={() => setViewerIndex(i)}
+                                    />
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
