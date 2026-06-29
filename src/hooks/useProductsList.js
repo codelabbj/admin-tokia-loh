@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { productsAPI } from "../api/products.api";
 import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
 
+import { fetchAllPaginatedPages } from "../utils/fetchAllPages";
+
 /** Taille de page alignée avec la pagination liste produits (admin). */
 export const PRODUCTS_LIST_PAGE_SIZE = 25;
 
@@ -69,28 +71,49 @@ export const useProductsList = () => {
     setPage(1);
   }, [searchDebounced, categoryId]);
 
+  const isSearchMode = searchDebounced.length > 0;
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const params = {
-          page,
-          page_size: PRODUCTS_LIST_PAGE_SIZE,
-          ordering: ORDERING_NEWEST_FIRST,
-        };
-        if (searchDebounced) params.search = searchDebounced;
-        if (categoryId) params.category = categoryId;
+        const baseParams = { ordering: ORDERING_NEWEST_FIRST };
+        if (categoryId) baseParams.category = categoryId;
 
-        const { data } = await productsAPI.list(params);
-        if (cancelled) return;
+        if (isSearchMode) {
+          const { items, totalCount: count } = await fetchAllPaginatedPages(
+            async (pageNum, pageSize) => {
+              const { data } = await productsAPI.list({
+                ...baseParams,
+                page: pageNum,
+                page_size: pageSize,
+                search: searchDebounced,
+              });
+              return data;
+            },
+            { pageSize: 100 },
+          );
+          if (cancelled) return;
+          setProducts(items.map(normalizeProduct));
+          setTotalCount(count);
+        } else {
+          const params = {
+            ...baseParams,
+            page,
+            page_size: PRODUCTS_LIST_PAGE_SIZE,
+          };
 
-        const list = Array.isArray(data) ? data : (data.results ?? []);
-        setProducts(list.map(normalizeProduct));
-        setTotalCount(
-          typeof data.count === "number" ? data.count : list.length,
-        );
+          const { data } = await productsAPI.list(params);
+          if (cancelled) return;
+
+          const list = Array.isArray(data) ? data : (data.results ?? []);
+          setProducts(list.map(normalizeProduct));
+          setTotalCount(
+            typeof data.count === "number" ? data.count : list.length,
+          );
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err.message ?? "Erreur lors du chargement des produits");
@@ -104,9 +127,11 @@ export const useProductsList = () => {
     return () => {
       cancelled = true;
     };
-  }, [page, searchDebounced, categoryId, reloadNonce]);
+  }, [page, searchDebounced, categoryId, reloadNonce, isSearchMode]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PRODUCTS_LIST_PAGE_SIZE));
+  const totalPages = isSearchMode
+    ? 1
+    : Math.max(1, Math.ceil(totalCount / PRODUCTS_LIST_PAGE_SIZE));
 
   const refetch = useCallback(() => {
     setReloadNonce((n) => n + 1);
@@ -126,5 +151,6 @@ export const useProductsList = () => {
     categoryId,
     setCategoryId,
     refetch,
+    isSearchMode,
   };
 };

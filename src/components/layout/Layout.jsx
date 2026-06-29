@@ -55,7 +55,7 @@ const Layout = ({ children, showSearch = true }) => {
                     onMenuToggle={() => setMobileOpen(p => !p)}
                     showSearch={showSearch}
                 />
-                <main className="flex-1 overflow-y-auto p-6">
+                <main className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-6 [&>div:not([data-settings-root])]:pt-6">
                     {children}
                 </main>
             </div>

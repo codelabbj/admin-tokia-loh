@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { clientsAPI } from "../api/client.api";
 import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
+import { fetchAllPaginatedPages } from "../utils/fetchAllPages";
 
 export const CLIENTS_LIST_PAGE_SIZE = 20;
+const CLIENTS_SEARCH_FETCH_PAGE_SIZE = 100;
 
 /**
  * Dérive le statut lisible depuis les champs booléens de l'API.
@@ -52,28 +54,62 @@ export const useClients = (id = null) => {
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [search, setSearch] = useState("");
+  const [searchDebounced, setSearchDebounced] = useState("");
+  const [reloadNonce, setReloadNonce] = useState(0);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    if (!id) setPage(1);
+  }, [searchDebounced, id]);
+
+  const isSearchMode = !id && searchDebounced.length > 0;
 
   // ─── Liste ────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await clientsAPI.list({
-        page,
-        page_size: CLIENTS_LIST_PAGE_SIZE,
-        ordering: ORDERING_NEWEST_FIRST,
-      });
-      const rows = extractClientsRows(data);
-      setClients(rows);
-      setTotalCount(
-        typeof data?.count === "number" ? data.count : rows.length,
-      );
+      if (isSearchMode) {
+        const { items, totalCount: count } = await fetchAllPaginatedPages(
+          async (pageNum, pageSize) => {
+            const { data } = await clientsAPI.list({
+              page: pageNum,
+              page_size: pageSize,
+              ordering: ORDERING_NEWEST_FIRST,
+              search: searchDebounced,
+            });
+            return data;
+          },
+          {
+            pageSize: CLIENTS_SEARCH_FETCH_PAGE_SIZE,
+            extractList: extractClientsRows,
+          },
+        );
+        setClients(items);
+        setTotalCount(count);
+      } else {
+        const { data } = await clientsAPI.list({
+          page,
+          page_size: CLIENTS_LIST_PAGE_SIZE,
+          ordering: ORDERING_NEWEST_FIRST,
+        });
+        const rows = extractClientsRows(data);
+        setClients(rows);
+        setTotalCount(
+          typeof data?.count === "number" ? data.count : rows.length,
+        );
+      }
     } catch (err) {
       setError(err.message ?? "Erreur lors du chargement des clients");
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, searchDebounced, isSearchMode, reloadNonce]);
 
   // ─── Détail ───────────────────────────────────────────────
   const fetchOne = useCallback(async (clientId) => {
@@ -137,10 +173,13 @@ export const useClients = (id = null) => {
     return data;
   };
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(totalCount / CLIENTS_LIST_PAGE_SIZE),
-  );
+  const totalPages = isSearchMode
+    ? 1
+    : Math.max(1, Math.ceil(totalCount / CLIENTS_LIST_PAGE_SIZE));
+
+  const refetchList = useCallback(() => {
+    setReloadNonce((n) => n + 1);
+  }, []);
 
   return {
     clients,
@@ -159,6 +198,10 @@ export const useClients = (id = null) => {
           totalPages,
           totalCount,
           pageSize: CLIENTS_LIST_PAGE_SIZE,
+          search,
+          setSearch,
+          isSearchMode,
+          refetchList,
         }),
   };
 };

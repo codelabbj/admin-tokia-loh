@@ -8,12 +8,26 @@ import api from "./client";
  * GET    /shop/files/:id/
  * DELETE /shop/files/:id/
  */
+/** Rejette les fichiers vides ou invalides avant envoi au serveur. */
+function assertUploadableFile(file) {
+  if (!(file instanceof File) && !(file instanceof Blob)) {
+    throw new Error("Fichier invalide.");
+  }
+  if (!file.size) {
+    throw new Error(
+      "Le fichier sélectionné est vide (0 octet). Choisissez une autre image.",
+    );
+  }
+}
+
 class FilesAPI {
   /**
    * Upload un fichier File natif du navigateur.
    * @param {File} file — objet File (input type="file")
    */
   upload(file) {
+    assertUploadableFile(file);
+
     // Renommer le fichier en UUID + extension d'origine avant envoi
     const ext = file.name.includes(".")
       ? "." + file.name.split(".").pop().toLowerCase()

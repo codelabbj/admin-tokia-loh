@@ -37,9 +37,10 @@ const ClientsTable = ({
     onBlock,
     pagination = null,
     highlightRowId = '',
+    serverFilters = null,
 }) => {
     const navigate = useNavigate();
-    const [search, setSearch] = useState('');
+    const [localSearch, setLocalSearch] = useState('');
     const [activeTab, setActiveTab] = useState('Tous');
     const prevHighlightRef = useRef('');
 
@@ -51,8 +52,13 @@ const ClientsTable = ({
         if (highlightRowId === prevHighlightRef.current) return;
         prevHighlightRef.current = highlightRowId;
         setActiveTab('Tous');
-        setSearch('');
-    }, [highlightRowId]);
+        if (serverFilters) serverFilters.onSearchChange('');
+        else setLocalSearch('');
+    }, [highlightRowId, serverFilters]);
+
+    const search = serverFilters ? serverFilters.search : localSearch;
+    const setSearch = serverFilters ? serverFilters.onSearchChange : setLocalSearch;
+    const useServerSearch = !!(serverFilters && search.trim());
 
     const filtered = useMemo(() => {
         const q = search.toLowerCase();
@@ -60,13 +66,13 @@ const ClientsTable = ({
             const matchTab = activeTab === 'Tous' || c.status === activeTab;
             const fullName = `${c.first_name ?? ''} ${c.last_name ?? ''}`.toLowerCase();
             const city = (c.city_details?.name ?? '').toLowerCase();
-            const matchSearch =
+            const matchSearch = useServerSearch ||
                 fullName.includes(q) ||
                 (c.phone ?? '').includes(search.trim()) ||
                 city.includes(q);
             return matchTab && matchSearch;
         });
-    }, [clients, search, activeTab]);
+    }, [clients, search, activeTab, useServerSearch]);
 
     const countByStatus = useMemo(() => {
         const map = { Tous: clients.length };
@@ -85,7 +91,7 @@ const ClientsTable = ({
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-6 pointer-events-none" aria-hidden />
                     <input
                         type="search"
-                        placeholder="Nom, téléphone, ville (page actuelle)…"
+                        placeholder={useServerSearch ? 'Nom, téléphone, ville…' : 'Nom, téléphone, ville (page actuelle)…'}
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         className="w-full pl-9 pr-4 py-2 text-xs font-poppins rounded-full
@@ -95,9 +101,11 @@ const ClientsTable = ({
                             focus:ring-2 focus:ring-primary-5 transition-all duration-200"
                     />
                 </div>
-                {pagination && (
+                {(pagination || useServerSearch) && (
                     <span className="text-[11px] font-poppins text-neutral-6 whitespace-nowrap">
-                        {filtered.length} affichée{filtered.length > 1 ? 's' : ''} · {pagination.totalCount} au total
+                        {useServerSearch
+                            ? `${filtered.length} résultat${filtered.length > 1 ? 's' : ''} trouvé${filtered.length > 1 ? 's' : ''}`
+                            : `${filtered.length} affichée${filtered.length > 1 ? 's' : ''} · ${pagination?.totalCount ?? 0} au total`}
                     </span>
                 )}
             </div>

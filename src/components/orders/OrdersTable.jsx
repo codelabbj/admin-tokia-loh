@@ -37,6 +37,7 @@ const TAB_LABEL = { all: 'Toutes' };
   - onStatusChange : (orderId, newStatus) => void  — optionnel
   - statusStats    : { total, in_progress, delivered, canceled } | null — si null, badges onglets = page courante (orders)
   - pagination     : { page, totalPages, totalCount, pageSize, onPageChange } | null
+  - serverFilters    : { search, onSearchChange } | null — recherche API (toutes pages)
 */
 const OrdersTable = ({
     orders = [],
@@ -45,9 +46,10 @@ const OrdersTable = ({
     statusStats = null,
     pagination = null,
     highlightRowId = '',
+    serverFilters = null,
 }) => {
     const navigate = useNavigate();
-    const [search, setSearch] = useState('');
+    const [localSearch, setLocalSearch] = useState('');
     const prevHighlightRef = useRef('');
     const searchInputId = useId();
     const searchHintId = useId();
@@ -64,8 +66,13 @@ const OrdersTable = ({
         if (highlightRowId === prevHighlightRef.current) return;
         prevHighlightRef.current = highlightRowId;
         setActiveTab('all');
-        setSearch('');
-    }, [highlightRowId]);
+        if (serverFilters) serverFilters.onSearchChange('');
+        else setLocalSearch('');
+    }, [highlightRowId, serverFilters]);
+
+    const search = serverFilters ? serverFilters.search : localSearch;
+    const setSearch = serverFilters ? serverFilters.onSearchChange : setLocalSearch;
+    const useServerSearch = !!(serverFilters && search.trim());
 
     const searchQ = search.trim().toLowerCase();
 
@@ -80,7 +87,7 @@ const OrdersTable = ({
             const cityStr = String(o.client?.city ?? '').toLowerCase();
             const itemsStr = (o.items ?? []).map(i => String(i.name ?? '')).join(' ').toLowerCase();
 
-            const matchSearch = !searchQ ||
+            const matchSearch = useServerSearch || !searchQ ||
                 idStr.includes(searchQ) ||
                 refMatchesQuery(o.reference, searchQ) ||
                 nameStr.includes(searchQ) ||
@@ -89,7 +96,7 @@ const OrdersTable = ({
                 itemsStr.includes(searchQ);
             return matchTab && matchSearch;
         });
-    }, [orders, searchQ, activeTab]);
+    }, [orders, searchQ, activeTab, useServerSearch]);
 
     const countByStatus = useMemo(() => {
         if (statusStats) {
@@ -118,7 +125,7 @@ const OrdersTable = ({
                         id={searchInputId}
                         type="search"
                         role="searchbox"
-                        aria-label="Filtrer les commandes de la page courante"
+                        aria-label={useServerSearch ? 'Rechercher dans toutes les commandes' : 'Filtrer les commandes de la page courante'}
                         aria-describedby={searchHintId}
                         aria-controls={tableRegionId}
                         placeholder="Référence, client, n° commande, ville…"
@@ -127,15 +134,19 @@ const OrdersTable = ({
                         className="w-full pl-9 pr-4 py-2 text-xs font-poppins rounded-full bg-neutral-3 dark:bg-neutral-3 border border-transparent text-neutral-8 dark:text-neutral-8 placeholder:text-neutral-6 outline-none focus:border-primary-1 focus:bg-neutral-0 dark:focus:bg-neutral-0 focus:ring-2 focus:ring-primary-5 transition-all duration-200"
                     />
                     <p id={searchHintId} className="sr-only">
-                        Saisie filtrée en direct sur les commandes déjà chargées (page actuelle), sans requête serveur.
+                        {useServerSearch
+                            ? 'Recherche sur toutes les commandes correspondantes.'
+                            : 'Saisie filtrée en direct sur les commandes de la page actuelle.'}
                     </p>
                     <p id={filterLiveId} className="sr-only" aria-live="polite" aria-atomic="true">
                         {!loading && `${filtered.length} commande${filtered.length > 1 ? 's' : ''} correspond${filtered.length > 1 ? 'ent' : ''} au filtre`}
                     </p>
                 </div>
-                {pagination && (
+                {(pagination || useServerSearch) && (
                     <span className="text-[11px] font-poppins text-neutral-6 whitespace-nowrap">
-                        {filtered.length} affichée{filtered.length > 1 ? 's' : ''} · {pagination.totalCount} au total
+                        {useServerSearch
+                            ? `${filtered.length} résultat${filtered.length > 1 ? 's' : ''} trouvé${filtered.length > 1 ? 's' : ''}`
+                            : `${filtered.length} affichée${filtered.length > 1 ? 's' : ''} · ${pagination?.totalCount ?? 0} au total`}
                     </span>
                 )}
             </div>

@@ -4,18 +4,33 @@ import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
 import { filesAPI } from "../api/files.api";
 import { apiCache } from "../utils/apiCache";
 
+const isHttpUrl = (value) =>
+  typeof value === "string" &&
+  (value.startsWith("http://") || value.startsWith("https://"));
+
 /**
  * Résout une image avant envoi à l'API.
  * Accepte :
  * - string (URL)
  * - File
- * - { file: File, preview }
+ * - { file: File | URL, preview? }
+ * - { id, file: URL } (entrée médiathèque)
  */
 export const resolveImageUrl = async (image) => {
   if (!image) return null;
 
   // Déjà une URL
-  if (typeof image === "string") return image;
+  if (typeof image === "string") {
+    const trimmed = image.trim();
+    return trimmed || null;
+  }
+
+  // Entrée médiathèque ou objet { file: URL }
+  if (typeof image === "object" && typeof image.file === "string") {
+    const url = image.file.trim();
+    if (isHttpUrl(url)) return url;
+    if (!url) return null;
+  }
 
   // File natif
   if (image instanceof File) {
@@ -23,7 +38,7 @@ export const resolveImageUrl = async (image) => {
     return response?.data?.file ?? response?.file ?? response?.url ?? null;
   }
 
-  // { file, preview }
+  // { file: File, preview? }
   if (typeof image === "object" && image.file instanceof File) {
     const { data: response } = await filesAPI.upload(image.file);
     return response?.data?.file ?? response?.file ?? response?.url ?? null;

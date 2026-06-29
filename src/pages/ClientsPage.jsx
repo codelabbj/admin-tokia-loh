@@ -25,6 +25,9 @@ const ClientsPage = () => {
         totalPages,
         totalCount,
         pageSize,
+        search,
+        setSearch,
+        isSearchMode,
     } = useClients();
     const { toasts, showToast, removeToast } = useToast();
 
@@ -167,7 +170,8 @@ const ClientsPage = () => {
                 onDisable={handleDisable}
                 onBlock={handleBlock}
                 highlightRowId={highlightClient || tableFlashId}
-                pagination={{
+                serverFilters={{ search, onSearchChange: setSearch }}
+                pagination={isSearchMode ? null : {
                     page,
                     totalPages,
                     totalCount,

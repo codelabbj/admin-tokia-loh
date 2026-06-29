@@ -161,3 +161,13 @@ select:-webkit-autofill:active {
 * {
   scrollbar-color: var(--color-primary-1) var(--color-neutral-3);
 }
+
+/* Masque la scrollbar tout en gardant le défilement */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

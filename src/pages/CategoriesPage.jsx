@@ -63,13 +63,15 @@ const CategoriesPage = () => {
         onSearchChange: list.setSearch,
     };
 
-    const pagination = {
-        page: list.page,
-        totalPages: list.totalPages,
-        totalCount: list.totalCount,
-        pageSize: list.pageSize,
-        onPageChange: list.setPage,
-    };
+    const pagination = list.isSearchMode
+        ? null
+        : {
+            page: list.page,
+            totalPages: list.totalPages,
+            totalCount: list.totalCount,
+            pageSize: list.pageSize,
+            onPageChange: list.setPage,
+        };
 
     return (
         <div className="flex flex-col gap-6">

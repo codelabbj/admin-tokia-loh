@@ -244,6 +244,11 @@ const VariantNode = ({
                             onChange={async (e) => {
                                 if (e.target.files?.length > 0) {
                                     const f = e.target.files[0];
+                                    if (!f.size) {
+                                        toast.error('Le fichier sélectionné est vide. Choisissez une autre image.');
+                                        e.target.value = '';
+                                        return;
+                                    }
                                     setUploading(true);
                                     try {
                                         const { data: response } = await filesAPI.upload(f);
@@ -269,8 +274,17 @@ const VariantNode = ({
                             multiple
                             className="hidden"
                             onChange={async (e) => {
-                                const files = Array.from(e.target.files ?? []);
-                                if (files.length === 0) return;
+                                const files = Array.from(e.target.files ?? []).filter((f) => {
+                                    if (!f.size) {
+                                        toast.error(`Fichier ignoré (vide) : ${f.name || 'sans nom'}`);
+                                        return false;
+                                    }
+                                    return true;
+                                });
+                                if (files.length === 0) {
+                                    e.target.value = '';
+                                    return;
+                                }
                                 setUploadingSecondary(true);
                                 try {
                                     const uploadedUrls = (await Promise.all(

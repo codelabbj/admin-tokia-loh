@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pencil, Trash2, Eye, Loader2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Pencil, Trash2, Eye, Loader2, Search } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import ProductStatusToggle from '../products/ProductStatusToggle';
 
@@ -35,9 +35,35 @@ const VillesTable = ({
     onToggle,
 }) => {
     const navigate = useNavigate();
+    const [search, setSearch] = useState('');
+
+    const filtered = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return villes;
+        return villes.filter((v) =>
+            String(v.name ?? '').toLowerCase().includes(q),
+        );
+    }, [villes, search]);
 
     return (
         <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-md overflow-hidden">
+            <div className="flex flex-wrap items-center gap-3 px-5 py-4 border-b border-neutral-4 dark:border-neutral-4">
+                <div className="relative flex-1 min-w-48 max-w-sm">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-6 pointer-events-none" />
+                    <input
+                        type="search"
+                        placeholder="Rechercher une ville…"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 text-xs font-poppins rounded-full bg-neutral-3 dark:bg-neutral-3 border border-transparent text-neutral-8 dark:text-neutral-8 placeholder:text-neutral-6 outline-none focus:border-primary-1 focus:bg-neutral-0 dark:focus:bg-neutral-0 focus:ring-2 focus:ring-primary-5 transition-all duration-200"
+                    />
+                </div>
+                {search.trim() && (
+                    <span className="text-[11px] font-poppins text-neutral-6 whitespace-nowrap ml-auto">
+                        {filtered.length} résultat{filtered.length > 1 ? 's' : ''} trouvé{filtered.length > 1 ? 's' : ''}
+                    </span>
+                )}
+            </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-xs font-poppins">
                     <thead>
@@ -62,7 +88,13 @@ const VillesTable = ({
                                     Aucune ville configurée
                                 </td>
                             </tr>
-                        ) : villes.map((ville) => {
+                        ) : filtered.length === 0 ? (
+                            <tr>
+                                <td colSpan={4} className="px-5 py-10 text-center text-neutral-6">
+                                    Aucune ville ne correspond à votre recherche
+                                </td>
+                            </tr>
+                        ) : filtered.map((ville) => {
                             const hasOrders =
                                 cityKeysWithOrders.has(
                                     String(ville.name ?? '').toLowerCase(),

@@ -62,7 +62,9 @@ const CategoriesTable = ({
                     <span className="text-[11px] font-poppins text-neutral-6 whitespace-nowrap ml-auto">
                         {pagination
                             ? `${rowCount} affichée${rowCount > 1 ? 's' : ''} · ${pagination.totalCount} au total`
-                            : `${rowCount} catégorie${rowCount > 1 ? 's' : ''}`}
+                            : serverFilters?.search
+                                ? `${rowCount} résultat${rowCount > 1 ? 's' : ''} trouvé${rowCount > 1 ? 's' : ''}`
+                                : `${rowCount} catégorie${rowCount > 1 ? 's' : ''}`}
                     </span>
                 </div>
             )}

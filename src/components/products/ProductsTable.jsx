@@ -164,7 +164,9 @@ const ProductsTable = ({
                 <span className="text-[11px] font-poppins text-neutral-6 whitespace-nowrap ml-auto">
                     {pagination
                         ? `${filtered.length} affiché${filtered.length > 1 ? 's' : ''} · ${pagination.totalCount} au total`
-                        : `${filtered.length} produit${filtered.length > 1 ? 's' : ''}`}
+                        : serverFilters?.search
+                            ? `${filtered.length} résultat${filtered.length > 1 ? 's' : ''} trouvé${filtered.length > 1 ? 's' : ''}`
+                            : `${filtered.length} produit${filtered.length > 1 ? 's' : ''}`}
                 </span>
             </div>
 

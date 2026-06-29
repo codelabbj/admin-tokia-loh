@@ -1,6 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router';
-import { Mail, Lock, ArrowRight, AlertCircle, Clock } from 'lucide-react';
+import { Link, useNavigate } from 'react-router';
+import {
+    Mail,
+    Lock,
+    ArrowRight,
+    AlertCircle,
+    Clock,
+    Eye,
+    EyeOff,
+    Package,
+    ShoppingCart,
+    BarChart2,
+    ShieldCheck,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
     AUTH_LOGIN_NOTICE_KEY,
@@ -9,31 +21,65 @@ import {
 } from '../constants/authLoginNotice';
 import ThemeToggle from '../components/ThemeToggle';
 
-/* ── Sous-composant : champ de saisie ──────────────────────── */
-const Field = ({ label, name, type, value, onChange, placeholder, error, icon, autoComplete }) => (
+const FEATURES = [
+    {
+        icon: Package,
+        title: 'Catalogue',
+        desc: 'Produits, catégories et stocks en un coup d\'œil.',
+    },
+    {
+        icon: ShoppingCart,
+        title: 'Commandes',
+        desc: 'Suivi des livraisons et statuts en temps réel.',
+    },
+    {
+        icon: BarChart2,
+        title: 'Analytiques',
+        desc: 'Chiffre d\'affaires et rapports détaillés.',
+    },
+];
+
+const Field = ({
+    label,
+    name,
+    type,
+    value,
+    onChange,
+    placeholder,
+    error,
+    icon,
+    autoComplete,
+    trailing,
+}) => (
     <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-semibold font-poppins text-neutral-7 dark:text-neutral-6 tracking-wide">
+        <label
+            htmlFor={name}
+            className="text-[11px] font-semibold font-poppins text-neutral-6 dark:text-neutral-5 uppercase tracking-wider"
+        >
             {label}
         </label>
-        <div className={`flex items-center gap-2.5 px-3.5 py-3 rounded-xl border transition-all duration-200
-            bg-neutral-0 dark:bg-neutral-2
+        <div
+            className={`flex items-center gap-2.5 px-4 py-3 rounded-2 border transition-all duration-200
+            bg-neutral-2/80 dark:bg-neutral-2/60 backdrop-blur-sm
             ${error
-                ? 'border-danger-1 ring-2 ring-danger-1/20'
-                : 'border-neutral-4 dark:border-neutral-5 focus-within:border-primary-1 focus-within:ring-2 focus-within:ring-primary-1/20'
+                ? 'border-danger-1 ring-2 ring-danger-1/15'
+                : 'border-neutral-4/80 dark:border-neutral-5/80 focus-within:border-primary-1 focus-within:ring-2 focus-within:ring-primary-1/15'
             }`}
         >
-            <span className={`shrink-0 transition-colors ${error ? 'text-danger-1' : 'text-neutral-5 dark:text-neutral-6'}`}>
+            <span className={`shrink-0 ${error ? 'text-danger-1' : 'text-neutral-5'}`}>
                 {icon}
             </span>
             <input
+                id={name}
                 name={name}
                 type={type}
                 value={value}
                 onChange={onChange}
                 placeholder={placeholder}
                 autoComplete={autoComplete}
-                className="flex-1 bg-transparent text-sm font-poppins text-neutral-8 dark:text-neutral-8 placeholder:text-neutral-5/60 dark:placeholder:text-neutral-6/60 outline-none"
+                className="flex-1 min-w-0 bg-transparent text-sm font-poppins text-neutral-8 dark:text-neutral-8 placeholder:text-neutral-5/70 outline-none"
             />
+            {trailing}
         </div>
         {error && (
             <p className="text-[11px] font-poppins text-danger-1 flex items-center gap-1">
@@ -43,7 +89,6 @@ const Field = ({ label, name, type, value, onChange, placeholder, error, icon, a
     </div>
 );
 
-/* ── Page principale ───────────────────────────────────────── */
 const LoginPage = () => {
     const navigate = useNavigate();
     const { login, isAuthenticated, loading } = useAuth();
@@ -52,9 +97,13 @@ const LoginPage = () => {
     const [errors, setErrors] = useState({});
     const [apiError, setApiError] = useState('');
     const [sessionNotice, setSessionNotice] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [mounted, setMounted] = useState(false);
 
-    useEffect(() => { setMounted(true); }, []);
+    useEffect(() => {
+        const t = requestAnimationFrame(() => setMounted(true));
+        return () => cancelAnimationFrame(t);
+    }, []);
 
     useEffect(() => {
         if (isAuthenticated) navigate('/dashboard', { replace: true });
@@ -80,8 +129,8 @@ const LoginPage = () => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setForm(prev => ({ ...prev, [name]: value }));
-        if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
+        setForm((prev) => ({ ...prev, [name]: value }));
+        if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
         if (apiError) setApiError('');
         if (sessionNotice) setSessionNotice('');
     };
@@ -98,205 +147,206 @@ const LoginPage = () => {
     };
 
     return (
-        <div className="min-h-screen flex relative overflow-hidden bg-neutral-2 dark:bg-neutral-2">
-
-            {/* ── Orbes décoratifs (fond) ── */}
-            <div className="pointer-events-none fixed inset-0 overflow-hidden">
-                <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-primary-1/10 dark:bg-primary-1/5 blur-[80px]" />
-                <div className="absolute -bottom-40 -right-20 w-[500px] h-[500px] rounded-full bg-secondary-1/10 dark:bg-secondary-1/5 blur-[80px]" />
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full bg-primary-1/5 blur-[60px]" />
-            </div>
-
-            {/* ── Panneau gauche — branding ── */}
-            <div className="hidden lg:flex flex-col justify-between w-1/2 xl:w-[55%] relative p-12 overflow-hidden">
-
-                {/* Dégradé de fond */}
-                <div className="absolute inset-0 bg-gradient-to-br from-primary-1 via-primary-6 to-secondary-1 opacity-95" />
-
-                {/* Grille de points décoratifs */}
+        <div className="relative min-h-screen overflow-hidden bg-neutral-1 dark:bg-neutral-1">
+            {/* ── Fond atmosphérique ── */}
+            <div className="pointer-events-none fixed inset-0" aria-hidden>
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(14,165,233,0.18),transparent)] dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(14,165,233,0.12),transparent)]" />
+                <div className="absolute -top-32 -right-32 h-[28rem] w-[28rem] rounded-full bg-secondary-1/15 blur-3xl" />
+                <div className="absolute bottom-0 left-0 h-[24rem] w-[24rem] rounded-full bg-primary-1/12 blur-3xl" />
                 <div
-                    className="absolute inset-0 opacity-[0.08]"
+                    className="absolute inset-0 opacity-[0.35] dark:opacity-[0.12]"
                     style={{
-                        backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
-                        backgroundSize: '32px 32px',
+                        backgroundImage:
+                            'linear-gradient(rgba(14,165,233,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(14,165,233,0.06) 1px, transparent 1px)',
+                        backgroundSize: '48px 48px',
                     }}
                 />
-
-                {/* Cercles décoratifs flottants */}
-                <div className="absolute top-20 right-16 w-32 h-32 rounded-full border border-white/20" />
-                <div className="absolute top-24 right-20 w-20 h-20 rounded-full border border-white/10" />
-                <div className="absolute bottom-32 left-12 w-48 h-48 rounded-full border border-white/10" />
-                <div className="absolute bottom-20 left-20 w-24 h-24 rounded-full border border-white/15" />
-
-                {/* Contenu */}
-                <div className="relative z-10">
-                    {/* Logo */}
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-lg">
-                            <span className="font-poppins font-bold text-base leading-none">
-                                <span className="text-white">T</span>
-                                <span className="text-white/70">L</span>
-                            </span>
-                        </div>
-                        <span className="text-white font-poppins font-bold text-lg tracking-tight">
-                            Tokia<span className="text-white/60">-Loh</span>
-                        </span>
-                    </div>
-                </div>
-
-                <div className="relative z-10 flex flex-col gap-6">
-                    {/* Titre principal */}
-                    <div className="flex flex-col gap-3">
-                        <h2 className="text-4xl xl:text-5xl font-poppins font-bold text-white leading-tight">
-                            Gérez votre<br />
-                            <span className="text-white/70">boutique</span><br />
-                            en toute<br />simplicité.
-                        </h2>
-                        <p className="text-sm font-poppins text-white/60 leading-relaxed max-w-xs">
-                            La plateforme d'administration qui vous offre une vue complète sur vos produits, commandes et clients.
-                        </p>
-                    </div>
-
-                    {/* Stats */}
-                    <div className="flex items-center gap-6">
-                        {[
-                            { value: '100%', label: 'Sécurisé' },
-                            { value: '24/7', label: 'Disponible' },
-                            { value: '∞', label: 'Produits' },
-                        ].map(({ value, label }) => (
-                            <div key={label} className="flex flex-col gap-0.5">
-                                <span className="text-2xl font-poppins font-bold text-white">{value}</span>
-                                <span className="text-xs font-poppins text-white/50">{label}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Footer branding */}
-                <div className="relative z-10">
-                    <p className="text-xs font-poppins text-white/40">
-                        © {new Date().getFullYear()} Tokia-Loh · Tous droits réservés
-                    </p>
-                </div>
             </div>
 
-            {/* ── Panneau droit — formulaire ── */}
-            <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10 relative z-10">
-
-                {/* Theme toggle */}
-                <div className="absolute top-4 right-4">
-                    <ThemeToggle />
-                </div>
-
-                {/* Logo mobile uniquement */}
-                <div className="lg:hidden flex items-center gap-2 mb-8">
-                    <div className="w-9 h-9 rounded-xl bg-primary-1 flex items-center justify-center shadow-md">
-                        <span className="font-poppins font-bold text-sm text-white">TL</span>
+            {/* ── Barre supérieure ── */}
+            <header className="relative z-20 flex items-center justify-between px-5 py-4 sm:px-8">
+                <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-primary-1 to-secondary-1 shadow-md shadow-primary-1/25">
+                        <span className="font-poppins text-xs font-black text-white">TL</span>
                     </div>
-                    <span className="font-poppins font-bold text-neutral-8 dark:text-neutral-8 text-lg">
+                    <span className="font-poppins text-sm font-bold text-neutral-8 dark:text-neutral-8">
                         Tokia<span className="text-secondary-1">-Loh</span>
                     </span>
                 </div>
+                <ThemeToggle />
+            </header>
 
-                {/* Carte formulaire */}
-                <div
-                    className={`w-full max-w-md transition-all duration-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+            {/* ── Contenu principal ── */}
+            <main className="relative z-10 mx-auto flex min-h-[calc(100vh-4.5rem)] max-w-6xl flex-col items-center justify-center px-5 pb-10 pt-4 sm:px-8 lg:flex-row lg:items-stretch lg:gap-12 lg:py-12">
+                {/* Panneau gauche — storytelling (desktop) */}
+                <section
+                    className={`hidden lg:flex lg:w-[48%] flex-col justify-center gap-8 transition-all duration-700 ease-out
+                    ${mounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-6'}`}
                 >
-                    {/* En-tête */}
-                    <div className="mb-8">
-                        <h1 className="text-2xl font-poppins font-bold text-neutral-9 dark:text-neutral-9 mb-1.5">
-                            Bon retour ! 👋
+                    <div className="space-y-4">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-primary-3/40 bg-primary-5/60 px-3 py-1 text-[10px] font-semibold font-poppins uppercase tracking-widest text-primary-1">
+                            <ShieldCheck size={12} />
+                            Espace sécurisé
+                        </span>
+                        <h1 className="text-4xl xl:text-[2.75rem] font-poppins font-bold leading-[1.15] text-neutral-8 dark:text-neutral-8 tracking-tight">
+                            Pilotez votre boutique
+                            <span className="block bg-linear-to-r from-primary-1 to-secondary-1 bg-clip-text text-transparent">
+                                depuis un seul endroit.
+                            </span>
                         </h1>
-                        <p className="text-sm font-poppins text-neutral-6 dark:text-neutral-6">
-                            Connectez-vous à votre espace d'administration.
+                        <p className="max-w-md text-sm font-poppins leading-relaxed text-neutral-6 dark:text-neutral-6">
+                            Tableau de bord, commandes, catalogue et rapports — tout ce dont vous avez besoin pour faire grandir Tokia-Loh.
                         </p>
                     </div>
 
-                    {/* Card */}
-                    <div className="bg-neutral-0 dark:bg-neutral-0 rounded-2xl border border-neutral-4 dark:border-neutral-5 shadow-xl shadow-neutral-8/5 dark:shadow-black/20 p-8 flex flex-col gap-5">
-
-                        {/* Alerte session expirée */}
-                        {sessionNotice && (
-                            <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-warning-2 border border-warning-1/40">
-                                <Clock size={14} className="text-warning-1 shrink-0 mt-0.5" />
-                                <p className="text-xs font-poppins text-warning-1 font-medium leading-relaxed">
-                                    {sessionNotice}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* Erreur API */}
-                        {apiError && (
-                            <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-danger-2 border border-danger-1/40">
-                                <AlertCircle size={14} className="text-danger-1 shrink-0 mt-0.5" />
-                                <p className="text-xs font-poppins text-danger-1 font-medium leading-relaxed">
-                                    {apiError}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* Formulaire */}
-                        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                            <Field
-                                label="Adresse email"
-                                name="email"
-                                type="email"
-                                value={form.email}
-                                onChange={handleChange}
-                                placeholder="admin@tokia-loh.com"
-                                error={errors.email}
-                                icon={<Mail size={15} />}
-                                autoComplete="username"
-                            />
-
-                            <Field
-                                label="Mot de passe"
-                                name="password"
-                                type="password"
-                                value={form.password}
-                                onChange={handleChange}
-                                placeholder="••••••••"
-                                error={errors.password}
-                                icon={<Lock size={15} />}
-                                autoComplete="current-password"
-                            />
-
-                            {/* Bouton */}
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className={`
-                                    mt-2 w-full flex items-center justify-center gap-2.5
-                                    px-5 py-3.5 rounded-xl font-poppins font-semibold text-sm text-white
-                                    bg-gradient-to-r from-primary-1 to-primary-6
-                                    hover:from-primary-6 hover:to-primary-7
-                                    shadow-md shadow-primary-1/30
-                                    transition-all duration-200
-                                    disabled:opacity-60 disabled:cursor-not-allowed
-                                    active:scale-[0.98]
-                                `}
+                    <div className="flex flex-col gap-3">
+                        {FEATURES.map(({ icon: Icon, title, desc }, i) => (
+                            <div
+                                key={title}
+                                className={`group flex items-start gap-4 rounded-2xl border border-neutral-4/60 dark:border-neutral-5/50
+                                bg-neutral-0/70 dark:bg-neutral-0/40 backdrop-blur-md px-4 py-3.5
+                                shadow-sm transition-all duration-500 hover:border-primary-3/50 hover:shadow-md
+                                ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
+                                style={{ transitionDelay: `${120 + i * 80}ms` }}
                             >
-                                {loading ? (
-                                    <>
-                                        <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                                        Connexion en cours…
-                                    </>
-                                ) : (
-                                    <>
-                                        Se connecter
-                                        <ArrowRight size={16} />
-                                    </>
-                                )}
-                            </button>
-                        </form>
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-5 text-primary-1 transition-colors group-hover:bg-primary-1 group-hover:text-white">
+                                    <Icon size={18} />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
+                                        {title}
+                                    </p>
+                                    <p className="text-xs font-poppins text-neutral-6 dark:text-neutral-6 mt-0.5">
+                                        {desc}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
+                {/* Panneau formulaire */}
+                <section
+                    className={`flex w-full max-w-md flex-col justify-center lg:w-[52%] lg:max-w-lg
+                    transition-all duration-700 ease-out delay-100
+                    ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
+                >
+                    <div className="relative overflow-hidden rounded-3xl border border-neutral-4/70 dark:border-neutral-5/60 bg-neutral-0/90 dark:bg-neutral-0/80 backdrop-blur-xl shadow-2xl shadow-neutral-8/5 dark:shadow-black/30">
+                        {/* Bandeau dégradé */}
+                        <div className="h-1.5 w-full bg-linear-to-r from-primary-1 via-secondary-1 to-primary-1" />
+
+                        <div className="p-7 sm:p-9">
+                            <div className="mb-7">
+                                <p className="text-[11px] font-semibold font-poppins uppercase tracking-widest text-primary-1 mb-2">
+                                    Administration
+                                </p>
+                                <h2 className="text-2xl font-poppins font-bold text-neutral-8 dark:text-neutral-8 tracking-tight">
+                                    Connexion
+                                </h2>
+                                <p className="mt-1.5 text-sm font-poppins text-neutral-6 dark:text-neutral-6">
+                                    Identifiez-vous pour accéder au backoffice.
+                                </p>
+                            </div>
+
+                            {sessionNotice && (
+                                <div className="mb-5 flex items-start gap-2.5 rounded-2xl border border-warning-1/30 bg-warning-2/80 px-4 py-3">
+                                    <Clock size={15} className="text-warning-1 shrink-0 mt-0.5" />
+                                    <p className="text-xs font-poppins font-medium text-warning-1 leading-relaxed">
+                                        {sessionNotice}
+                                    </p>
+                                </div>
+                            )}
+
+                            {apiError && (
+                                <div className="mb-5 flex items-start gap-2.5 rounded-2xl border border-danger-1/30 bg-danger-2/80 px-4 py-3">
+                                    <AlertCircle size={15} className="text-danger-1 shrink-0 mt-0.5" />
+                                    <p className="text-xs font-poppins font-medium text-danger-1 leading-relaxed">
+                                        {apiError}
+                                    </p>
+                                </div>
+                            )}
+
+                            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                                <Field
+                                    label="Adresse email"
+                                    name="email"
+                                    type="email"
+                                    value={form.email}
+                                    onChange={handleChange}
+                                    placeholder="admin@tokia-loh.com"
+                                    error={errors.email}
+                                    icon={<Mail size={16} />}
+                                    autoComplete="username"
+                                />
+
+                                <Field
+                                    label="Mot de passe"
+                                    name="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    value={form.password}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    error={errors.password}
+                                    icon={<Lock size={16} />}
+                                    autoComplete="current-password"
+                                    trailing={
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword((v) => !v)}
+                                            className="shrink-0 text-neutral-5 hover:text-neutral-8 transition-colors cursor-pointer"
+                                            aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                                            tabIndex={-1}
+                                        >
+                                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    }
+                                />
+
+                                <div className="flex justify-end">
+                                    <Link
+                                        to="/forgot-password"
+                                        className="text-xs font-poppins font-medium text-primary-1 hover:text-primary-6 transition-colors"
+                                    >
+                                        Mot de passe oublié ?
+                                    </Link>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="group mt-1 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3.5
+                                        font-poppins text-sm font-semibold text-white
+                                        bg-linear-to-r from-primary-1 to-primary-6
+                                        shadow-lg shadow-primary-1/25
+                                        hover:shadow-xl hover:shadow-primary-1/30 hover:brightness-105
+                                        transition-all duration-200
+                                        disabled:opacity-60 disabled:cursor-not-allowed
+                                        active:scale-[0.99]"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                            Connexion en cours…
+                                        </>
+                                    ) : (
+                                        <>
+                                            Accéder au tableau de bord
+                                            <ArrowRight
+                                                size={16}
+                                                className="transition-transform group-hover:translate-x-0.5"
+                                            />
+                                        </>
+                                    )}
+                                </button>
+                            </form>
+                        </div>
                     </div>
 
-                    {/* Footer */}
-                    <p className="text-center text-[11px] font-poppins text-neutral-5 dark:text-neutral-6 mt-6">
-                        Accès réservé aux administrateurs autorisés
+                    <p className="mt-6 text-center text-[11px] font-poppins text-neutral-5 dark:text-neutral-6">
+                        Accès réservé aux administrateurs autorisés · © {new Date().getFullYear()} Tokia-Loh
                     </p>
-                </div>
-            </div>
+                </section>
+            </main>
         </div>
     );
 };

@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { categoriesAPI } from "../api/categories.api";
 import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
 import { normalizeCategory } from "./useCategories";
+import { fetchAllPaginatedPages } from "../utils/fetchAllPages";
 
 export const CATEGORIES_LIST_PAGE_SIZE = 25;
+const CATEGORIES_SEARCH_FETCH_PAGE_SIZE = 100;
 
 /**
  * Liste catégories paginée (DRF : count, next, results).
@@ -27,28 +29,48 @@ export const useCategoriesList = () => {
     setPage(1);
   }, [searchDebounced]);
 
+  const isSearchMode = searchDebounced.length > 0;
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const params = {
-          page,
-          page_size: CATEGORIES_LIST_PAGE_SIZE,
-          ordering: ORDERING_NEWEST_FIRST,
-        };
-        if (searchDebounced) params.search = searchDebounced;
+        const baseParams = { ordering: ORDERING_NEWEST_FIRST };
 
-        const { data } = await categoriesAPI.list(params);
-        if (cancelled) return;
+        if (isSearchMode) {
+          const { items, totalCount: count } = await fetchAllPaginatedPages(
+            async (pageNum, pageSize) => {
+              const { data } = await categoriesAPI.list({
+                ...baseParams,
+                page: pageNum,
+                page_size: pageSize,
+                search: searchDebounced,
+              });
+              return data;
+            },
+            { pageSize: CATEGORIES_SEARCH_FETCH_PAGE_SIZE },
+          );
+          if (cancelled) return;
+          setCategories(items.map(normalizeCategory));
+          setTotalCount(count);
+        } else {
+          const params = {
+            ...baseParams,
+            page,
+            page_size: CATEGORIES_LIST_PAGE_SIZE,
+          };
 
-        const list = Array.isArray(data) ? data : (data.results ?? []);
-        const normalized = list.map(normalizeCategory);
-        setCategories(normalized);
-        setTotalCount(
-          typeof data.count === "number" ? data.count : list.length,
-        );
+          const { data } = await categoriesAPI.list(params);
+          if (cancelled) return;
+
+          const list = Array.isArray(data) ? data : (data.results ?? []);
+          setCategories(list.map(normalizeCategory));
+          setTotalCount(
+            typeof data.count === "number" ? data.count : list.length,
+          );
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err.message ?? "Erreur lors du chargement des catégories");
@@ -62,12 +84,11 @@ export const useCategoriesList = () => {
     return () => {
       cancelled = true;
     };
-  }, [page, searchDebounced, reloadNonce]);
+  }, [page, searchDebounced, reloadNonce, isSearchMode]);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(totalCount / CATEGORIES_LIST_PAGE_SIZE),
-  );
+  const totalPages = isSearchMode
+    ? 1
+    : Math.max(1, Math.ceil(totalCount / CATEGORIES_LIST_PAGE_SIZE));
 
   const refetch = useCallback(() => {
     setReloadNonce((n) => n + 1);
@@ -85,5 +106,6 @@ export const useCategoriesList = () => {
     search,
     setSearch,
     refetch,
+    isSearchMode,
   };
 };

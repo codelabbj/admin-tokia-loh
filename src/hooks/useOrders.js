@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { dashboardAPI } from "../api/dashboard.api";
 import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
 import { apiCache } from "../utils/apiCache";
+import { fetchAllPaginatedPages } from "../utils/fetchAllPages";
 
 export const ORDERS_LIST_PAGE_SIZE = 20;
+const ORDERS_SEARCH_FETCH_PAGE_SIZE = 100;
 
 /**
  * Extrait la latitude depuis un lien Google Maps
@@ -167,8 +169,25 @@ export const useOrders = (options = {}) => {
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [search, setSearch] = useState("");
+  const [searchDebounced, setSearchDebounced] = useState("");
+  const [reloadNonce, setReloadNonce] = useState(0);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / ORDERS_LIST_PAGE_SIZE));
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    if (!clientId && !loadAllPages) setPage(1);
+  }, [searchDebounced, clientId, loadAllPages]);
+
+  const isSearchMode =
+    !clientId && !loadAllPages && searchDebounced.length > 0;
+
+  const totalPages = isSearchMode
+    ? 1
+    : Math.max(1, Math.ceil(totalCount / ORDERS_LIST_PAGE_SIZE));
 
   const fetchClientHistoryCb = useCallback(async (cId) => {
     setLoading(true);
@@ -187,8 +206,8 @@ export const useOrders = (options = {}) => {
   }, []);
 
   const fetchPaginatedCb = useCallback(async ({ force = false } = {}) => {
-    const cacheKey = `orders:page:${page}`;
-    if (!force) {
+    const cacheKey = `orders:page:${page}:search:${searchDebounced}`;
+    if (!force && !isSearchMode) {
       const cached = apiCache.get(cacheKey);
       if (cached) {
         setOrders(cached.orders);
@@ -202,15 +221,7 @@ export const useOrders = (options = {}) => {
     setLoading(true);
     setError(null);
     try {
-      const [statsRes, ordersRes] = await Promise.all([
-        dashboardAPI.listOrdersStats(),
-        dashboardAPI.listOrders({
-          page,
-          page_size: ORDERS_LIST_PAGE_SIZE,
-          ordering: ORDERING_NEWEST_FIRST,
-        }),
-      ]);
-
+      const statsRes = await dashboardAPI.listOrdersStats();
       const statsData = unwrapApiData(statsRes.data) ?? {};
       const normalizedStats = {
         total: statsData.total_orders ?? 0,
@@ -220,21 +231,56 @@ export const useOrders = (options = {}) => {
       };
       setStats(normalizedStats);
 
-      const ordersData = unwrapApiData(ordersRes.data) ?? {};
-      const list = extractResults(ordersData);
-      const count = typeof ordersData.count === "number" ? ordersData.count : list.length;
-      const normalizedOrders = applyStatsAndNormalizeList(statsData, list);
+      let list;
+      let count;
 
+      if (isSearchMode) {
+        const { items, totalCount: apiTotal } = await fetchAllPaginatedPages(
+          async (pageNum, pageSize) => {
+            const res = await dashboardAPI.listOrders({
+              page: pageNum,
+              page_size: pageSize,
+              search: searchDebounced,
+              ordering: ORDERING_NEWEST_FIRST,
+            });
+            return unwrapApiData(res.data) ?? {};
+          },
+          {
+            pageSize: ORDERS_SEARCH_FETCH_PAGE_SIZE,
+            extractList: extractResults,
+          },
+        );
+        list = items;
+        count = apiTotal;
+      } else {
+        const ordersRes = await dashboardAPI.listOrders({
+          page,
+          page_size: ORDERS_LIST_PAGE_SIZE,
+          ordering: ORDERING_NEWEST_FIRST,
+        });
+        const ordersData = unwrapApiData(ordersRes.data) ?? {};
+        list = extractResults(ordersData);
+        count =
+          typeof ordersData.count === "number" ? ordersData.count : list.length;
+      }
+
+      const normalizedOrders = applyStatsAndNormalizeList(statsData, list);
       setTotalCount(count);
       setOrders(normalizedOrders);
 
-      apiCache.set(cacheKey, { orders: normalizedOrders, stats: normalizedStats, totalCount: count });
+      if (!isSearchMode) {
+        apiCache.set(cacheKey, {
+          orders: normalizedOrders,
+          stats: normalizedStats,
+          totalCount: count,
+        });
+      }
     } catch (err) {
       setError(err.message ?? "Erreur lors du chargement des commandes");
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, searchDebounced, isSearchMode, reloadNonce]);
 
   const fetchAllMergedCb = useCallback(async () => {
     setLoading(true);
@@ -323,6 +369,9 @@ export const useOrders = (options = {}) => {
           totalPages,
           totalCount,
           pageSize: ORDERS_LIST_PAGE_SIZE,
+          search,
+          setSearch,
+          isSearchMode,
         }
       : {
           page: undefined,
@@ -330,6 +379,9 @@ export const useOrders = (options = {}) => {
           totalPages: undefined,
           totalCount: undefined,
           pageSize: ORDERS_LIST_PAGE_SIZE,
+          search: undefined,
+          setSearch: undefined,
+          isSearchMode: false,
         };
 
   return {

@@ -434,6 +434,11 @@ const ProductFormPage = () => {
     const handleMainImage = (e) => {
         const file = e.target.files[0];
         if (!file) return;
+        if (!file.size) {
+            toast.error('Le fichier sélectionné est vide. Choisissez une autre image.');
+            e.target.value = '';
+            return;
+        }
         setForm(prev => ({ ...prev, mainImage: { file, preview: URL.createObjectURL(file) } }));
     };
 
@@ -553,7 +558,17 @@ const ProductFormPage = () => {
     };
 
     const handleSubMedia = (e) => {
-        const files = Array.from(e.target.files);
+        const files = Array.from(e.target.files).filter((file) => {
+            if (!file.size) {
+                toast.error(`Fichier ignoré (vide) : ${file.name || 'sans nom'}`);
+                return false;
+            }
+            return true;
+        });
+        if (files.length === 0) {
+            e.target.value = '';
+            return;
+        }
         const toAdd = files.map(file => ({
             file,
             preview: URL.createObjectURL(file),
@@ -732,7 +747,15 @@ const ProductFormPage = () => {
             if (err.response?.data?.file?.[0]?.includes('filename has at most 100 characters')) {
                 toast.error('Le nom du fichier ne doit pas contenir plus de 100 caractères. Vérifiez vos noms de fichiers.');
             } else if (err.response?.data?.file) {
-                toast.error("Une erreur est survenue lors de la sauvegarde d'image : " + err.response?.data?.file);
+                const fileErr = Array.isArray(err.response.data.file)
+                    ? err.response.data.file.join(' ')
+                    : String(err.response.data.file);
+                const frMsg = fileErr.includes('submitted file is empty')
+                    ? 'Le fichier image est vide (0 octet). Resélectionnez une image valide depuis votre appareil.'
+                    : fileErr;
+                toast.error("Une erreur est survenue lors de la sauvegarde d'image : " + frMsg);
+            } else if (err.message?.includes('vide')) {
+                toast.error(err.message);
             } else {
                 const { message, existingId } = parseBackendErrorResponse(err);
                 const dup =

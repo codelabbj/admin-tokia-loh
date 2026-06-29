@@ -21,6 +21,9 @@ const OrdersPage = () => {
         totalPages,
         totalCount,
         pageSize,
+        search,
+        setSearch,
+        isSearchMode,
     } = useOrders();
 
     const pageStats = useMemo(() => {
@@ -129,7 +132,8 @@ const OrdersPage = () => {
                 loading={loading}
                 onStatusChange={updateStatus}
                 highlightRowId={highlightOrder || tableFlashId}
-                pagination={{
+                serverFilters={{ search, onSearchChange: setSearch }}
+                pagination={isSearchMode ? null : {
                     page,
                     totalPages,
                     totalCount,
