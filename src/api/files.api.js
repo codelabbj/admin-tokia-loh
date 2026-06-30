@@ -1,4 +1,5 @@
 import api from "./client";
+import { prepareFileForUpload } from "../utils/prepareFileForUpload";
 
 /**
  * FilesAPI — upload et gestion des fichiers media.
@@ -8,34 +9,22 @@ import api from "./client";
  * GET    /shop/files/:id/
  * DELETE /shop/files/:id/
  */
-/** Rejette les fichiers vides ou invalides avant envoi au serveur. */
-function assertUploadableFile(file) {
-  if (!(file instanceof File) && !(file instanceof Blob)) {
-    throw new Error("Fichier invalide.");
-  }
-  if (!file.size) {
-    throw new Error(
-      "Le fichier sélectionné est vide (0 octet). Choisissez une autre image.",
-    );
-  }
-}
-
 class FilesAPI {
   /**
    * Upload un fichier File natif du navigateur.
+   * Le contenu est relu en mémoire avant envoi (compatibilité MTP / téléphone USB).
    * @param {File} file — objet File (input type="file")
    */
-  upload(file) {
-    assertUploadableFile(file);
+  async upload(file) {
+    const ready = await prepareFileForUpload(file);
 
-    // Renommer le fichier en UUID + extension d'origine avant envoi
-    const ext = file.name.includes(".")
-      ? "." + file.name.split(".").pop().toLowerCase()
+    const ext = ready.name.includes(".")
+      ? "." + ready.name.split(".").pop().toLowerCase()
       : "";
     const renamedFile = new File(
-      [file],
+      [ready],
       `${crypto.randomUUID()}${ext}`,
-      { type: file.type },
+      { type: ready.type, lastModified: ready.lastModified },
     );
 
     const formData = new FormData();

@@ -12,6 +12,7 @@ import {
 import { productsAPI } from '../api/products.api';
 import { useCategories } from '../hooks/useCategories';
 import { useToast } from '../components/ui/ToastProvider';
+import { prepareFileForUpload } from '../utils/prepareFileForUpload';
 import { parseBackendErrorResponse } from '../utils/apiErrorResponse';
 import MediaPickerModal from '../components/media/MediaPickerModal';
 import { variantsAPI } from '../api/variants.api';
@@ -431,15 +432,16 @@ const ProductFormPage = () => {
     const handleClose = () => navigate(-1);
 
     // ── Images ────────────────────────────────────────────────
-    const handleMainImage = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        if (!file.size) {
-            toast.error('Le fichier sélectionné est vide. Choisissez une autre image.');
+    const handleMainImage = async (e) => {
+        const raw = e.target.files?.[0];
+        if (!raw) return;
+        try {
+            const file = await prepareFileForUpload(raw);
+            setForm(prev => ({ ...prev, mainImage: { file, preview: URL.createObjectURL(file) } }));
+        } catch (err) {
+            toast.error(err.message || "Impossible de lire l'image sélectionnée.");
             e.target.value = '';
-            return;
         }
-        setForm(prev => ({ ...prev, mainImage: { file, preview: URL.createObjectURL(file) } }));
     };
 
     /* const handleMediaSelect = (file) => {
@@ -557,24 +559,30 @@ const ProductFormPage = () => {
         setShowImageUrlModal(false);
     };
 
-    const handleSubMedia = (e) => {
-        const files = Array.from(e.target.files).filter((file) => {
-            if (!file.size) {
-                toast.error(`Fichier ignoré (vide) : ${file.name || 'sans nom'}`);
-                return false;
+    const handleSubMedia = async (e) => {
+        const rawFiles = Array.from(e.target.files ?? []);
+        if (rawFiles.length === 0) return;
+
+        const toAdd = [];
+        for (const raw of rawFiles) {
+            try {
+                const file = await prepareFileForUpload(raw);
+                toAdd.push({
+                    file,
+                    preview: URL.createObjectURL(file),
+                    type: file.type.startsWith('video/') ? 'video' : 'image',
+                });
+            } catch (err) {
+                toast.error(
+                    `${raw.name || 'Fichier'} : ${err.message || 'lecture impossible'}`,
+                );
             }
-            return true;
-        });
-        if (files.length === 0) {
-            e.target.value = '';
-            return;
         }
-        const toAdd = files.map(file => ({
-            file,
-            preview: URL.createObjectURL(file),
-            type: file.type.startsWith('video/') ? 'video' : 'image',
-        }));
-        setForm(prev => ({ ...prev, subImages: [...prev.subImages, ...toAdd] }));
+
+        if (toAdd.length > 0) {
+            setForm(prev => ({ ...prev, subImages: [...prev.subImages, ...toAdd] }));
+        }
+        e.target.value = '';
     };
 
     const removeSubImage = (index) =>
