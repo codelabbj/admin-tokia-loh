@@ -1445,9 +1445,22 @@ const ProductFormPage = () => {
                     setMediaPickerTarget({ type: 'main' });
                 }}
                 onSelect={handleMediaSelect}
-                accept="image"
-                title="Choisir une image"
-                multiple={mediaPickerTarget.type === 'sub'}
+                accept={
+                    mediaPickerTarget.type === 'sub'
+                    || (mediaPickerTarget.type === 'variantTree' && mediaPickerTarget.kind === 'secondary')
+                        ? 'all'
+                        : 'image'
+                }
+                title={
+                    mediaPickerTarget.type === 'sub'
+                    || (mediaPickerTarget.type === 'variantTree' && mediaPickerTarget.kind === 'secondary')
+                        ? 'Choisir un média'
+                        : 'Choisir une image'
+                }
+                multiple={
+                    mediaPickerTarget.type === 'sub'
+                    || (mediaPickerTarget.type === 'variantTree' && mediaPickerTarget.kind === 'secondary')
+                }
             />
         </div>
     );

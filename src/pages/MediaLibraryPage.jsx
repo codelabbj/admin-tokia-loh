@@ -4,19 +4,13 @@ import {
     ImageIcon, Film, FileIcon, Loader2,
     LayoutGrid, List, X, ExternalLink
 } from 'lucide-react';
-import { useFiles } from '../hooks/useFiles';
+import { useMediaLibrary } from '../hooks/useMediaLibrary';
+import { getMediaFileType } from '../utils/mediaFileType';
 import { useToast } from '../components/ui/ToastProvider';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
-import Pagination from '../components/ui/Pagination';
+import VideoFileThumbnail from '../components/media/VideoFileThumbnail';
 
-// ── Helpers ───────────────────────────────────────────────────
-const getFileType = (url = '') => {
-    if (!url) return 'file';
-    const lower = url.toLowerCase();
-    if (/\.(jpg|jpeg|png|gif|webp|svg|avif)/.test(lower)) return 'image';
-    if (/\.(mp4|webm|ogg|mov|avi|mkv)/.test(lower)) return 'video';
-    return 'file';
-};
+const getFileType = getMediaFileType;
 
 const formatBytes = (bytes) => {
     if (!bytes) return '—';
@@ -67,9 +61,7 @@ const FileCard = ({ file, selected, onSelect, onDelete, onCopy, copied, showDele
                         loading="lazy"
                     />
                 ) : isVideo ? (
-                    <div className="w-full h-full flex items-center justify-center bg-neutral-3 dark:bg-neutral-3">
-                        <Film size={28} className="text-neutral-5" />
-                    </div>
+                    <VideoFileThumbnail src={file.file} iconSize={28} />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
                         <FileIcon size={28} className="text-neutral-5" />
@@ -134,7 +126,9 @@ const FileRow = ({ file, onDelete, onCopy, copied, showDeleteFile = false }) => 
             <div className="w-10 h-10 rounded-xl overflow-hidden bg-neutral-3 shrink-0 border border-neutral-4">
                 {type === 'image'
                     ? <img src={file.file} alt="" className="w-full h-full object-cover" loading="lazy" />
-                    : <div className="w-full h-full flex items-center justify-center"><FileTypeIcon url={file.file} size={18} /></div>
+                    : type === 'video'
+                        ? <VideoFileThumbnail src={file.file} iconSize={14} showBadge={false} />
+                        : <div className="w-full h-full flex items-center justify-center"><FileTypeIcon url={file.file} size={18} /></div>
                 }
             </div>
 
@@ -244,28 +238,31 @@ const DropZone = ({ onFiles, uploading }) => {
 };
 
 // ── PAGE ──────────────────────────────────────────────────────
+const MEDIA_TABS = [
+    { key: 'image', label: 'Images', icon: ImageIcon },
+    { key: 'video', label: 'Vidéos', icon: Film },
+];
+
 const MediaLibraryPage = ({ showDeleteFile = false }) => {
     const {
         files, loading, uploading, upload, remove,
-        page, totalPages, totalCount, hasNext, hasPrev, goToPage,
-    } = useFiles(50); // 50 fichiers par page
+        search, setSearch, mediaTab, setMediaTab,
+        counts, totalCount, filteredCount, isSearchMode,
+    } = useMediaLibrary();
 
     const { toast } = useToast();
 
-    const [search, setSearch] = useState('');
-    const [filterType, setFilterType] = useState('all');
     const [viewMode, setViewMode] = useState('grid');
     const [copied, setCopied] = useState(null);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
 
-    // Remonter en haut lors d'un changement de page
-    const handlePageChange = useCallback((newPage) => {
-        goToPage(newPage);
+    const handleTabChange = useCallback((tab) => {
+        setMediaTab(tab);
         setSelectedFile(null);
         window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, [goToPage]);
+    }, [setMediaTab]);
 
     // ── Upload multiple ───────────────────────────────────────
     const handleFiles = useCallback(async (fileList) => {
@@ -312,22 +309,6 @@ const MediaLibraryPage = ({ showDeleteFile = false }) => {
         }
     };
 
-    // ── Filtrage côté client (sur la page courante) ───────────
-    // Note : le filtrage par type et recherche s'applique sur les fichiers
-    const filtered = files.filter(f => {
-        const matchSearch = !search || (f.file ?? '').toLowerCase().includes(search.toLowerCase())
-            || (f.name ?? '').toLowerCase().includes(search.toLowerCase());
-        const matchType = filterType === 'all' || getFileType(f.file) === filterType;
-        return matchSearch && matchType;
-    });
-
-    const counts = {
-        all: files.length,
-        image: files.filter(f => getFileType(f.file) === 'image').length,
-        video: files.filter(f => getFileType(f.file) === 'video').length,
-        file: files.filter(f => getFileType(f.file) === 'file').length,
-    };
-
     React.useEffect(() => {
         document.title = 'Admin Tokia-Loh | Médiathèque';
     }, []);
@@ -342,42 +323,52 @@ const MediaLibraryPage = ({ showDeleteFile = false }) => {
                         Médiathèque
                     </h1>
                     <p className="text-xs font-poppins text-neutral-6 mt-0.5">
-                        {loading ? '…' : `${totalCount} fichier${totalCount !== 1 ? 's' : ''}`}
+                        {loading
+                            ? '…'
+                            : `${counts.image} image${counts.image !== 1 ? 's' : ''} · ${counts.video} vidéo${counts.video !== 1 ? 's' : ''} · ${totalCount} au total`}
                     </p>
                 </div>
+            </div>
+
+            {/* ── Onglets Images / Vidéos ── */}
+            <div
+                className="flex items-center gap-1 border-b border-neutral-4 dark:border-neutral-4"
+                role="tablist"
+            >
+                {MEDIA_TABS.map(({ key, label, icon: Icon }) => {
+                    const isActive = mediaTab === key;
+                    return (
+                        <button
+                            key={key}
+                            type="button"
+                            role="tab"
+                            aria-selected={isActive}
+                            onClick={() => handleTabChange(key)}
+                            className={`
+                                flex items-center gap-2 px-4 py-2.5 -mb-px text-xs font-semibold font-poppins
+                                border-b-2 transition-colors cursor-pointer
+                                ${isActive
+                                    ? 'border-primary-1 text-primary-1'
+                                    : 'border-transparent text-neutral-5 hover:text-neutral-7'
+                                }
+                            `}
+                        >
+                            <Icon size={14} />
+                            {label}
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full
+                                ${isActive ? 'bg-primary-5 text-primary-1' : 'bg-neutral-3 text-neutral-5'}`}>
+                                {counts[key]}
+                            </span>
+                        </button>
+                    );
+                })}
             </div>
 
             {/* ── Zone upload ── */}
             <DropZone onFiles={handleFiles} uploading={uploading} />
 
-            {/* ── Barre filtres + recherche ── */}
+            {/* ── Barre recherche + vue ── */}
             <div className="flex items-center gap-3 flex-wrap">
-
-                {/* Filtres type */}
-                <div className="flex items-center gap-1 bg-neutral-2 dark:bg-neutral-2 rounded-full p-1">
-                    {[
-                        { key: 'all', label: 'Tous' },
-                        { key: 'image', label: 'Images' },
-                        { key: 'video', label: 'Vidéos' },
-                        { key: 'file', label: 'Autres' },
-                    ].map(({ key, label }) => (
-                        <button
-                            key={key}
-                            type="button"
-                            onClick={() => setFilterType(key)}
-                            className={`px-3 py-1.5 rounded-full text-[11px] font-semibold font-poppins transition-all cursor-pointer
-                                ${filterType === key
-                                    ? 'bg-neutral-0 dark:bg-neutral-0 text-neutral-8 dark:text-neutral-8 shadow-sm'
-                                    : 'text-neutral-5 hover:text-neutral-7'
-                                }`}
-                        >
-                            {label}
-                            <span className={`ml-1.5 ${filterType === key ? 'text-primary-1' : 'text-neutral-4'}`}>
-                                {counts[key]}
-                            </span>
-                        </button>
-                    ))}
-                </div>
 
                 {/* Recherche */}
                 <div className="flex-1 min-w-48 relative">
@@ -426,18 +417,22 @@ const MediaLibraryPage = ({ showDeleteFile = false }) => {
                 <div className="flex items-center justify-center h-48">
                     <Loader2 size={24} className="animate-spin text-primary-1" />
                 </div>
-            ) : filtered.length === 0 ? (
+            ) : files.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-48 gap-3">
                     <div className="w-12 h-12 rounded-2 bg-neutral-2 flex items-center justify-center">
-                        <ImageIcon size={22} className="text-neutral-4" />
+                        {mediaTab === 'video' ? <Film size={22} className="text-neutral-4" /> : <ImageIcon size={22} className="text-neutral-4" />}
                     </div>
                     <p className="text-xs font-poppins text-neutral-5">
-                        {search || filterType !== 'all' ? 'Aucun fichier ne correspond à votre recherche' : 'Aucun fichier pour l\'instant'}
+                        {search || isSearchMode
+                            ? 'Aucun fichier ne correspond à votre recherche'
+                            : mediaTab === 'video'
+                                ? 'Aucune vidéo pour l\'instant'
+                                : 'Aucune image pour l\'instant'}
                     </p>
                 </div>
             ) : viewMode === 'grid' ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                    {filtered.map(file => (
+                    {files.map(file => (
                         <FileCard
                             key={file.id}
                             file={file}
@@ -452,7 +447,7 @@ const MediaLibraryPage = ({ showDeleteFile = false }) => {
                 </div>
             ) : (
                 <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 overflow-hidden">
-                    {filtered.map(file => (
+                    {files.map(file => (
                         <FileRow
                             key={file.id}
                             file={file}
@@ -465,16 +460,11 @@ const MediaLibraryPage = ({ showDeleteFile = false }) => {
                 </div>
             )}
 
-            {/* ── Pagination ── */}
-            {!loading && totalPages > 1 && (
-                <Pagination
-                    page={page}
-                    totalPages={totalPages}
-                    totalCount={totalCount}
-                    hasNext={hasNext}
-                    hasPrev={hasPrev}
-                    onPageChange={handlePageChange}
-                />
+            {!loading && files.length > 0 && (
+                <p className="text-[11px] font-poppins text-neutral-5 text-center">
+                    {filteredCount} {mediaTab === 'video' ? 'vidéo' : 'image'}{filteredCount !== 1 ? 's' : ''}
+                    {isSearchMode ? ' trouvée(s)' : ''}
+                </p>
             )}
 
             {/* ── Panneau détail fichier sélectionné ── */}
@@ -496,9 +486,11 @@ const MediaLibraryPage = ({ showDeleteFile = false }) => {
                         <div className="aspect-square w-full rounded-2 overflow-hidden bg-neutral-2 border border-neutral-4">
                             {getFileType(selectedFile.file) === 'image'
                                 ? <img src={selectedFile.file} alt="" className="w-full h-full object-contain" />
-                                : <div className="w-full h-full flex items-center justify-center">
-                                    <FileTypeIcon url={selectedFile.file} size={40} />
-                                </div>
+                                : getFileType(selectedFile.file) === 'video'
+                                    ? <video src={selectedFile.file} controls className="w-full h-full object-contain bg-neutral-8" />
+                                    : <div className="w-full h-full flex items-center justify-center">
+                                        <FileTypeIcon url={selectedFile.file} size={40} />
+                                    </div>
                             }
                         </div>
 
