@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, Eye, PauseCircle, Ban, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import ClientStatusBadge, { CLIENT_STATUS_CONFIG } from './ClientStatusBadge';
+import ClientOnlineBadge from './ClientOnlineBadge';
+import { deriveStatus } from '../../hooks/useClients';
 
 // ── Helpers ───────────────────────────────────────────────────
 const formatDate = (dateStr) => {
@@ -9,8 +11,19 @@ const formatDate = (dateStr) => {
     return new Date(dateStr).toLocaleDateString('fr-FR');
 };
 
+const formatDateTime = (dateStr) => {
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleDateString('fr-FR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+    });
+};
+
+const isClientOnline = (client, onlineIds) =>
+    client.is_online === true || onlineIds?.has(String(client.id));
+
 // ── Sous-composants ───────────────────────────────────────────
-const STATUS_TABS = ['Tous', ...Object.keys(CLIENT_STATUS_CONFIG)];
+const STATUS_TABS = ['Tous', 'En ligne', ...Object.keys(CLIENT_STATUS_CONFIG)];
 
 const ClientAvatar = ({ firstName, lastName }) => (
     <div className="w-8 h-8 rounded-full bg-primary-5 flex items-center justify-center shrink-0">
@@ -38,6 +51,11 @@ const ClientsTable = ({
     pagination = null,
     highlightRowId = '',
     serverFilters = null,
+    onlineClients = [],
+    onlineCount = 0,
+    onlineLoading = false,
+    onlineIds = new Set(),
+    thresholdMinutes = 5,
 }) => {
     const navigate = useNavigate();
     const [localSearch, setLocalSearch] = useState('');
@@ -60,27 +78,39 @@ const ClientsTable = ({
     const setSearch = serverFilters ? serverFilters.onSearchChange : setLocalSearch;
     const useServerSearch = !!(serverFilters && search.trim());
 
+    const isOnlineTab = activeTab === 'En ligne';
+    const sourceClients = isOnlineTab
+        ? onlineClients.map((c) => ({ ...c, status: deriveStatus(c) }))
+        : clients;
+
     const filtered = useMemo(() => {
         const q = search.toLowerCase();
-        return clients.filter(c => {
-            const matchTab = activeTab === 'Tous' || c.status === activeTab;
+        return sourceClients.filter(c => {
+            const matchTab = activeTab === 'Tous'
+                || activeTab === 'En ligne'
+                || c.status === activeTab;
             const fullName = `${c.first_name ?? ''} ${c.last_name ?? ''}`.toLowerCase();
             const city = (c.city_details?.name ?? '').toLowerCase();
-            const matchSearch = useServerSearch ||
+            const matchSearch = (useServerSearch && !isOnlineTab) ||
                 fullName.includes(q) ||
                 (c.phone ?? '').includes(search.trim()) ||
                 city.includes(q);
             return matchTab && matchSearch;
         });
-    }, [clients, search, activeTab, useServerSearch]);
+    }, [sourceClients, search, activeTab, useServerSearch, isOnlineTab]);
 
     const countByStatus = useMemo(() => {
-        const map = { Tous: clients.length };
+        const map = {
+            Tous: clients.length,
+            'En ligne': onlineCount,
+        };
         Object.keys(CLIENT_STATUS_CONFIG).forEach(s => {
             map[s] = clients.filter(c => c.status === s).length;
         });
         return map;
-    }, [clients]);
+    }, [clients, onlineCount]);
+
+    const tableLoading = isOnlineTab ? onlineLoading : loading;
 
     return (
         <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-md overflow-hidden">
@@ -101,11 +131,13 @@ const ClientsTable = ({
                             focus:ring-2 focus:ring-primary-5 transition-all duration-200"
                     />
                 </div>
-                {(pagination || useServerSearch) && (
+                {(pagination || useServerSearch || isOnlineTab) && (
                     <span className="text-[11px] font-poppins text-neutral-6 whitespace-nowrap">
-                        {useServerSearch
-                            ? `${filtered.length} résultat${filtered.length > 1 ? 's' : ''} trouvé${filtered.length > 1 ? 's' : ''}`
-                            : `${filtered.length} affichée${filtered.length > 1 ? 's' : ''} · ${pagination?.totalCount ?? 0} au total`}
+                        {isOnlineTab
+                            ? `${filtered.length} en ligne · fenêtre ${thresholdMinutes} min`
+                            : useServerSearch
+                                ? `${filtered.length} résultat${filtered.length > 1 ? 's' : ''} trouvé${filtered.length > 1 ? 's' : ''}`
+                                : `${filtered.length} affichée${filtered.length > 1 ? 's' : ''} · ${pagination?.totalCount ?? 0} au total`}
                     </span>
                 )}
             </div>
@@ -137,7 +169,7 @@ const ClientsTable = ({
                 <table className="w-full text-xs font-poppins">
                     <thead>
                         <tr className="bg-neutral-2 dark:bg-neutral-2 border-b border-neutral-4 dark:border-neutral-4">
-                            {['Client', 'Téléphone', 'Ville', 'Inscrit le', 'Dernière connexion', 'Statut', 'Actions'].map(col => (
+                            {['Client', 'Téléphone', 'Ville', 'Inscrit le', 'Dernière activité', 'Présence', 'Statut', 'Actions'].map(col => (
                                 <th key={col} className="text-left px-4 py-3 text-neutral-6 dark:text-neutral-6 font-semibold uppercase tracking-wide whitespace-nowrap">
                                     {col}
                                 </th>
@@ -145,16 +177,16 @@ const ClientsTable = ({
                         </tr>
                     </thead>
                     <tbody>
-                        {loading ? (
+                        {tableLoading ? (
                             <tr>
-                                <td colSpan={7} className="px-4 py-12 text-center">
+                                <td colSpan={8} className="px-4 py-12 text-center">
                                     <Loader2 size={20} className="animate-spin text-primary-1 mx-auto" />
                                 </td>
                             </tr>
                         ) : filtered.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="px-4 py-10 text-center text-neutral-6 dark:text-neutral-6">
-                                    Aucun client trouvé
+                                <td colSpan={8} className="px-4 py-10 text-center text-neutral-6 dark:text-neutral-6">
+                                    {isOnlineTab ? 'Aucun client en ligne pour le moment' : 'Aucun client trouvé'}
                                 </td>
                             </tr>
                         ) : filtered.map(client => (
@@ -170,10 +202,15 @@ const ClientsTable = ({
                                 {/* Client */}
                                 <td className="px-4 py-3">
                                     <div className="flex items-center gap-2.5">
-                                        <ClientAvatar
-                                            firstName={client.first_name}
-                                            lastName={client.last_name}
-                                        />
+                                        <div className="relative shrink-0">
+                                            <ClientAvatar
+                                                firstName={client.first_name}
+                                                lastName={client.last_name}
+                                            />
+                                            {isClientOnline(client, onlineIds) && (
+                                                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-success-1 border-2 border-neutral-0 animate-pulse" />
+                                            )}
+                                        </div>
                                         <span className="font-semibold text-neutral-8 dark:text-neutral-8 whitespace-nowrap">
                                             {client.first_name} {client.last_name}
                                         </span>
@@ -193,7 +230,11 @@ const ClientsTable = ({
                                 </td>
 
                                 <td className="px-4 py-3 text-neutral-6 dark:text-neutral-6 whitespace-nowrap">
-                                    {formatDate(client.last_login)}
+                                    {formatDateTime(client.last_seen ?? client.last_login)}
+                                </td>
+
+                                <td className="px-4 py-3">
+                                    <ClientOnlineBadge isOnline={isClientOnline(client, onlineIds)} />
                                 </td>
 
                                 <td className="px-4 py-3">
@@ -235,7 +276,7 @@ const ClientsTable = ({
                 </table>
             </div>
 
-            {pagination && pagination.totalCount > 0 && (
+            {pagination && pagination.totalCount > 0 && !isOnlineTab && (
                 <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-t border-neutral-4 dark:border-neutral-4 bg-neutral-2/50 dark:bg-neutral-2/50">
                     <p className="text-[11px] font-poppins text-neutral-6 dark:text-neutral-6">
                         Page <span className="font-semibold text-neutral-8 dark:text-neutral-8">{pagination.page}</span>

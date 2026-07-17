@@ -104,12 +104,21 @@ export function normalizeOrder(raw) {
         });
       }
 
+      // API V2 : image dans product_details / variant_details ; V1 : image au top-level
+      const image =
+        i.variant_details?.image
+        || i.product_details?.image
+        || i.image
+        || (typeof i.product === "object" ? i.product?.image : null)
+        || null;
+
       return {
         name:
-          typeof i.product === "string"
+          i.product_details?.name
+          ?? (typeof i.product === "string"
             ? i.product
-            : i.product?.name ?? i.name ?? "Produit",
-        image: i.image ?? null,
+            : i.product?.name ?? i.name ?? "Produit"),
+        image,
         quantity: i.quantity,
         unitPrice: i.price,
         variants,

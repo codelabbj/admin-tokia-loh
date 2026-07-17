@@ -6,10 +6,12 @@ import {
     PauseCircle, UserCheck, Loader2, AlertCircle
 } from 'lucide-react';
 import { useClients } from '../hooks/useClients';
+import { useOnlineClients, ONLINE_CLIENTS_POLL_MS } from '../hooks/useOnlineClients';
 import { useOrders } from '../hooks/useOrders';
 import Button from '../components/Button';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import ClientStatusBadge from '../components/clients/ClientStatusBadge';
+import ClientOnlineBadge from '../components/clients/ClientOnlineBadge';
 import StatCard from '../components/dashboard/StatCard';
 import OrdersTable from '../components/orders/OrdersTable';
 
@@ -25,11 +27,16 @@ const displayCity = (client) => {
     return client?.city_details?.name ?? '--';
 };
 
-const ClientAvatarLarge = ({ firstName, lastName }) => (
-    <div className="w-16 h-16 rounded-full bg-primary-1 flex items-center justify-center shrink-0 shadow-md">
-        <span className="text-xl font-bold font-poppins text-white">
-            {firstName?.[0]?.toUpperCase()}{lastName?.[0]?.toUpperCase()}
-        </span>
+const ClientAvatarLarge = ({ firstName, lastName, isOnline = false }) => (
+    <div className="relative shrink-0">
+        <div className="w-16 h-16 rounded-full bg-primary-1 flex items-center justify-center shadow-md">
+            <span className="text-xl font-bold font-poppins text-white">
+                {firstName?.[0]?.toUpperCase()}{lastName?.[0]?.toUpperCase()}
+            </span>
+        </div>
+        {isOnline && (
+            <span className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-success-1 border-2 border-neutral-0 animate-pulse" />
+        )}
     </div>
 );
 
@@ -52,6 +59,7 @@ const ClientDetailPage = () => {
     const [reactivateConfirmOpen, setReactivateConfirmOpen] = useState(false);
 
     const { client, loading: clientLoading, error: clientError, deactivate, reactivate } = useClients(id);
+    const { onlineIds } = useOnlineClients({ enabled: !!id, pollMs: ONLINE_CLIENTS_POLL_MS });
     const { orders, loading: ordersLoading, updateStatus } = useOrders({ clientId: id });
 
     React.useEffect(() => {
@@ -70,7 +78,8 @@ const ClientDetailPage = () => {
     const phone = client?.phone ?? '—';
     const city = displayCity(client);
     const joinedAt = formatDate(client?.joined_at);
-    const lastLogin = formatDateTime(client?.last_login);
+    const lastActivity = formatDateTime(client?.last_seen ?? client?.last_login);
+    const isOnline = client?.is_online === true || onlineIds.has(String(id));
     const status = client?.is_active === false ? 'Désactivé'
         : client?.is_blocked ? 'Bloqué'
             : 'Actif';
@@ -185,20 +194,21 @@ const ClientDetailPage = () => {
             {/* ── Fiche client ── */}
             <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 p-5
                 flex flex-col sm:flex-row items-start gap-5">
-                <ClientAvatarLarge firstName={firstName} lastName={lastName} />
+                <ClientAvatarLarge firstName={firstName} lastName={lastName} isOnline={isOnline} />
                 <div className="flex-1 flex flex-col gap-4 min-w-0">
                     <div className="flex items-center gap-3 flex-wrap">
                         <h2 className="text-base font-bold font-poppins text-neutral-8 dark:text-neutral-8">
                             {firstName} {lastName}
                         </h2>
                         <ClientStatusBadge status={status} />
+                        <ClientOnlineBadge isOnline={isOnline} />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
                         <InfoCard icon={<User size={14} />} label="Nom complet" value={`${firstName} ${lastName}`} />
                         <InfoCard icon={<Phone size={14} />} label="Téléphone" value={phone} />
                         <InfoCard icon={<MapPin size={14} />} label="Ville" value={city} />
                         <InfoCard icon={<Calendar size={14} />} label="Inscrit le" value={joinedAt} />
-                        <InfoCard icon={<Clock size={14} />} label="Dernière connexion" value={lastLogin} />
+                        <InfoCard icon={<Clock size={14} />} label="Dernière activité" value={lastActivity} />
                     </div>
                 </div>
             </div>

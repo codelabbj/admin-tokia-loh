@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, UserCheck, UserMinus, UserX, AlertCircle } from 'lucide-react';
+import { Users, UserCheck, UserMinus, UserX, AlertCircle, Radio } from 'lucide-react';
 import { useSearchParams } from 'react-router';
 import StatCard from '../components/dashboard/StatCard';
 import ClientsTable from '../components/clients/ClientsTable';
 import { useToast } from '../hooks/useToast';
 import ToastContainer from '../components/ToastContainer';
 import { useClients, deriveStatus, CLIENTS_LIST_PAGE_SIZE } from '../hooks/useClients';
+import { useOnlineClients, ONLINE_CLIENTS_POLL_MS } from '../hooks/useOnlineClients';
 import { findClientListPage } from '../utils/findListPage';
 
 const ClientsPage = () => {
@@ -29,6 +30,13 @@ const ClientsPage = () => {
         setSearch,
         isSearchMode,
     } = useClients();
+    const {
+        onlineClients,
+        onlineCount,
+        onlineIds,
+        thresholdMinutes,
+        loading: onlineLoading,
+    } = useOnlineClients({ pollMs: ONLINE_CLIENTS_POLL_MS });
     const { toasts, showToast, removeToast } = useToast();
 
     useEffect(() => {
@@ -130,13 +138,22 @@ const ClientsPage = () => {
             </div>
 
             {/* ── Stats ── */}
-            <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4">
                 <StatCard
                     title="Total clients"
                     value={loading ? '…' : String(totalCount)}
                     caption="Tous les comptes (API)"
                     icon={<Users size={18} />}
                     color="primary"
+                />
+                <StatCard
+                    title="En ligne"
+                    value={onlineLoading ? '…' : String(onlineCount)}
+                    caption={`Actifs (${thresholdMinutes} min) · MAJ ${ONLINE_CLIENTS_POLL_MS / 1000}s`}
+                    icon={<Radio size={18} />}
+                    color="secondary"
+                    trend={onlineCount > 0 ? 'up' : 'neutral'}
+                    trendLabel={onlineCount > 0 ? 'Sur l\'app mobile' : 'Aucun'}
                 />
                 <StatCard
                     title="Clients actifs"
@@ -170,6 +187,11 @@ const ClientsPage = () => {
                 onDisable={handleDisable}
                 onBlock={handleBlock}
                 highlightRowId={highlightClient || tableFlashId}
+                onlineClients={onlineClients}
+                onlineCount={onlineCount}
+                onlineLoading={onlineLoading}
+                onlineIds={onlineIds}
+                thresholdMinutes={thresholdMinutes}
                 serverFilters={{ search, onSearchChange: setSearch }}
                 pagination={isSearchMode ? null : {
                     page,

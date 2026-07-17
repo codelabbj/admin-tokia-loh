@@ -9,6 +9,7 @@ import { useVilles } from '../../hooks/useVilles';
 import { useCompany } from '../../hooks/useCompany';
 //import OrderMap from './OrderMapOld';
 import OrderMap from './OrderMap';
+import OrderItemImage from './OrderItemImage';
 
 const formatPrice = (p) => `${Number(p).toLocaleString('fr-FR')} F`;
 
@@ -159,7 +160,10 @@ const OrderDetailModal = ({ open, onClose, order, onStatusChange }) => {
                                         {currentOrder.items?.map((item, i) => (
                                             <tr key={i} className="border-b border-neutral-4 dark:border-neutral-4 last:border-0">
                                                 <td className="px-4 py-3 text-neutral-8 dark:text-neutral-8 font-medium">
-                                                    {item.name}
+                                                    <div className="flex items-center gap-3">
+                                                        <OrderItemImage src={item.image} alt={item.name} />
+                                                        <span>{item.name}</span>
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3 text-center text-neutral-7 dark:text-neutral-7">
                                                     {item.quantity}

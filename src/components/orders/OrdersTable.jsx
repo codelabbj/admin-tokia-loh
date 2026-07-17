@@ -2,6 +2,7 @@ import React, { useState, useMemo, useId, useEffect, useRef } from 'react';
 import { Search, Eye, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import OrderStatusBadge, { STATUS_CONFIG } from './OrderStatusBadge';
+import { OrderItemsThumbStack } from './OrderItemImage';
 
 /** Filtre sur la page : référence API ou affichage avec # — comparaison en JS uniquement. */
 function refMatchesQuery(orderRef, queryLower) {
@@ -216,7 +217,7 @@ const OrdersTable = ({
                                     {order.client?.city}
                                 </td>
                                 <td className="px-4 py-3 text-neutral-6">
-                                    {order.items?.length} article{order.items?.length > 1 ? 's' : ''}
+                                    <OrderItemsThumbStack items={order.items} max={3} />
                                 </td>
                                 <td className="px-4 py-3 font-semibold text-neutral-8 dark:text-neutral-8 whitespace-nowrap">
                                     {formatPrice(calcTotal(order))}

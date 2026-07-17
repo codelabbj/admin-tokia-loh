@@ -4,6 +4,7 @@ import api from "./client";
  * ClientsAPI — gestion des clients depuis le backoffice.
  *
  * GET  /accounts/clients/                    ?search&page
+ * GET  /accounts/clients/online/             ?minutes&page&page_size
  * GET  /accounts/clients/:id/
  * GET  /accounts/clients/:id/verify-client/
  * POST /accounts/clients/:id/deactivate/   corps JSON { is_active: boolean }
@@ -15,6 +16,14 @@ class ClientsAPI {
    */
   list(params = {}) {
     return api.get("/accounts/clients/", { params });
+  }
+
+  /**
+   * Clients actuellement en ligne (vus dans les `minutes` dernières minutes).
+   * @param {{ minutes?: number, page?: number, page_size?: number }} params
+   */
+  online(params = {}) {
+    return api.get("/accounts/clients/online/", { params });
   }
 
   /**
