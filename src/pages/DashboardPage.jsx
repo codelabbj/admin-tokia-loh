@@ -253,43 +253,48 @@ const DashboardPage = () => {
                 </div>
 
                 {profitLoading ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 animate-pulse">
-                        {[...Array(4)].map((_, i) => (
-                            <div key={i} className="h-28 bg-neutral-3 dark:bg-neutral-3 rounded-3" />
-                        ))}
+                    <div className="flex flex-col gap-4 animate-pulse">
+                        <div className="h-28 bg-neutral-3 dark:bg-neutral-3 rounded-3" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="h-28 bg-neutral-3 dark:bg-neutral-3 rounded-3" />
+                            <div className="h-28 bg-neutral-3 dark:bg-neutral-3 rounded-3" />
+                        </div>
                     </div>
                 ) : profitData ? (
                     <>
-                        {/* Stats cards */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                            <StatCard
-                                title="Bénéfice net"
-                                value={formatCFA(profitData.summary?.total_profit)}
-                                icon={<BadgeDollarSign size={18} />}
-                                color="success"
-                            />
+                        {/* Plan client : CA en haut, puis CA fournisseurs + Bénéfices */}
+                        <div className="flex flex-col gap-4">
                             <StatCard
                                 title="Chiffre d'affaires"
                                 value={formatCFA(profitData.summary?.total_revenue)}
                                 icon={<TrendingUp size={18} />}
                                 color="primary"
-                            />
-                            <StatCard
-                                title="Coût fournisseurs"
-                                value={formatCFA(profitData.summary?.total_supplier_cost)}
-                                icon={<TrendingDown size={18} />}
-                                color="warning"
-                            />
-                            <StatCard
-                                title="Marge"
-                                value={
-                                    profitData.summary?.profit_margin_pct != null
-                                        ? `${profitData.summary.profit_margin_pct}%`
-                                        : '—'
+                                caption={
+                                    profitData.summary?.orders_count != null
+                                        ? `${Number(profitData.summary.orders_count).toLocaleString('fr-FR')} commande(s)`
+                                        : undefined
                                 }
-                                icon={<Package size={18} />}
-                                color="secondary"
                             />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <StatCard
+                                    title="Chiffre d'affaire fournisseurs"
+                                    value={formatCFA(profitData.summary?.total_supplier_cost)}
+                                    icon={<TrendingDown size={18} />}
+                                    color="warning"
+                                    caption="Total des coûts fournisseurs sur la période"
+                                />
+                                <StatCard
+                                    title="Bénéfices"
+                                    value={formatCFA(profitData.summary?.total_profit)}
+                                    icon={<BadgeDollarSign size={18} />}
+                                    color="success"
+                                    caption={
+                                        profitData.summary?.profit_margin_pct != null
+                                            ? `Marge ${profitData.summary.profit_margin_pct}%`
+                                            : undefined
+                                    }
+                                />
+                            </div>
                         </div>
 
                         {/* Avertissement produits sans supplier_price */}

@@ -61,6 +61,10 @@ export const normalizeVariantsForAPI = async (variants, globalUnlimited = true) 
       cleaned.price = Number(v.price);
     }
 
+    if (v.supplier_price !== undefined && v.supplier_price !== null && v.supplier_price !== "") {
+      cleaned.supplier_price = Number(v.supplier_price);
+    }
+
     cleaned.unlimited_stock = globalUnlimited ? !!v.unlimited_stock : false;
 
     if (!cleaned.unlimited_stock && v.stock !== undefined && v.stock !== null && v.stock !== "") {

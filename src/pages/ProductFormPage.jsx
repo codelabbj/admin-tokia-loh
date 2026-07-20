@@ -190,6 +190,7 @@ const normalizeVariantsForForm = (variants = [], attributes = []) => {
             name: String(v?.name ?? '').trim(),
             price: String(v?.price ?? '').trim(),
             original_price: v?.original_price == null ? '' : String(v.original_price),
+            supplier_price: v?.supplier_price == null ? '' : String(v.supplier_price),
             stock: v?.stock == null ? '' : String(v.stock),
             unlimited_stock: v?.unlimited_stock === true,
             status: v?.status ?? true,
@@ -653,6 +654,7 @@ const ProductFormPage = () => {
         sku: '',
         price: '',
         original_price: '',
+        supplier_price: '',
         stock: '',
         unlimited_stock: false,
         status: true,
@@ -917,7 +919,7 @@ const ProductFormPage = () => {
                         </div>
                     </FormSection>
 
-                    {/* Prix & Stock */}
+                    {/* Prix & Stock — plan client (autres champs conservés) */}
                     <FormSection title="Prix & Stock">
                         <div className="grid grid-cols-2 gap-4">
                             <InputField
@@ -948,28 +950,40 @@ const ProductFormPage = () => {
                                     </span>
                                 )}
                             </div>
-                        </div>
-                        {/* Prix fournisseur — visible uniquement dans l'admin */}
-                        <div className="flex flex-col gap-1.5 p-3 rounded-md border border-warning-3 bg-warning-4/30">
-                            <div className="flex items-center gap-2 mb-0.5">
-                                <span className="text-[11px] font-bold font-poppins text-warning-1 uppercase tracking-wide">🔒 Usage interne uniquement</span>
-                            </div>
-                            <InputField
-                                label="Prix fournisseur (F) — confidentiel"
-                                name="supplier_price"
-                                type="number"
-                                min="0"
-                                value={form.supplier_price}
-                                onChange={handleChange}
-                                placeholder="Ex: 5000"
-                                hint="Montant payé au fournisseur. Jamais visible par les clients."
-                            />
-                            {form.supplier_price && form.price && (
-                                <span className="text-[11px] font-semibold font-poppins text-success-1">
-                                    ✓ Marge estimée : {(Number(form.sale_price || form.price) - Number(form.supplier_price)).toLocaleString('fr-FR')} F
-                                    {' '}({Math.round(((Number(form.sale_price || form.price) - Number(form.supplier_price)) / Number(form.sale_price || form.price)) * 100)}%)
+                            <div className="flex flex-col gap-1.5 p-3 rounded-md border border-warning-3 bg-warning-4/30">
+                                <span className="text-[11px] font-bold font-poppins text-warning-1 uppercase tracking-wide">
+                                    🔒 Interne
                                 </span>
-                            )}
+                                <InputField
+                                    label="Prix fournisseur (F)"
+                                    name="supplier_price"
+                                    type="number"
+                                    min="0"
+                                    value={form.supplier_price}
+                                    onChange={handleChange}
+                                    placeholder="Ex: 5000"
+                                    hint="Jamais visible par les clients"
+                                />
+                            </div>
+                            <div className="flex flex-col gap-1.5 p-3 rounded-md border border-success-1/30 bg-success-2 justify-center min-h-[88px]">
+                                <span className="text-[11px] font-bold font-poppins text-neutral-6 uppercase tracking-wide">
+                                    Bénéfices
+                                </span>
+                                {form.supplier_price && form.price ? (
+                                    <>
+                                        <p className="text-lg font-bold font-poppins text-success-1">
+                                            {(Number(form.sale_price || form.price) - Number(form.supplier_price)).toLocaleString('fr-FR')} F
+                                        </p>
+                                        <span className="text-[11px] font-semibold font-poppins text-success-1">
+                                            Marge {Math.round(((Number(form.sale_price || form.price) - Number(form.supplier_price)) / Number(form.sale_price || form.price)) * 100)}%
+                                        </span>
+                                    </>
+                                ) : (
+                                    <p className="text-sm font-poppins text-neutral-5">
+                                        — (renseignez le prix fournisseur)
+                                    </p>
+                                )}
+                            </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4 items-end">
                             <InputField
