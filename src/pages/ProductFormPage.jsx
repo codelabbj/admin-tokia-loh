@@ -75,6 +75,7 @@ const EMPTY_FORM = {
     category: '',
     price: '',
     sale_price: '',
+    supplier_price: '',
     stock: '',
     unlimited_stock: false,
     is_active: true,
@@ -328,6 +329,7 @@ const ProductFormPage = () => {
                 category: product.category ?? '',
                 price: product.original_price ?? product.price ?? '',
                 sale_price: product.original_price ? product.price ?? '' : '',
+                supplier_price: product.supplier_price ?? '',
                 stock: product.stock ?? '',
                 unlimited_stock: product.unlimited_stock === true,
                 is_active: product.is_active ?? product.status ?? true,
@@ -733,6 +735,7 @@ const ProductFormPage = () => {
                 category: form.category,
                 price: Number(form.price),
                 sale_price: form.sale_price ? Number(form.sale_price) : null,
+                supplier_price: form.supplier_price ? Number(form.supplier_price) : null,
                 stock: Number(form.stock === '' || form.stock === null ? 0 : form.stock),
                 unlimited_stock: form.unlimited_stock,
                 is_active: form.is_active,
@@ -945,6 +948,28 @@ const ProductFormPage = () => {
                                     </span>
                                 )}
                             </div>
+                        </div>
+                        {/* Prix fournisseur — visible uniquement dans l'admin */}
+                        <div className="flex flex-col gap-1.5 p-3 rounded-md border border-warning-3 bg-warning-4/30">
+                            <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-[11px] font-bold font-poppins text-warning-1 uppercase tracking-wide">🔒 Usage interne uniquement</span>
+                            </div>
+                            <InputField
+                                label="Prix fournisseur (F) — confidentiel"
+                                name="supplier_price"
+                                type="number"
+                                min="0"
+                                value={form.supplier_price}
+                                onChange={handleChange}
+                                placeholder="Ex: 5000"
+                                hint="Montant payé au fournisseur. Jamais visible par les clients."
+                            />
+                            {form.supplier_price && form.price && (
+                                <span className="text-[11px] font-semibold font-poppins text-success-1">
+                                    ✓ Marge estimée : {(Number(form.sale_price || form.price) - Number(form.supplier_price)).toLocaleString('fr-FR')} F
+                                    {' '}({Math.round(((Number(form.sale_price || form.price) - Number(form.supplier_price)) / Number(form.sale_price || form.price)) * 100)}%)
+                                </span>
+                            )}
                         </div>
                         <div className="grid grid-cols-2 gap-4 items-end">
                             <InputField

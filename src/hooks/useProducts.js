@@ -207,6 +207,11 @@ export const useProducts = (options = {}) => {
       ...priceFields,
       unlimited_stock: unlimited,
 
+      // Prix fournisseur (interne — visible uniquement par les admins)
+      supplier_price: formData.supplier_price
+        ? Number(formData.supplier_price)
+        : null,
+
       // Images
       image: imageUrl,
       secondary_images: secondaryUrls,
@@ -266,12 +271,19 @@ export const useProducts = (options = {}) => {
           : null;
 
         if (salePrice) {
-          payload.price = salePrice; // prix affiché = prix réduit
-          payload.original_price = initialPrice; // prix barré = prix initial
+          payload.price = salePrice;
+          payload.original_price = initialPrice;
         } else {
-          payload.price = initialPrice; // pas de promo
+          payload.price = initialPrice;
           payload.original_price = null;
         }
+      }
+
+      // Prix fournisseur (interne — admin uniquement)
+      if (formData.supplier_price !== undefined) {
+        payload.supplier_price = formData.supplier_price
+          ? Number(formData.supplier_price)
+          : null;
       }
 
       if (formData.status !== undefined) {
