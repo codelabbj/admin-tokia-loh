@@ -785,6 +785,33 @@ const ProductDetailPage = () => {
                                 </span>
                             )}
                         </div>
+
+                        {product.supplier_price != null && (
+                            <div className="mt-3 pt-3 border-t border-neutral-4 dark:border-neutral-4 flex items-center gap-4 flex-wrap">
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[11px] font-poppins text-neutral-6 uppercase tracking-wide">Prix fournisseur</span>
+                                    <span className="text-sm font-semibold font-poppins text-neutral-7 dark:text-neutral-7">
+                                        {formatPrice(product.supplier_price)}
+                                    </span>
+                                </div>
+                                {(() => {
+                                    const salePrice = product.price ? Number(product.price) : null;
+                                    const supplierPrice = Number(product.supplier_price);
+                                    if (!salePrice || supplierPrice <= 0) return null;
+                                    const profit = salePrice - supplierPrice;
+                                    const margin = Math.round((profit / salePrice) * 100);
+                                    return (
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-[11px] font-poppins text-neutral-6 uppercase tracking-wide">Bénéfice</span>
+                                            <span className={`text-sm font-semibold font-poppins ${profit >= 0 ? 'text-success-1' : 'text-danger-1'}`}>
+                                                {profit >= 0 ? '+' : ''}{formatPrice(profit)}
+                                                <span className="ml-1.5 text-[11px] font-normal opacity-80">({margin}%)</span>
+                                            </span>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
                     </div>
 
                     {/* Infos générales */}
