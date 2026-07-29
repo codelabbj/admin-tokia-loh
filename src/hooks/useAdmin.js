@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
-import api from "../api/client"; // Import de votre instance axios configurée
+import { useState, useEffect, useCallback, useMemo } from "react";
+import api from "../api/client";
 import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
+import { useAuth } from "../context/AuthContext";
 
-// ─── Hook principal ────────────────────────────────────────────────────────────
 export function useAdmin() {
-  // ── État utilisateur courant ─────────────────────────────────────────────────
+  const { admin: authAdmin, isFullAdmin } = useAuth();
+
   const [currentUser, setCurrentUser] = useState(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -15,9 +16,19 @@ export function useAdmin() {
     }
   });
 
-  const isSuperAdmin = !!currentUser?.is_superuser;
+  useEffect(() => {
+    if (authAdmin) setCurrentUser(authAdmin);
+  }, [authAdmin]);
 
-  // ── Bannières ────────────────────────────────────────────────────────────────
+  const isSuperAdmin = !!currentUser?.is_superuser;
+  const canManageTeam = useMemo(() => {
+    if (isFullAdmin) return true;
+    if (!currentUser) return false;
+    if (currentUser.is_superuser) return true;
+    if (currentUser.is_full_admin) return true;
+    return !!(currentUser.is_admin && currentUser.role !== "staff");
+  }, [isFullAdmin, currentUser]);
+
   const [banners, setBanners] = useState([]);
   const [bannersLoading, setBannersLoading] = useState(false);
   const [bannersError, setBannersError] = useState(null);
@@ -86,13 +97,12 @@ export function useAdmin() {
     }
   }, []);
 
-  // ── Admins ───────────────────────────────────────────────────────────────────
   const [admins, setAdmins] = useState([]);
   const [adminsLoading, setAdminsLoading] = useState(false);
   const [adminsError, setAdminsError] = useState(null);
 
   const fetchAdmins = useCallback(async () => {
-    if (!isSuperAdmin) return;
+    if (!canManageTeam) return;
     setAdminsLoading(true);
     setAdminsError(null);
     try {
@@ -100,20 +110,18 @@ export function useAdmin() {
       if (data?.success) {
         setAdmins(data.data || []);
       } else {
-        setAdminsError("Impossible de charger les administrateurs.");
+        setAdminsError("Impossible de charger l'équipe.");
       }
     } catch (error) {
-      setAdminsError(
-        error.message || "Impossible de charger les administrateurs.",
-      );
+      setAdminsError(error.message || "Impossible de charger l'équipe.");
     } finally {
       setAdminsLoading(false);
     }
-  }, [isSuperAdmin]);
+  }, [canManageTeam]);
 
   const createAdmin = useCallback(
-    async ({ email, phone, password, is_superuser = false }) => {
-      if (!isSuperAdmin) {
+    async ({ email, phone, password, role = "staff" }) => {
+      if (!canManageTeam) {
         return { ok: false, data: { message: "Permission refusée." } };
       }
       try {
@@ -122,7 +130,7 @@ export function useAdmin() {
           phone,
           password,
           is_admin: true,
-          is_superuser,
+          role: role === "admin" ? "admin" : "staff",
         });
         await fetchAdmins();
         return { ok: true, data };
@@ -133,12 +141,12 @@ export function useAdmin() {
         };
       }
     },
-    [isSuperAdmin, fetchAdmins],
+    [canManageTeam, fetchAdmins],
   );
 
   const deleteAdmin = useCallback(
     async (id) => {
-      if (!isSuperAdmin) {
+      if (!canManageTeam) {
         return { ok: false, data: { message: "Permission refusée." } };
       }
       try {
@@ -154,10 +162,9 @@ export function useAdmin() {
         };
       }
     },
-    [isSuperAdmin],
+    [canManageTeam],
   );
 
-  // ── Mot de passe ─────────────────────────────────────────────────────────────
   const changePassword = useCallback(
     async ({ old_password, new_password, confirm_new_password }) => {
       try {
@@ -178,18 +185,16 @@ export function useAdmin() {
     [currentUser],
   );
 
-  // ── Chargement initial ───────────────────────────────────────────────────────
   useEffect(() => {
     fetchBanners();
-    if (isSuperAdmin) fetchAdmins();
-  }, [fetchBanners, fetchAdmins, isSuperAdmin]);
+    if (canManageTeam) fetchAdmins();
+  }, [fetchBanners, fetchAdmins, canManageTeam]);
 
   return {
-    // Utilisateur courant
     currentUser,
     isSuperAdmin,
-
-    // Bannières
+    isFullAdmin: canManageTeam,
+    canManageTeam,
     banners,
     bannersLoading,
     bannersError,
@@ -197,16 +202,12 @@ export function useAdmin() {
     addBanner,
     updateBanner,
     deleteBanner,
-
-    // Admins (superadmin seulement)
     admins,
     adminsLoading,
     adminsError,
     fetchAdmins,
     createAdmin,
     deleteAdmin,
-
-    // Mot de passe
     changePassword,
   };
 }

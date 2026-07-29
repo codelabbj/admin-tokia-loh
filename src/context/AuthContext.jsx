@@ -35,6 +35,10 @@ export const AuthProvider = ({ children }) => {
                 email: u.email ?? '',
                 is_admin: !!u.is_admin,
                 is_superuser: !!u.is_superuser,
+                role: u.role === 'staff' ? 'staff' : 'admin',
+                is_full_admin: u.is_full_admin !== undefined
+                    ? !!u.is_full_admin
+                    : (u.role !== 'staff'),
             };
 
             localStorage.setItem('token', token);
@@ -90,6 +94,8 @@ export const AuthProvider = ({ children }) => {
     const value = {
         admin,
         isAuthenticated: !!admin,
+        isFullAdmin: !!(admin?.is_full_admin || admin?.is_superuser || (admin?.is_admin && admin?.role !== 'staff')),
+        isStaff: admin?.role === 'staff',
         loading,
         error,
         login,
