@@ -62,7 +62,7 @@ const SalesByProductTable = ({ data = [] }) => {
                 <div className="flex items-center gap-2.5">
                     <PackageCheck size={16} className="text-success-1" />
                     <h2 className="text-sm font-semibold font-poppins text-neutral-8 dark:text-neutral-8">
-                        Commandes livrées
+                        Top commandes
                     </h2>
                     <span className="px-2 py-0.5 rounded-full bg-success-2 text-success-1 text-[11px] font-bold font-poppins">
                         {data.length}
