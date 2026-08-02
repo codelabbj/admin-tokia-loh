@@ -12,6 +12,7 @@ import SalesChart from '../components/dashboard/SalesChart';
 import TopCities from '../components/dashboard/TopCities';
 import MonthlyWeekRevenue from '../components/dashboard/MonthlyWeekRevenue';
 import DateRangeFilter from '../components/dashboard/DateRangeFilter';
+import SalesByProductTable from '../components/reports/SalesByProductTable';
 
 const formatCFA = (amount) =>
     amount != null ? `${Number(amount).toLocaleString('fr-FR')} F` : '— F';
@@ -39,6 +40,44 @@ const useProfit = (params = {}) => {
     return { data, loading, error, refetch: fetch };
 };
 
+// ── Hook commandes livrées ────────────────────────────────────
+const normalizeDeliveredOrder = (raw) => ({
+    id: raw.order_id,
+    reference: raw.order_reference ?? '—',
+    clientName: raw.client_name ?? '—',
+    date: raw.created_at ?? null,
+    total: Number(raw.total ?? 0),
+    totalCost: raw.total_cost != null ? Number(raw.total_cost) : null,
+    totalProfit: raw.total_profit != null ? Number(raw.total_profit) : null,
+    items: (raw.items ?? []).map((item) => ({
+        productName: item.product_name ?? '—',
+        productImage: item.product_image ?? null,
+        quantity: item.quantity ?? 0,
+        price: Number(item.price ?? 0),
+        supplierPrice: item.supplier_price != null ? Number(item.supplier_price) : null,
+        profit: item.profit != null ? Number(item.profit) : null,
+    })),
+});
+
+const useDeliveredOrders = (params = {}) => {
+    const [orders, setOrders] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetch = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await dashboardAPI.getDeliveredOrders(params);
+            setOrders((res.data?.orders ?? []).map(normalizeDeliveredOrder));
+        } catch {
+            setOrders([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [JSON.stringify(params)]);
+
+    useEffect(() => { fetch(); }, [fetch]);
+    return { orders, loading };
+};
 const DashboardPage = () => {
     const [activeFilter, setActiveFilter] = useState('all');
     const [dashParams, setDashParams] = useState({});
@@ -53,6 +92,7 @@ const DashboardPage = () => {
 
     const { stats, loading, error } = useDashboard(dashParams);
     const { data: profitData, loading: profitLoading } = useProfit(profitParams);
+    const { orders: deliveredOrders, loading: deliveredLoading } = useDeliveredOrders(profitParams);
 
     useEffect(() => {
         document.title = 'Admin Tokia-Loh | Tableau de bord';
@@ -308,61 +348,8 @@ const DashboardPage = () => {
                             </div>
                         )}
 
-                        {/* Top produits rentables */}
-                        {profitData.top_profitable_products?.length > 0 && (
-                            <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 overflow-hidden">
-                                <div className="px-5 py-3 border-b border-neutral-4 dark:border-neutral-4 bg-neutral-2 dark:bg-neutral-2">
-                                    <p className="text-[11px] font-semibold font-poppins text-neutral-6 uppercase tracking-wider">
-                                        Top produits les plus rentables
-                                    </p>
-                                </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-xs font-poppins">
-                                        <thead>
-                                            <tr className="border-b border-neutral-3 dark:border-neutral-3">
-                                                <th className="text-left px-4 py-3 text-neutral-6 font-semibold">Produit</th>
-                                                <th className="text-right px-4 py-3 text-neutral-6 font-semibold">Qté vendue</th>
-                                                <th className="text-right px-4 py-3 text-neutral-6 font-semibold">CA</th>
-                                                <th className="text-right px-4 py-3 text-neutral-6 font-semibold">Coût</th>
-                                                <th className="text-right px-4 py-3 text-neutral-6 font-semibold">Bénéfice</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {profitData.top_profitable_products.map((p, i) => (
-                                                <tr key={p.product_id} className={`border-b border-neutral-3 dark:border-neutral-3 ${i % 2 === 0 ? 'bg-neutral-1 dark:bg-neutral-1' : ''}`}>
-                                                    <td className="px-4 py-3 text-neutral-8 dark:text-neutral-8 font-medium max-w-[200px] truncate">
-                                                        {p.product_name}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right text-neutral-6">
-                                                        {Number(p.total_quantity).toLocaleString('fr-FR')}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right text-neutral-6">
-                                                        {formatCFA(p.total_revenue)}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right text-neutral-6">
-                                                        {formatCFA(p.total_cost)}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right font-bold">
-                                                        <span className={Number(p.total_profit) >= 0 ? 'text-success-1' : 'text-danger-1'}>
-                                                            {formatCFA(p.total_profit)}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Aucune donnée */}
-                        {profitData.top_profitable_products?.length === 0 && (
-                            <div className="flex items-center justify-center p-8 bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 rounded-3">
-                                <p className="text-xs font-poppins text-neutral-6">
-                                    Aucun produit avec prix fournisseur défini sur cette période.
-                                </p>
-                            </div>
-                        )}
+                        {/* Top commandes livrées avec bénéfices */}
+                        <SalesByProductTable data={deliveredOrders} />
                     </>
                 ) : null}
             </div>
