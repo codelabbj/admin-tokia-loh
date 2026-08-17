@@ -74,6 +74,78 @@ async function fetchLogoAsDataUrl(url) {
     }
 }
 
+/**
+ * Charge une image produit et la convertit en JPEG (carré) pour jsPDF.
+ * Évite les soucis WebP/CORS : fetch blob → canvas → data URL.
+ */
+async function fetchProductThumbDataUrl(url, sizePx = 96) {
+    if (!url || typeof url !== 'string') return null;
+    try {
+        const res = await fetch(url, { mode: 'cors', credentials: 'omit' });
+        if (!res.ok) return null;
+        const blob = await res.blob();
+        if (!blob.type.startsWith('image/')) return null;
+        const objectUrl = URL.createObjectURL(blob);
+        try {
+            return await new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = sizePx;
+                    canvas.height = sizePx;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        resolve(null);
+                        return;
+                    }
+                    ctx.fillStyle = '#f1f5f9';
+                    ctx.fillRect(0, 0, sizePx, sizePx);
+                    const ratio = Math.max(sizePx / img.width, sizePx / img.height);
+                    const w = img.width * ratio;
+                    const h = img.height * ratio;
+                    ctx.drawImage(img, (sizePx - w) / 2, (sizePx - h) / 2, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', 0.86));
+                };
+                img.onerror = () => resolve(null);
+                img.src = objectUrl;
+            });
+        } finally {
+            URL.revokeObjectURL(objectUrl);
+        }
+    } catch {
+        return null;
+    }
+}
+
+async function loadItemThumbs(items = []) {
+    return Promise.all(
+        (items ?? []).map((item) => fetchProductThumbDataUrl(item?.image)),
+    );
+}
+
+const IMG_COL_W = 16;
+const IMG_MM = 12;
+
+function drawTableProductThumbs(doc, data, thumbs) {
+    if (data.section !== 'body' || data.column.index !== 0) return;
+    const thumb = thumbs[data.row.index];
+    if (!thumb) return;
+    const padX = (data.cell.width - IMG_MM) / 2;
+    const padY = (data.cell.height - IMG_MM) / 2;
+    try {
+        doc.addImage(
+            thumb,
+            'JPEG',
+            data.cell.x + padX,
+            data.cell.y + Math.max(1.2, padY),
+            IMG_MM,
+            IMG_MM,
+        );
+    } catch {
+        /* image illisible : on laisse la cellule vide */
+    }
+}
+
 function imageFormatFromDataUrl(dataUrl) {
     if (dataUrl.includes('image/png')) return 'PNG';
     if (dataUrl.includes('image/jpeg') || dataUrl.includes('image/jpg')) return 'JPEG';
@@ -322,9 +394,9 @@ const drawInvoiceRecap = (doc, order, startY) => {
     doc.rect(110, startY, 92, recapH, 'F');
 
     // Positionnement :
-    // Largeurs colonnes (dans autoTable) : [82, 16, 42, 48], total = 182
+    // Largeurs colonnes (dans autoTable) : [16, 66, 16, 42, 42], total = 182
     // On aligne le label à gauche de la zone "Prix unitaire".
-    const labelLeftX = boxX + 82 + 16 + 2; // 1-2mm de padding
+    const labelLeftX = boxX + IMG_COL_W + 66 + 16 + 2;
     const valueRightX = boxX + boxW - 2; // fin col "Total"
 
     const y1 = startY + 5.2;
@@ -361,6 +433,7 @@ export const generateInvoice = async (order) => {
     if (company?.logo) {
         logoDataUrl = await fetchLogoAsDataUrl(company.logo);
     }
+    const itemThumbs = await loadItemThumbs(order.items);
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
@@ -379,13 +452,14 @@ export const generateInvoice = async (order) => {
     // Tableau des produits
     autoTable(doc, {
         startY: y,
-        head: [['Produit', 'Qté', 'Prix unitaire', 'Total']],
+        head: [['', 'Produit', 'Qté', 'Prix unitaire', 'Total']],
         body: order.items.map(item => {
             let nameDisplay = item.name;
             if (item.variants && item.variants.length > 0) {
                 nameDisplay += '\n' + item.variants.map(v => `• ${v.key ? v.key.charAt(0).toUpperCase() + v.key.slice(1) : 'Déclinaison'} : ${v.name}`).join('\n');
             }
             return [
+                '',
                 nameDisplay,
                 item.quantity,
                 formatMoney(item.unitPrice),
@@ -394,15 +468,17 @@ export const generateInvoice = async (order) => {
         }),
 
         alternateRowStyles: { fillColor: [245, 247, 250] },
-        styles: { fontSize: 8.2, font: 'helvetica', cellPadding: 2, overflow: 'hidden' },
+        styles: { fontSize: 8.2, font: 'helvetica', cellPadding: 2, overflow: 'hidden', minCellHeight: 16, valign: 'middle' },
         headStyles: { fillColor: BLUE, textColor: [255, 255, 255], fontStyle: 'bold' },
         columnStyles: {
-            0: { cellWidth: 82 },
-            1: { cellWidth: 16, halign: 'center' },
-            2: { cellWidth: 42, halign: 'right' },
-            3: { cellWidth: 48, halign: 'right' },
+            0: { cellWidth: IMG_COL_W },
+            1: { cellWidth: 66 },
+            2: { cellWidth: 16, halign: 'center' },
+            3: { cellWidth: 42, halign: 'right' },
+            4: { cellWidth: 42, halign: 'right' },
         },
         margin: { left: 14, right: 14 },
+        didDrawCell: (data) => drawTableProductThumbs(doc, data, itemThumbs),
     });
 
     // Espace blanc entre le tableau et le récapitulatif (qui est en bas)
@@ -427,6 +503,7 @@ export const generateDeliveryNote = async (order) => {
     if (company?.logo) {
         logoDataUrl = await fetchLogoAsDataUrl(company.logo);
     }
+    const itemThumbs = await loadItemThumbs(order.items);
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
@@ -477,16 +554,23 @@ export const generateDeliveryNote = async (order) => {
     // Tableau articles (simplifié pour livraison)
     autoTable(doc, {
         startY: y,
-        head: [['Produit', 'Quantité', 'Remarque']],
+        head: [['', 'Produit', 'Quantité', 'Remarque']],
         body: order.items.map(item => [
+            '',
             item.name,
             item.quantity,
             '',
         ]),
-        styles: { fontSize: 8, font: 'helvetica', cellPadding: 4, minCellHeight: 10 },
+        styles: { fontSize: 8, font: 'helvetica', cellPadding: 3, minCellHeight: 16, valign: 'middle' },
         headStyles: { fillColor: VIOLET, textColor: [255, 255, 255], fontStyle: 'bold' },
-        columnStyles: { 0: { cellWidth: 100 }, 1: { halign: 'center', cellWidth: 30 }, 2: { cellWidth: 60 } },
+        columnStyles: {
+            0: { cellWidth: IMG_COL_W },
+            1: { cellWidth: 80 },
+            2: { halign: 'center', cellWidth: 30 },
+            3: { cellWidth: 56 },
+        },
         margin: { left: 14, right: 14 },
+        didDrawCell: (data) => drawTableProductThumbs(doc, data, itemThumbs),
     });
 
     y = doc.lastAutoTable.finalY + 8;
