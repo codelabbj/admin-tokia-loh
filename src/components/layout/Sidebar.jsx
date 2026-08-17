@@ -8,6 +8,7 @@ import {
     LogOut, ChevronLeft, ChevronRight, Rss, Images, FolderOpen
 } from 'lucide-react';
 import LogoutConfirmModal from '../LogoutConfirmModal';
+import { useNewOrders } from '../../hooks/useNewOrders';
 
 // ── Navigation ────────────────────────────────────────────────
 const navMain = [
@@ -28,10 +29,10 @@ const navSecondary = [
 ];
 
 // ── NavItem ───────────────────────────────────────────────────
-const NavItem = ({ to, icon: Icon, label, collapsed, onNavigate }) => (
+const NavItem = ({ to, icon: Icon, label, collapsed, onNavigate, badge = 0 }) => (
     <NavLink
         to={to}
-        title={collapsed ? label : ''}
+        title={collapsed ? (badge > 0 ? `${label} (${badge})` : label) : ''}
         onClick={onNavigate}
         className={({ isActive }) => `
             relative flex items-center gap-3 px-3 py-2.5 rounded-xl
@@ -51,8 +52,24 @@ const NavItem = ({ to, icon: Icon, label, collapsed, onNavigate }) => (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full bg-primary-1" />
                 )}
 
-                <Icon size={17} className="shrink-0" />
-                {!collapsed && <span className="truncate">{label}</span>}
+                <span className="relative shrink-0">
+                    <Icon size={17} />
+                    {badge > 0 && collapsed && (
+                        <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-0.5 rounded-full
+                            bg-danger-1 text-white text-[9px] font-bold font-poppins
+                            flex items-center justify-center leading-none shadow-sm">
+                            {badge > 9 ? '9+' : badge}
+                        </span>
+                    )}
+                </span>
+                {!collapsed && <span className="truncate flex-1">{label}</span>}
+                {badge > 0 && !collapsed && (
+                    <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full
+                        bg-danger-1 text-white text-[10px] font-bold font-poppins
+                        flex items-center justify-center leading-none shrink-0">
+                        {badge > 99 ? '99+' : badge}
+                    </span>
+                )}
 
                 {/* Tooltip collapsed */}
                 {collapsed && (
@@ -61,7 +78,7 @@ const NavItem = ({ to, icon: Icon, label, collapsed, onNavigate }) => (
                         rounded-lg whitespace-nowrap shadow-lg
                         opacity-0 group-hover:opacity-100 pointer-events-none
                         transition-opacity duration-200 z-50">
-                        {label}
+                        {badge > 0 ? `${label} (${badge > 99 ? '99+' : badge})` : label}
                     </span>
                 )}
             </>
@@ -72,6 +89,7 @@ const NavItem = ({ to, icon: Icon, label, collapsed, onNavigate }) => (
 // ── Sidebar ───────────────────────────────────────────────────
 const Sidebar = ({ collapsed, onToggle, onNavigate }) => {
     const { logout } = useAuth();
+    const { newOrdersCount } = useNewOrders();
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
     const handleLogoutClick = () => { setIsLogoutModalOpen(true); onToggle?.(); };
@@ -119,7 +137,13 @@ const Sidebar = ({ collapsed, onToggle, onNavigate }) => {
                         <div className="flex-1 h-px bg-neutral-4 dark:bg-neutral-4" />
                     </div>
                     {navMain.map(item => (
-                        <NavItem key={item.to} {...item} collapsed={collapsed} onNavigate={onNavigate} />
+                        <NavItem
+                            key={item.to}
+                            {...item}
+                            collapsed={collapsed}
+                            onNavigate={onNavigate}
+                            badge={item.to === '/orders' ? newOrdersCount : 0}
+                        />
                     ))}
 
                     {/* Séparateur avec label */}
