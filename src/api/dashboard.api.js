@@ -141,6 +141,16 @@ class DashboardAPI {
   }
 
   /**
+   * Bénéfices Tokia-Loh (supplier_price vs prix de vente).
+   * Modes :
+   *   { period: 'today' | 'this_week' | 'this_month' | 'all' }
+   *   { start_date: 'DD-MM-YYYY', end_date: 'DD-MM-YYYY' }
+   */
+  getProfit(params = {}) {
+    return api.get("/shop/dashboard-profit/", { params });
+  }
+
+  /**
    * Stats rapport.
    * Modes :
    *   { period: 'today' | 'this_week' | 'this_month' | 'all' }
@@ -157,9 +167,14 @@ class DashboardAPI {
     return api.get("/shop/dashboard-rapport/", { params });
   }
 
-  /** Top produits vendus */
-  getTopProducts() {
-    return api.get("/shop/dashboard-product/");
+  /**
+   * Commandes livrées avec bénéfices par commande.
+   * Modes :
+   *   { period: 'today' | 'this_week' | 'this_month' | 'all' }
+   *   { start_date: 'DD-MM-YYYY', end_date: 'DD-MM-YYYY' }
+   */
+  getDeliveredOrders(params = {}) {
+    return api.get("/shop/dashboard-delivered-orders/", { params });
   }
 }
 

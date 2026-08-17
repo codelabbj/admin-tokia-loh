@@ -75,16 +75,16 @@ const SettingsPage = () => {
                 icon: KeyRound,
             },
         ];
-        if (currentUser?.is_superuser) {
+        if (currentUser?.is_full_admin || currentUser?.is_superuser || (currentUser?.is_admin && currentUser?.role !== 'staff')) {
             base.push({
                 id: 'admins',
-                label: 'Administrateurs',
-                description: 'Comptes staff et droits super-admin',
+                label: 'Équipe',
+                description: 'Nommer des membres staff (accès admin limité)',
                 icon: Shield,
             });
         }
         return base;
-    }, [currentUser?.is_superuser]);
+    }, [currentUser?.is_full_admin, currentUser?.is_superuser, currentUser?.is_admin, currentUser?.role]);
 
     const validTabId = useMemo(() => {
         if (tabs.some((t) => t.id === activeTab)) return activeTab;
@@ -166,6 +166,26 @@ const SettingsPage = () => {
                                     "
                                     >
                                         Super-admin
+                                    </span>
+                                )}
+                                {!currentUser.is_superuser && currentUser.role === 'staff' && (
+                                    <span
+                                        className="
+                                        text-[11px] font-semibold font-poppins
+                                        px-2 py-0.5 rounded-full bg-neutral-3 text-neutral-6
+                                    "
+                                    >
+                                        Staff
+                                    </span>
+                                )}
+                                {!currentUser.is_superuser && currentUser.role !== 'staff' && currentUser.is_admin && (
+                                    <span
+                                        className="
+                                        text-[11px] font-semibold font-poppins
+                                        px-2 py-0.5 rounded-full bg-primary-5 text-primary-1
+                                    "
+                                    >
+                                        Admin
                                     </span>
                                 )}
                             </div>

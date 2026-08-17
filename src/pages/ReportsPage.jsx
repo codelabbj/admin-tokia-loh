@@ -20,7 +20,7 @@ const ReportsPage = () => {
     const [dateTo, setDateTo] = useState(today);
     const { toast } = useToast();
 
-    const { report, products, loading, error, fetch } = useReports();
+    const { report, deliveredOrders, loading, error, fetch } = useReports();
     const lastErrorRef = useRef(null);
 
     useEffect(() => {
@@ -157,12 +157,12 @@ const ReportsPage = () => {
             {/* ── Graphiques ── */}
             <div className="grid grid-cols-1 xl:grid-cols-1 gap-4">
                 <SalesByCategoryChart data={salesByCategory} />
-                <SalesByProductTable data={products} />
+                <SalesByProductTable data={deliveredOrders} />
             </div>
 
             {/* ── Export ── */}
             <ReportExporter
-                products={products}
+                products={deliveredOrders}
                 categories={exportCategories}
                 period={period ?? 'custom'}
             />

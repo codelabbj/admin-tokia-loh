@@ -83,7 +83,7 @@ const VariantNode = ({
             const defaultPrice = variant.price || parentPrice || '';
             onUpdate({
                 ...variant,
-                sub_variants: [...currentSub, { id: null, key: '', name: '', price: defaultPrice, stock: '', image: '', secondary_images: [], sub_variants: [], _uiType: typeUI }]
+                sub_variants: [...currentSub, { id: null, key: '', name: '', price: defaultPrice, supplier_price: '', stock: '', image: '', secondary_images: [], sub_variants: [], _uiType: typeUI }]
             });
         } else {
             setDraftSubType(typeUI);
@@ -103,7 +103,7 @@ const VariantNode = ({
             const defaultPrice = variant.price || parentPrice || '';
             onUpdate({
                 ...variant,
-                sub_variants: [...currentSubs, { id: null, key: '', name, price: defaultPrice, stock: '', image: '', secondary_images: [], sub_variants: [], _uiType: typeUI }]
+                sub_variants: [...currentSubs, { id: null, key: '', name, price: defaultPrice, supplier_price: '', stock: '', image: '', secondary_images: [], sub_variants: [], _uiType: typeUI }]
             });
             setExpanded(true);
         }
@@ -379,8 +379,8 @@ const VariantNode = ({
                         )}
                     </div>
 
-                    {/* Ligne 2: Prix, Stock et Illimité */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                    {/* Ligne 2: Prix, Stock, Prix fournisseur, Bénéfices (plan client) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
                         <InputField
                             label="Prix (Optionnel)"
                             type="number"
@@ -406,8 +406,31 @@ const VariantNode = ({
                             disabled={globalUnlimitedStock && variant.unlimited_stock}
                             error=""
                         />
+                        <div className="flex flex-col gap-1.5 p-2.5 rounded-md border border-warning-3 bg-warning-4/30">
+                            <InputField
+                                label="Prix fournisseur (F)"
+                                type="number"
+                                min="0"
+                                placeholder="Optionnel"
+                                value={variant.supplier_price ?? ''}
+                                onChange={(e) => handleChange('supplier_price', e.target.value)}
+                                error=""
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1 p-2.5 rounded-md border border-success-1/30 bg-success-2 justify-center min-h-[72px]">
+                            <span className="text-[10px] font-bold font-poppins text-neutral-6 uppercase tracking-wide">
+                                Bénéfices
+                            </span>
+                            {variant.supplier_price !== '' && variant.supplier_price != null && (variant.price || parentPrice) ? (
+                                <p className="text-sm font-bold font-poppins text-success-1">
+                                    {(Number(variant.price || parentPrice) - Number(variant.supplier_price)).toLocaleString('fr-FR')} F
+                                </p>
+                            ) : (
+                                <p className="text-xs font-poppins text-neutral-5">—</p>
+                            )}
+                        </div>
                         {globalUnlimitedStock && (
-                            <label className="flex items-center gap-2 cursor-pointer select-none pb-2.5">
+                            <label className="flex items-center gap-2 cursor-pointer select-none pb-2.5 sm:col-span-2">
                                 <input
                                     type="checkbox"
                                     checked={!!variant.unlimited_stock}
@@ -625,7 +648,7 @@ const VariantsEditorTree = ({
     globalUnlimitedStock,
 }) => {
     const handleAddRoot = useCallback(() => {
-        onChange([...variants, { id: null, key: '', name: '', price: String(productPrice || ''), stock: '', image: '', secondary_images: [], sub_variants: [] }]);
+        onChange([...variants, { id: null, key: '', name: '', price: String(productPrice || ''), supplier_price: '', stock: '', image: '', secondary_images: [], sub_variants: [] }]);
     }, [variants, onChange, productPrice]);
 
     const handleUpdateRoot = useCallback((index, updatedVariant) => {

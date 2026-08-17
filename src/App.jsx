@@ -39,22 +39,33 @@ const ProtectedRoute = ({ children }) => {
         : <Navigate to="/login" replace />;
 };
 
-// ── Guard : redirige vers /dashboard si déjà connecté ─────────
+// ── Guard : admin complet seulement (pas staff) ───────────────
+const FullAdminRoute = ({ children }) => {
+    const { isAuthenticated, isFullAdmin } = useAuth();
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+    if (!isFullAdmin) return <Navigate to="/orders" replace />;
+    return children;
+};
+
+// ── Guard : redirige vers l'accueil adapté si déjà connecté ───
 const PublicRoute = ({ children }) => {
-    const { isAuthenticated } = useAuth();
-    return isAuthenticated
-        ? <Navigate to="/dashboard" replace />
-        : children;
+    const { isAuthenticated, isFullAdmin } = useAuth();
+    if (!isAuthenticated) return children;
+    return <Navigate to={isFullAdmin ? '/dashboard' : '/orders'} replace />;
 };
 
 // ── Raccourci : page dans le Layout protégé ───────────────────
-const PrivatePage = ({ page: Page, showSearch = true }) => (
-    <ProtectedRoute>
+const PrivatePage = ({ page: Page, showSearch = true, fullAdminOnly = false }) => {
+    const content = (
         <Layout showSearch={showSearch}>
             <Page />
         </Layout>
-    </ProtectedRoute>
-);
+    );
+    if (fullAdminOnly) {
+        return <FullAdminRoute>{content}</FullAdminRoute>;
+    }
+    return <ProtectedRoute>{content}</ProtectedRoute>;
+};
 
 const App = () => (
     <AuthProvider>
@@ -63,7 +74,7 @@ const App = () => (
                 <Routes>
 
                     {/* ── Redirection racine ── */}
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="/" element={<RootRedirect />} />
 
                     {/* ── Routes publiques ── */}
                     <Route path="/login" element={
@@ -74,7 +85,7 @@ const App = () => (
                     } />
 
                     {/* ── Routes protégées ── */}
-                    <Route path="/dashboard" element={<PrivatePage page={DashboardPage} showSearch={false} />} />
+                    <Route path="/dashboard" element={<PrivatePage page={DashboardPage} showSearch={false} fullAdminOnly />} />
 
                     {/* --- routes produits --- */}
                     <Route path="/products" element={<PrivatePage page={ProductsPage} showSearch={false} />} />
@@ -104,13 +115,19 @@ const App = () => (
                     <Route path="/publish" element={<PrivatePage page={PublishPage} showSearch={false} />} />
                     <Route path="/profile" element={<PrivatePage page={ProfilePage} showSearch={false} />} />
 
-                    {/* ── 404 → dashboard ── */}
-                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                    {/* ── 404 → accueil adapté ── */}
+                    <Route path="*" element={<RootRedirect />} />
 
                 </Routes>
             </Suspense>
         </BrowserRouter>
     </AuthProvider>
 );
+
+const RootRedirect = () => {
+    const { isAuthenticated, isFullAdmin } = useAuth();
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+    return <Navigate to={isFullAdmin ? '/dashboard' : '/orders'} replace />;
+};
 
 export default App;

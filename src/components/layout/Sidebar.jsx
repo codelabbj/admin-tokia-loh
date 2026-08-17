@@ -88,13 +88,17 @@ const NavItem = ({ to, icon: Icon, label, collapsed, onNavigate, badge = 0 }) =>
 
 // ── Sidebar ───────────────────────────────────────────────────
 const Sidebar = ({ collapsed, onToggle, onNavigate }) => {
-    const { logout } = useAuth();
+    const { logout, isFullAdmin } = useAuth();
     const { newOrdersCount } = useNewOrders();
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
     const handleLogoutClick = () => { setIsLogoutModalOpen(true); onToggle?.(); };
     const handleConfirmLogout = () => { logout(); setIsLogoutModalOpen(false); };
     const handleCancelLogout = () => setIsLogoutModalOpen(false);
+
+    const mainItems = isFullAdmin
+        ? navMain
+        : navMain.filter((item) => item.to !== '/dashboard');
 
     return (
         <div className="w-full">
@@ -136,7 +140,7 @@ const Sidebar = ({ collapsed, onToggle, onNavigate }) => {
                         )}
                         <div className="flex-1 h-px bg-neutral-4 dark:bg-neutral-4" />
                     </div>
-                    {navMain.map(item => (
+                    {mainItems.map(item => (
                         <NavItem
                             key={item.to}
                             {...item}

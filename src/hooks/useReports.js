@@ -14,21 +14,35 @@ const toApiDate = (isoDate) => {
 };
 
 /**
- * Normalise un produit depuis r.top_products.
- * Structure API : { product_name, total_quantity, total_revenue }
+ * Normalise une commande livrée depuis dashboard-delivered-orders.
+ * Structure API :
+ * {
+ *   order_id, order_reference, client_name, created_at,
+ *   total, total_cost, total_profit,
+ *   items: [{ product_name, product_image, quantity, price, supplier_price, profit }]
+ * }
  */
-const normalizeProduct = (raw, index) => ({
-  rank: index + 1,
-  name: raw.product_name ?? raw.name ?? "—", // product_name en priorité
-  category: raw.category ?? raw.category_name ?? "—",
-  qty: raw.total_quantity ?? raw.quantity ?? 0,
-  ca: raw.total_revenue ?? raw.revenue ?? 0,
-  trend: raw.trend ?? "neutral",
+const normalizeDeliveredOrder = (raw) => ({
+  id: raw.order_id,
+  reference: raw.order_reference ?? "—",
+  clientName: raw.client_name ?? "—",
+  date: raw.created_at ?? null,
+  total: Number(raw.total ?? 0),
+  totalCost: raw.total_cost != null ? Number(raw.total_cost) : null,
+  totalProfit: raw.total_profit != null ? Number(raw.total_profit) : null,
+  items: (raw.items ?? []).map((item) => ({
+    productName: item.product_name ?? "—",
+    productImage: item.product_image ?? null,
+    quantity: item.quantity ?? 0,
+    price: Number(item.price ?? 0),
+    supplierPrice: item.supplier_price != null ? Number(item.supplier_price) : null,
+    profit: item.profit != null ? Number(item.profit) : null,
+  })),
 });
 
 export const useReports = () => {
   const [report, setReport] = useState(null);
-  const [products, setProducts] = useState([]);
+  const [deliveredOrders, setDeliveredOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -36,14 +50,22 @@ export const useReports = () => {
     setLoading(true);
     setError(null);
     try {
-      // ✅ Un seul appel — top_products est inclus dans le rapport
-      const reportRes = await dashboardAPI.getReport({
-        period: period ? PERIOD_MAP[period] : undefined,
-        startDate: dateFrom ? toApiDate(dateFrom) : undefined,
-        endDate: dateTo ? toApiDate(dateTo) : undefined,
-      });
+      const periodParam = period ? PERIOD_MAP[period] : undefined;
+      const startDate = dateFrom ? toApiDate(dateFrom) : undefined;
+      const endDate = dateTo ? toApiDate(dateTo) : undefined;
+
+      const deliveredParams = startDate && endDate
+        ? { start_date: startDate, end_date: endDate }
+        : periodParam ? { period: periodParam } : {};
+
+      // Appels en parallèle : rapport global + commandes livrées
+      const [reportRes, deliveredRes] = await Promise.all([
+        dashboardAPI.getReport({ period: periodParam, startDate, endDate }),
+        dashboardAPI.getDeliveredOrders(deliveredParams),
+      ]);
 
       const r = reportRes.data;
+      const d = deliveredRes.data;
 
       setReport({
         turnover: r.turnover ?? 0,
@@ -76,9 +98,7 @@ export const useReports = () => {
         })),
       });
 
-      // ✅ top_products vient directement de r, plus de getTopProducts()
-      const rows = r.top_products ?? [];
-      setProducts(rows.map(normalizeProduct));
+      setDeliveredOrders((d.orders ?? []).map(normalizeDeliveredOrder));
     } catch (err) {
       setError(err.message ?? "Erreur lors du chargement du rapport");
     } finally {
@@ -86,5 +106,5 @@ export const useReports = () => {
     }
   }, []);
 
-  return { report, products, loading, error, fetch };
+  return { report, deliveredOrders, loading, error, fetch };
 };
