@@ -5,6 +5,7 @@ import {
     MessageSquare, User, MapPin, Phone, Loader2, AlertCircle
 } from 'lucide-react';
 import { useOrders, normalizeOrder, resolveDeliveryFeeFromVilles } from '../hooks/useOrders';
+import { useNewOrders } from '../hooks/useNewOrders';
 import { useVilles } from '../hooks/useVilles';
 import { useCompany } from '../hooks/useCompany';
 import { dashboardAPI } from '../api/dashboard.api';
@@ -39,6 +40,7 @@ const OrderDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { orders, loading, updateStatus } = useOrders();
+    const { markOrderSeen } = useNewOrders();
     const { villes } = useVilles();
     const { company } = useCompany();
     const [orderFromDetail, setOrderFromDetail] = useState(null);
@@ -80,8 +82,8 @@ const OrderDetailPage = () => {
         !!id && !orderFromList && !loading;
 
     useEffect(() => {
-        if (orderFromList) setOrderFromDetail(null);
-    }, [orderFromList]);
+        if (id) markOrderSeen(id);
+    }, [id, markOrderSeen]);
 
     useEffect(() => {
         if (order) document.title = `Admin Tokia-Loh | Commande #${order.reference}`;

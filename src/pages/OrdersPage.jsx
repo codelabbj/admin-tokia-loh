@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ShoppingCart, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router';
 import { useOrders, ORDERS_LIST_PAGE_SIZE } from '../hooks/useOrders';
+import { useNewOrders } from '../hooks/useNewOrders';
 import StatCard from '../components/dashboard/StatCard';
 import OrdersTable from '../components/orders/OrdersTable';
 import { findOrderListPage } from '../utils/findListPage';
@@ -25,6 +26,7 @@ const OrdersPage = () => {
         setSearch,
         isSearchMode,
     } = useOrders();
+    const { incomingOrderIds, incomingCount } = useNewOrders();
 
     const pageStats = useMemo(() => {
         const list = orders ?? [];
@@ -91,6 +93,9 @@ const OrdersPage = () => {
                 </h1>
                 <p className="text-xs font-poppins text-neutral-6 dark:text-neutral-6 mt-0.5">
                     Gérez et suivez toutes les commandes
+                    {incomingCount > 0
+                        ? ` · ${incomingCount} nouvelle${incomingCount > 1 ? 's' : ''} commande${incomingCount > 1 ? 's' : ''} à traiter`
+                        : ''}
                 </p>
             </div>
 
@@ -132,6 +137,7 @@ const OrdersPage = () => {
                 loading={loading}
                 onStatusChange={updateStatus}
                 highlightRowId={highlightOrder || tableFlashId}
+                newOrderIds={incomingOrderIds}
                 serverFilters={{ search, onSearchChange: setSearch }}
                 pagination={isSearchMode ? null : {
                     page,

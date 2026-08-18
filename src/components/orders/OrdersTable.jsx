@@ -26,9 +26,6 @@ const formatDate = (iso) => {
         + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 };
 
-// Onglets depuis les clés de STATUS_CONFIG
-const STATUS_TABS = ['all', ...Object.keys(STATUS_CONFIG)];
-
 const TAB_LABEL = { all: 'Toutes' };
 
 /*
@@ -39,6 +36,8 @@ const TAB_LABEL = { all: 'Toutes' };
   - statusStats    : { total, in_progress, delivered, canceled } | null — si null, badges onglets = page courante (orders)
   - pagination     : { page, totalPages, totalCount, pageSize, onPageChange } | null
   - serverFilters    : { search, onSearchChange } | null — recherche API (toutes pages)
+  - highlightRowId : id de ligne à flasher (lien depuis une notif)
+  - newOrderIds    : Set d'ids de commandes entrantes non encore ouvertes
 */
 const OrdersTable = ({
     orders = [],
@@ -47,6 +46,7 @@ const OrdersTable = ({
     statusStats = null,
     pagination = null,
     highlightRowId = '',
+    newOrderIds = null,
     serverFilters = null,
 }) => {
     const navigate = useNavigate();
@@ -57,7 +57,16 @@ const OrdersTable = ({
     const tableRegionId = useId();
     const filterLiveId = useId();
 
+    const incomingSet = newOrderIds instanceof Set
+        ? newOrderIds
+        : new Set((newOrderIds ?? []).map(String));
+    const incomingCount = incomingSet.size;
+
     const [activeTab, setActiveTab] = useState('all');
+
+    useEffect(() => {
+        if (incomingCount === 0 && activeTab === 'incoming') setActiveTab('all');
+    }, [incomingCount, activeTab]);
 
     useEffect(() => {
         if (!highlightRowId) {
@@ -79,7 +88,9 @@ const OrdersTable = ({
 
     const filtered = useMemo(() => {
         return orders.filter(o => {
-            const matchTab = activeTab === 'all' || o.status === activeTab;
+            const matchTab = activeTab === 'all'
+                || (activeTab === 'incoming' && incomingSet.has(String(o.id)))
+                || o.status === activeTab;
 
             const nameStr = `${o.client?.fullName ?? ''} ${o.client?.firstName ?? ''} ${o.client?.lastName ?? ''}`.trim().toLowerCase();
             const idStr = String(o.id ?? '').toLowerCase();
@@ -97,23 +108,25 @@ const OrdersTable = ({
                 itemsStr.includes(searchQ);
             return matchTab && matchSearch;
         });
-    }, [orders, searchQ, activeTab, useServerSearch]);
+    }, [orders, searchQ, activeTab, useServerSearch, incomingSet]);
 
     const countByStatus = useMemo(() => {
+        const incomingOnPage = orders.filter((o) => incomingSet.has(String(o.id))).length;
         if (statusStats) {
             return {
                 all: statusStats.total ?? 0,
+                incoming: incomingCount || incomingOnPage,
                 in_progress: statusStats.in_progress ?? 0,
                 delivered: statusStats.delivered ?? 0,
                 canceled: statusStats.canceled ?? 0,
             };
         }
-        const map = { all: orders.length };
+        const map = { all: orders.length, incoming: incomingOnPage };
         Object.keys(STATUS_CONFIG).forEach(s => {
             map[s] = orders.filter(o => o.status === s).length;
         });
         return map;
-    }, [statusStats, orders]);
+    }, [statusStats, orders, incomingSet, incomingCount]);
 
     return (
         <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 overflow-hidden">
@@ -154,19 +167,28 @@ const OrdersTable = ({
 
             {/* ── Onglets statut ── */}
             <div className="flex items-center overflow-x-auto border-b border-neutral-4 dark:border-neutral-4">
-                {STATUS_TABS.map(tab => (
+                {['all', ...(incomingCount > 0 ? ['incoming'] : []), ...Object.keys(STATUS_CONFIG)].map(tab => (
                     <button
                         key={tab}
-                        onClick={() => setActiveTab(tab)}
+                        onClick={() => {
+                            setActiveTab(tab);
+                            if (tab === 'incoming' && pagination?.page > 1) {
+                                pagination.onPageChange(1);
+                            }
+                        }}
                         className={`flex items-center gap-1.5 px-4 py-3 text-xs font-poppins font-medium whitespace-nowrap border-b-2 transition-all duration-200 cursor-pointer ${activeTab === tab
                             ? 'border-primary-1 text-primary-1'
                             : 'border-transparent text-neutral-6 hover:text-neutral-8'
                             }`}
                     >
-                        {TAB_LABEL[tab] ?? STATUS_CONFIG[tab]?.label ?? tab}
-                        {countByStatus[tab] > 0 && (
-                            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${activeTab === tab ? 'bg-primary-5 text-primary-1' : 'bg-neutral-3 text-neutral-6'}`}>
-                                {countByStatus[tab]}
+                        {tab === 'incoming' ? 'Nouvelles' : (TAB_LABEL[tab] ?? STATUS_CONFIG[tab]?.label ?? tab)}
+                        {(tab === 'incoming' ? incomingCount : countByStatus[tab]) > 0 && (
+                            <span className={`inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full text-[10px] font-bold ${
+                                tab === 'incoming'
+                                    ? 'bg-danger-1 text-white'
+                                    : activeTab === tab ? 'bg-primary-5 text-primary-1' : 'bg-neutral-3 text-neutral-6'
+                            }`}>
+                                {tab === 'incoming' ? incomingCount : countByStatus[tab]}
                             </span>
                         )}
                     </button>
@@ -198,17 +220,31 @@ const OrdersTable = ({
                                     Aucune commande trouvée
                                 </td>
                             </tr>
-                        ) : filtered.map(order => (
+                        ) : filtered.map(order => {
+                            const isIncoming = incomingSet.has(String(order.id));
+                            const isFlash = highlightRowId && String(order.id) === String(highlightRowId);
+                            return (
                             <tr
                                 key={order.id}
                                 id={`order-row-${order.id}`}
                                 onClick={() => navigate(`/orders/${order.id}`)}
-                                className={`border-b border-neutral-4 dark:border-neutral-4 last:border-0 hover:bg-neutral-2 dark:hover:bg-neutral-2 transition-colors duration-150 cursor-pointer ${highlightRowId && String(order.id) === String(highlightRowId)
-                                    ? 'ring-2 ring-inset ring-primary-1 bg-primary-5/25 dark:bg-primary-5/15'
-                                    : ''}`}
+                                className={`border-b border-neutral-4 dark:border-neutral-4 last:border-0 hover:bg-neutral-2 dark:hover:bg-neutral-2 transition-colors duration-150 cursor-pointer ${
+                                    isFlash
+                                        ? 'ring-2 ring-inset ring-primary-1 bg-primary-5/25 dark:bg-primary-5/15'
+                                        : isIncoming
+                                            ? 'bg-primary-5/40 dark:bg-primary-5/20'
+                                            : ''
+                                }`}
                             >
                                 <td className="px-4 py-3 font-semibold text-primary-1">
-                                    {order.reference?.startsWith('#') ? order.reference : `#${order.reference}`}
+                                    <span className="inline-flex items-center gap-2">
+                                        {isIncoming && (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-danger-1 text-white px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide">
+                                                Nouvelle
+                                            </span>
+                                        )}
+                                        {order.reference?.startsWith('#') ? order.reference : `#${order.reference}`}
+                                    </span>
                                 </td>
                                 <td className="px-4 py-3 text-neutral-8 dark:text-neutral-8 whitespace-nowrap">
                                     {order.client?.fullName || `${order.client?.firstName ?? ''} ${order.client?.lastName ?? ''}`.trim() || '—'}
@@ -238,7 +274,8 @@ const OrdersTable = ({
                                     </button>
                                 </td>
                             </tr>
-                        ))}
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

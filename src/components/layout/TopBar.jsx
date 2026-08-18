@@ -62,8 +62,8 @@ const TopBar = ({ onMenuToggle, showSearch = true }) => {
     const notifRef = useRef(null);
     const userRef = useRef(null);
 
-    const { notifications, loading: notifLoading, unreadCount, markRead, markAllRead } = useNotifications();
-    const previewNotifs = notifications.slice(0, 5);
+    const { bellNotifications, loading: notifLoading, bellUnreadCount, markRead, markBellAllRead } = useNotifications();
+    const previewNotifs = bellNotifications.slice(0, 5);
 
     // Calcule la position du panel par rapport au bouton cloche
     const openNotifPanel = () => {
@@ -156,7 +156,7 @@ const TopBar = ({ onMenuToggle, showSearch = true }) => {
                             onClick={openNotifPanel}
                             title="Notifications"
                             active={notifOpen}
-                            badge={unreadCount}
+                            badge={bellUnreadCount}
                         >
                             <Bell size={17} />
                         </IconButton>
@@ -193,18 +193,18 @@ const TopBar = ({ onMenuToggle, showSearch = true }) => {
                                             <span className="text-xs font-bold font-poppins text-neutral-8 dark:text-neutral-8">
                                                 Notifications
                                             </span>
-                                            {unreadCount > 0 && (
+                                            {bellUnreadCount > 0 && (
                                                 <span className="inline-flex items-center justify-center
                                                     min-w-4.5 h-4.5 px-1 rounded-full
                                                     bg-primary-5 text-primary-1 text-[10px] font-bold font-poppins">
-                                                    {unreadCount}
+                                                    {bellUnreadCount}
                                                 </span>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            {unreadCount > 0 && (
+                                            {bellUnreadCount > 0 && (
                                                 <button
-                                                    onClick={markAllRead}
+                                                    onClick={markBellAllRead}
                                                     className="flex items-center gap-1 text-[11px] font-poppins
                                                         text-primary-1 hover:text-primary-6 transition-colors cursor-pointer"
                                                 >
