@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import { NotificationsProvider } from '../../context/NotificationsContext';
-import { NewOrdersProvider } from '../../context/NewOrdersContext';
 
 const Layout = ({ children, showSearch = true }) => {
     const [collapsed, setCollapsed] = useState(false);
@@ -19,7 +18,6 @@ const Layout = ({ children, showSearch = true }) => {
 
     return (
         <NotificationsProvider>
-        <NewOrdersProvider>
         <div className="flex h-screen bg-neutral-2 dark:bg-neutral-2 overflow-hidden">
 
             {/* Overlay mobile */}
@@ -62,7 +60,6 @@ const Layout = ({ children, showSearch = true }) => {
                 </main>
             </div>
         </div>
-        </NewOrdersProvider>
         </NotificationsProvider>
     );
 };

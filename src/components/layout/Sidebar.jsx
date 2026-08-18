@@ -8,7 +8,7 @@ import {
     LogOut, ChevronLeft, ChevronRight, Rss, Images, FolderOpen
 } from 'lucide-react';
 import LogoutConfirmModal from '../LogoutConfirmModal';
-import { useNewOrders } from '../../hooks/useNewOrders';
+import { useNotifications } from '../../hooks/useNotifications';
 
 // ── Navigation ────────────────────────────────────────────────
 const navMain = [
@@ -54,7 +54,7 @@ const NavItem = ({ to, icon: Icon, label, collapsed, onNavigate, badge = 0 }) =>
 
                 <span className="relative shrink-0">
                     <Icon size={17} />
-                    {badge > 0 && collapsed && (
+                    {badge > 0 && (
                         <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-0.5 rounded-full
                             bg-danger-1 text-white text-[9px] font-bold font-poppins
                             flex items-center justify-center leading-none shadow-sm">
@@ -63,13 +63,6 @@ const NavItem = ({ to, icon: Icon, label, collapsed, onNavigate, badge = 0 }) =>
                     )}
                 </span>
                 {!collapsed && <span className="truncate flex-1">{label}</span>}
-                {badge > 0 && !collapsed && (
-                    <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full
-                        bg-danger-1 text-white text-[10px] font-bold font-poppins
-                        flex items-center justify-center leading-none shrink-0">
-                        {badge > 99 ? '99+' : badge}
-                    </span>
-                )}
 
                 {/* Tooltip collapsed */}
                 {collapsed && (
@@ -89,7 +82,7 @@ const NavItem = ({ to, icon: Icon, label, collapsed, onNavigate, badge = 0 }) =>
 // ── Sidebar ───────────────────────────────────────────────────
 const Sidebar = ({ collapsed, onToggle, onNavigate }) => {
     const { logout, isFullAdmin } = useAuth();
-    const { newOrdersCount } = useNewOrders();
+    const { unreadOrderCount } = useNotifications();
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
     const handleLogoutClick = () => { setIsLogoutModalOpen(true); onToggle?.(); };
@@ -146,7 +139,7 @@ const Sidebar = ({ collapsed, onToggle, onNavigate }) => {
                             {...item}
                             collapsed={collapsed}
                             onNavigate={onNavigate}
-                            badge={item.to === '/orders' ? newOrdersCount : 0}
+                            badge={item.to === '/orders' ? unreadOrderCount : 0}
                         />
                     ))}
 

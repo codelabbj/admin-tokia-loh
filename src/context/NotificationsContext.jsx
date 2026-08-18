@@ -6,7 +6,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { notificationsAPI } from "../api/notifications.api";
 import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
 import { useToast } from "../components/ui/ToastProvider";
@@ -14,6 +14,10 @@ import {
   extractNotificationTargets,
   getNotificationNavigatePath,
 } from "../utils/notificationTargets";
+import {
+  playNewOrderSound,
+  unlockNotificationSound,
+} from "../utils/playNewOrderSound";
 
 /** Rafraîchissement API — quasi temps réel sans WebSocket */
 const POLL_INTERVAL_MS = 6000;
@@ -28,14 +32,22 @@ const TYPE_MAP = {
   other: "Autre",
 };
 
-export const normalizeNotif = (raw) => ({
-  id: raw.id,
-  title: raw.title ?? "",
-  message: raw.content ?? "",
-  type: TYPE_MAP[raw.notification_type] ?? "Autre",
-  date: raw.created_at ?? null,
-  read: raw.is_read ?? false,
-});
+export const isOrderNotification = (notif) =>
+  notif?.type === "Commande" || notif?.notificationTypeKey === "order_confirmed";
+
+export const normalizeNotif = (raw) => {
+  const targets = extractNotificationTargets(raw);
+  return {
+    id: raw.id,
+    title: raw.title ?? "",
+    message: raw.content ?? "",
+    type: TYPE_MAP[raw.notification_type] ?? "Autre",
+    notificationTypeKey: raw.notification_type ?? "",
+    date: raw.created_at ?? null,
+    read: raw.is_read ?? false,
+    ...targets,
+  };
+};
 
 function toastMessageFor(notif) {
   const parts = [notif.title, notif.message].filter((s) => s && String(s).trim());
@@ -45,6 +57,7 @@ function toastMessageFor(notif) {
 
 export function NotificationsProvider({ children }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
 
@@ -118,7 +131,8 @@ export function NotificationsProvider({ children }) {
       for (const n of newPage1) {
         if (!seenNotifIdsRef.current.has(n.id)) {
           seenNotifIdsRef.current.add(n.id);
-          if (!n.read) {
+          if (!n.read && isOrderNotification(n)) {
+            playNewOrderSound();
             const path = getNotificationNavigatePath(n);
             toastRef.current.info(toastMessageFor(n), {
               duration: 6500,
@@ -193,6 +207,40 @@ export function NotificationsProvider({ children }) {
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadOrderCount = notifications.filter(
+    (n) => !n.read && isOrderNotification(n),
+  ).length;
+
+  const markOrderNotificationsRead = useCallback(async () => {
+    const ids = notifications
+      .filter((n) => !n.read && isOrderNotification(n))
+      .map((n) => n.id);
+    if (!ids.length) return;
+    setNotifications((prev) =>
+      prev.map((n) =>
+        isOrderNotification(n) ? { ...n, read: true } : n,
+      ),
+    );
+    await Promise.all(
+      ids.map((id) => notificationsAPI.markRead(id).catch(() => {})),
+    );
+  }, [notifications]);
+
+  useEffect(() => {
+    if (location.pathname.startsWith("/orders")) {
+      markOrderNotificationsRead();
+    }
+  }, [location.pathname, markOrderNotificationsRead]);
+
+  useEffect(() => {
+    const unlock = () => unlockNotificationSound();
+    document.addEventListener("click", unlock, { once: true });
+    document.addEventListener("keydown", unlock, { once: true });
+    return () => {
+      document.removeEventListener("click", unlock);
+      document.removeEventListener("keydown", unlock);
+    };
+  }, []);
 
   const value = {
     notifications,
@@ -206,6 +254,8 @@ export function NotificationsProvider({ children }) {
     markAllRead,
     deleteNotif,
     unreadCount,
+    unreadOrderCount,
+    markOrderNotificationsRead,
     refetch: () => fetchPage(1),
   };
 
