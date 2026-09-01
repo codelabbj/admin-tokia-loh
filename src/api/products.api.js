@@ -28,6 +28,24 @@ import api from "./client";
  *   category         : string (UUID)
  * }
  */
+const ADMIN_VARIANT_PARAMS = { include_inactive: true };
+
+/** GET détail / POST / PATCH v2 wrappent souvent { success, data }. */
+function unwrapProductResponse(response) {
+  const body = response?.data;
+  if (
+    body &&
+    typeof body === "object" &&
+    body.success === true &&
+    body.data &&
+    typeof body.data === "object" &&
+    !Array.isArray(body.data)
+  ) {
+    return { ...response, data: body.data };
+  }
+  return response;
+}
+
 class ProductsAPI {
   /**
    * Liste les produits avec filtres et pagination.
@@ -42,7 +60,9 @@ class ProductsAPI {
    * }} params
    */
   list(params = {}) {
-    return api.get("/shop/v2/products/", { params });
+    return api.get("/shop/v2/products/", {
+      params: { ...ADMIN_VARIANT_PARAMS, ...params },
+    });
   }
 
   /**
@@ -50,7 +70,7 @@ class ProductsAPI {
    * @param {object} data
    */
   create(data) {
-    return api.post("/shop/v2/products/", data);
+    return api.post("/shop/v2/products/", data).then(unwrapProductResponse);
   }
 
   /**
@@ -58,7 +78,9 @@ class ProductsAPI {
    * @param {string} id — UUID
    */
   detail(id) {
-    return api.get(`/shop/v2/products/${id}/`);
+    return api
+      .get(`/shop/v2/products/${id}/`, { params: ADMIN_VARIANT_PARAMS })
+      .then(unwrapProductResponse);
   }
 
   /**
@@ -68,7 +90,7 @@ class ProductsAPI {
    * @param {object} data
    */
   update(id, data) {
-    return api.patch(`/shop/v2/products/${id}/`, data);
+    return api.patch(`/shop/v2/products/${id}/`, data).then(unwrapProductResponse);
   }
 
   /**

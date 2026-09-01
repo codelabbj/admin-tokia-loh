@@ -729,7 +729,7 @@ const ProductFormPage = () => {
                     };
                 });
             };
-            const variantsToSubmit = variantsDraft.length > 0 ? cleanVariantsPayload(variantsDraft, rootType) : undefined;
+            const variantsToSubmit = cleanVariantsPayload(variantsDraft, rootType);
 
             const payload = {
                 name: form.name,

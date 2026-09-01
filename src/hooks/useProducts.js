@@ -82,9 +82,15 @@ export const normalizeVariantsForAPI = async (variants, globalUnlimited = true) 
       ).filter(Boolean);
     }
 
-    if (Array.isArray(v.sub_variants) && v.sub_variants.length > 0) {
-      cleaned.sub_variants = await normalizeVariantsForAPI(v.sub_variants, globalUnlimited);
+    if (typeof v.status === "boolean") {
+      cleaned.status = v.status;
     }
+
+    // Toujours envoyer sub_variants, y compris [] : sinon le backend ne supprime pas les enfants.
+    cleaned.sub_variants = await normalizeVariantsForAPI(
+      Array.isArray(v.sub_variants) ? v.sub_variants : [],
+      globalUnlimited,
+    );
 
     return cleaned;
   }));

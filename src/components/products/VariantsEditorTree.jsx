@@ -356,7 +356,12 @@ const VariantNode = ({
                                             style={{ backgroundColor: PRESET_COLORS.find(c => c.name === variant.name)?.hex || '#ccc' }}
                                         />
                                     )}
-                                    <span className="text-[11px] font-semibold text-neutral-8 truncate block w-full">{variant.name || 'N/A'}</span>
+                                    <span className="text-[11px] font-semibold text-neutral-8 truncate min-w-0 flex-1">{variant.name || 'N/A'}</span>
+                                    {variant.status === false && (
+                                        <span className="shrink-0 text-[9px] font-semibold font-poppins px-1.5 py-0.5 rounded bg-neutral-3 text-neutral-6 uppercase tracking-wide">
+                                            Masquée
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         ) : (
@@ -376,6 +381,11 @@ const VariantNode = ({
                                     error=""
                                 />
                             </div>
+                            {variant.status === false && (
+                                <p className="text-[10px] font-semibold font-poppins text-neutral-6 mt-1">
+                                    Masquée du site (visible admin uniquement)
+                                </p>
+                            )}
                         )}
                     </div>
 
