@@ -5,7 +5,10 @@ import {
     Package, Hash, TrendingUp, Loader2, Eye
 } from 'lucide-react';
 import { useCategories } from '../hooks/useCategories';
-import { useProducts } from '../hooks/useProducts';
+import { useProducts, normalizeProduct } from '../hooks/useProducts';
+import { productsAPI } from '../api/products.api';
+import { ORDERING_NEWEST_FIRST } from '../constants/listOrdering';
+import { fetchAllPaginatedPages } from '../utils/fetchAllPages';
 import Button from '../components/Button';
 import ProductStatusToggle from '../components/products/ProductStatusToggle';
 import CategoryFormModal from '../components/categories/CategoryFormModal';
@@ -127,7 +130,37 @@ const CategoryDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { categories, loading: catLoading, update: updateCategory } = useCategories();
-    const { products, loading: prodLoading, update: updateProduct } = useProducts();
+    const { update: updateProduct } = useProducts({ skipInitialFetch: true });
+    const [products, setProducts] = useState([]);
+    const [prodLoading, setProdLoading] = useState(true);
+
+    useEffect(() => {
+        if (!id) return;
+        let cancelled = false;
+        setProdLoading(true);
+        (async () => {
+            try {
+                const { items } = await fetchAllPaginatedPages(
+                    async (pageNum, pageSize) => {
+                        const { data } = await productsAPI.list({
+                            category: id,
+                            page: pageNum,
+                            page_size: pageSize,
+                            ordering: ORDERING_NEWEST_FIRST,
+                        });
+                        return data;
+                    },
+                    { pageSize: 100 },
+                );
+                if (!cancelled) setProducts(items.map(normalizeProduct));
+            } catch {
+                if (!cancelled) setProducts([]);
+            } finally {
+                if (!cancelled) setProdLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [id]);
 
     // Cherche la catégorie dans la liste
     const category = useMemo(() =>
@@ -163,6 +196,18 @@ const CategoryDetailPage = () => {
     );
 
     if (!category) return null;
+
+    const handleUpdateProduct = async (productId, payload) => {
+        const updated = await updateProduct(productId, payload);
+        setProducts((prev) =>
+            prev.map((p) => {
+                if (String(p.id) !== String(productId)) return p;
+                const nextStatus = payload.status ?? payload.is_active ?? p.status;
+                return { ...p, ...payload, status: nextStatus, is_active: nextStatus };
+            }),
+        );
+        return updated;
+    };
 
     const handleToggleStatus = () => {
         updateCategory(category.id, { is_active: !category.is_active });
@@ -246,7 +291,7 @@ const CategoryDetailPage = () => {
                         </p>
                     </div>
                 </div>
-                <CategoryProductsTable products={catProducts} onUpdate={updateProduct} navigate={navigate} />
+                <CategoryProductsTable products={catProducts} onUpdate={handleUpdateProduct} navigate={navigate} />
             </div>
         </div>
     );

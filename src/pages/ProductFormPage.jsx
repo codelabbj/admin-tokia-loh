@@ -15,7 +15,6 @@ import { useToast } from '../components/ui/ToastProvider';
 import { prepareFileForUpload } from '../utils/prepareFileForUpload';
 import { parseBackendErrorResponse } from '../utils/apiErrorResponse';
 import MediaPickerModal from '../components/media/MediaPickerModal';
-import { variantsAPI } from '../api/variants.api';
 import VariantsEditorTree, { VARIANT_TERM } from '../components/products/VariantsEditorTree';
 import { PRESET_COLORS } from '../constants/productPresetColors';
 // ── Helpers vidéo ─────────────────────────────────────────────
@@ -203,6 +202,17 @@ const normalizeVariantsForForm = (variants = [], attributes = []) => {
     });
 };
 
+const variantTreeHasUiType = (variants, uiType) => {
+    const needle = String(uiType || '').toLowerCase();
+    const walk = (list) => (list || []).some((v) => {
+        const key = String(v?.key ?? '').toLowerCase();
+        const ui = String(v?._uiType ?? '').toLowerCase();
+        if (ui === needle || key === needle) return true;
+        return walk(v?.sub_variants);
+    });
+    return walk(variants);
+};
+
 const buildAllowedVariantAttributes = (form, customDetails) => {
     const map = new Map();
     if (form?.hasSizes && Array.isArray(form?.sizes) && form.sizes.length > 0) {
@@ -246,24 +256,15 @@ const FormSection = ({ title, children, overflowVisible }) => (
 const ProductFormPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { products, loading: productsLoading, create, update } = useProducts();
+    const { create, update } = useProducts({ skipInitialFetch: true });
     const { categories } = useCategories();
     const { toast } = useToast();
     const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
     const [mediaPickerTarget, setMediaPickerTarget] = useState({ type: 'main' });
-    const [productFromDetail, setProductFromDetail] = useState(null);
+    const [product, setProduct] = useState(null);
+    const [productLoading, setProductLoading] = useState(!!id);
 
     const isEdit = !!id;
-    const productFromList = isEdit
-        ? products.find(p => String(p.id) === String(id)) ?? null
-        : null;
-    const product = productFromList ?? productFromDetail;
-
-    const needsDetailFetch =
-        isEdit &&
-        !!id &&
-        !productsLoading &&
-        !productFromList;
 
     const [form, setForm] = useState(EMPTY_FORM);
     const [errors, setErrors] = useState({});
@@ -278,8 +279,6 @@ const ProductFormPage = () => {
     const [newDetailKey, setNewDetailKey] = useState('');
     const [newDetailVal, setNewDetailVal] = useState('');
     const [variantsDraft, setVariantsDraft] = useState([]);
-    /** Incrémenté après chargement async des variantes (GET v2) pour ré-appliquer le filtre attributs. */
-    const [variantSourceTick, setVariantSourceTick] = useState(0);
     const allowedVariantAttributes = useMemo(
         () => buildAllowedVariantAttributes(form, customDetails),
         [form, customDetails],
@@ -290,6 +289,7 @@ const ProductFormPage = () => {
     /** Ancre sous la liste des cartes variantes (scroll après « + Variante »). */
     const variantsAnchorAfterCardsRef = useRef(null);
     const scrollToVariantsAnchorPendingRef = useRef(false);
+    const hydratedProductIdRef = useRef(null);
 
     // ── Titre de la page ──────────────────────────────────────
     useEffect(() => {
@@ -299,30 +299,38 @@ const ProductFormPage = () => {
     }, [isEdit, product]);
 
     useEffect(() => {
-        if (productFromList) setProductFromDetail(null);
-    }, [productFromList]);
-
-    // ── Produit absent de la liste paginée : chargement GET /products/:id/ ──
-    useEffect(() => {
-        if (!needsDetailFetch) return;
+        if (!isEdit || !id) {
+            setProduct(null);
+            setProductLoading(false);
+            return;
+        }
         let cancelled = false;
+        setProductLoading(true);
         (async () => {
             try {
                 const { data } = await productsAPI.detail(id);
-                if (!cancelled) setProductFromDetail(normalizeProduct(data));
+                if (!cancelled) setProduct(normalizeProduct(data));
             } catch {
                 if (!cancelled) navigate('/products', { replace: true });
+            } finally {
+                if (!cancelled) setProductLoading(false);
             }
         })();
         return () => { cancelled = true; };
-    }, [needsDetailFetch, id, navigate]);
+    }, [isEdit, id, navigate]);
+
+    useEffect(() => {
+        hydratedProductIdRef.current = null;
+    }, [id]);
 
     // ── Pré-remplissage en mode édition ──────────────────────
     useEffect(() => {
-        let cancelled = false;
         if (isEdit && product) {
+            if (hydratedProductIdRef.current === String(product.id)) return;
+            hydratedProductIdRef.current = String(product.id);
             const { sizes, colors, custom } = parseOthersDetails(product.others_details ?? []);
             const normalizedAttributes = normalizeAttributesForForm(product.attributes ?? []);
+            const embedded = normalizeVariantsForForm(product.variants ?? [], normalizedAttributes);
             setForm({
                 ...EMPTY_FORM,
                 name: product.name ?? '',
@@ -337,36 +345,15 @@ const ProductFormPage = () => {
                 featured: product.featured ?? false,
                 mainImage: product.image ?? null,
                 subImages: (product.secondary_images ?? []).map(url => url),
-                hasSizes: sizes.length > 0,
+                hasSizes: sizes.length > 0 || variantTreeHasUiType(embedded, 'Taille'),
                 sizes,
-                hasColors: colors.length > 0,
+                hasColors: colors.length > 0 || variantTreeHasUiType(embedded, 'Couleur'),
                 colors,
             });
             setCustomDetails(custom);
-
-            const embedded = product.variants ?? [];
-            setVariantsDraft(normalizeVariantsForForm(embedded, normalizedAttributes));
-
-            const needFetchVariants =
-                product.id &&
-                (!Array.isArray(embedded) || embedded.length === 0);
-
-            if (needFetchVariants) {
-                (async () => {
-                    try {
-                        const found = await variantsAPI.listAllForProduct(product.id);
-                        if (cancelled) return;
-                        if (found.length > 0) {
-                            const attrs = normalizeAttributesForForm(product.attributes ?? []);
-                            setVariantsDraft(normalizeVariantsForForm(found, attrs));
-                            setVariantSourceTick((t) => t + 1);
-                        }
-                    } catch {
-                        /* ignore — variante absentes ou erreur réseau */
-                    }
-                })();
-            }
+            setVariantsDraft(embedded);
         } else if (!isEdit) {
+            hydratedProductIdRef.current = null;
             setForm(EMPTY_FORM);
             setCustomDetails([]);
             setVariantsDraft([]);
@@ -374,9 +361,6 @@ const ProductFormPage = () => {
         setErrors({});
         setNewDetailKey('');
         setNewDetailVal('');
-        return () => {
-            cancelled = true;
-        };
     }, [isEdit, product]);
 
     useEffect(() => {
@@ -397,7 +381,7 @@ const ProductFormPage = () => {
                 return { ...v, attrMap: nextMap };
             }),
         );
-    }, [allowedVariantAttributes, variantSourceTick]);
+    }, [allowedVariantAttributes]);
 
     useEffect(() => {
         if (!scrollToVariantsAnchorPendingRef.current) return;
@@ -408,7 +392,7 @@ const ProductFormPage = () => {
     }, [variantsDraft.length]);
 
     // ── Loader pendant la résolution du produit en édition ───
-    if (isEdit && (productsLoading || (needsDetailFetch && !productFromDetail))) {
+    if (isEdit && (productLoading || !product)) {
         return (
             <div className="flex items-center justify-center h-64">
                 <Loader2 size={24} className="animate-spin text-primary-1" />
@@ -417,6 +401,25 @@ const ProductFormPage = () => {
     }
 
     if (isEdit && !product) return null;
+
+    const persistDeclinaisons = async (nextVariants, nextForm, nextCustom = customDetails) => {
+        if (!isEdit || !product?.id) return;
+        try {
+            await update(product.id, {
+                variants: nextVariants,
+                others_details: buildOthersDetails(
+                    nextForm.hasSizes ? nextForm.sizes : [],
+                    nextForm.hasColors ? nextForm.colors : [],
+                    nextCustom,
+                ),
+                unlimited_stock: nextForm.unlimited_stock,
+            });
+            setProduct((prev) => (prev ? { ...prev, variants: nextVariants } : prev));
+            toast.success('Les déclinaisons ont été retirées du site.');
+        } catch (err) {
+            toast.error(err?.message ?? 'Impossible de mettre à jour les déclinaisons.');
+        }
+    };
 
     // ── Handlers génériques ───────────────────────────────────
     const handleChange = (e) => {
@@ -729,7 +732,9 @@ const ProductFormPage = () => {
                     };
                 });
             };
-            const variantsToSubmit = cleanVariantsPayload(variantsDraft, rootType);
+            const variantsToSubmit = (!form.hasSizes && !form.hasColors && customDetails.length === 0)
+                ? []
+                : cleanVariantsPayload(variantsDraft, rootType);
 
             const payload = {
                 name: form.name,
@@ -743,7 +748,11 @@ const ProductFormPage = () => {
                 is_active: form.is_active,
                 mainImage: form.mainImage,
                 subImages: form.subImages,
-                others_details: buildOthersDetails(form.sizes, form.colors, customDetails),
+                others_details: buildOthersDetails(
+                    form.hasSizes ? form.sizes : [],
+                    form.hasColors ? form.colors : [],
+                    customDetails,
+                ),
                 variants: variantsToSubmit,
             };
 
@@ -1158,9 +1167,18 @@ const ProductFormPage = () => {
                                     <ProductStatusToggle
                                         active={form.hasSizes}
                                         onChange={val => {
-                                            setForm(prev => ({ ...prev, hasSizes: val }));
-                                            if (!val) setVariantsDraft([]);
-                                            else if (form.sizes.length > 0) {
+                                            if (!val) {
+                                                if (variantsDraft.length > 0 && !window.confirm('Retirer les déclinaisons de taille ? Elles disparaîtront du site public.')) {
+                                                    return;
+                                                }
+                                                const nextForm = { ...form, hasSizes: false, sizes: [] };
+                                                setForm(nextForm);
+                                                setVariantsDraft([]);
+                                                void persistDeclinaisons([], nextForm);
+                                                return;
+                                            }
+                                            setForm(prev => ({ ...prev, hasSizes: true }));
+                                            if (form.sizes.length > 0) {
                                                 setVariantsDraft(form.sizes.map(s => ({ ...createEmptyVariant(), sku: s, name: s, price: String(form.sale_price || form.price || '') })));
                                             }
                                         }}
@@ -1226,9 +1244,18 @@ const ProductFormPage = () => {
                                     <ProductStatusToggle
                                         active={form.hasColors}
                                         onChange={val => {
-                                            setForm(prev => ({ ...prev, hasColors: val }));
-                                            if (!val) setVariantsDraft([]);
-                                            else if (form.colors.length > 0) {
+                                            if (!val) {
+                                                if (variantsDraft.length > 0 && !window.confirm('Retirer les déclinaisons de couleur ? Elles disparaîtront du site public.')) {
+                                                    return;
+                                                }
+                                                const nextForm = { ...form, hasColors: false, colors: [] };
+                                                setForm(nextForm);
+                                                setVariantsDraft([]);
+                                                void persistDeclinaisons([], nextForm);
+                                                return;
+                                            }
+                                            setForm(prev => ({ ...prev, hasColors: true }));
+                                            if (form.colors.length > 0) {
                                                 setVariantsDraft(form.colors.map(c => ({ ...createEmptyVariant(), sku: c.name, name: c.name, price: String(form.sale_price || form.price || '') })));
                                             }
                                         }}
@@ -1357,7 +1384,7 @@ const ProductFormPage = () => {
                         )}
                     </FormSection>
 
-                    {(!form.hasSizes && !form.hasColors && customDetails.length > 0) && renderVariantsTree()}
+                    {(!form.hasSizes && !form.hasColors && (customDetails.length > 0 || variantsDraft.length > 0)) && renderVariantsTree()}
                 </div>
 
                 {/* ── Colonne droite (1/3) ── */}

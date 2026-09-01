@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 // version 2.2.0 - Correction affichage others_details
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import {
     ArrowLeft, Pencil, Tag,
@@ -8,7 +8,7 @@ import {
     ChevronLeft, ChevronRight, Play, ImageOff, Layers, ChevronDown,
     Copy, Check, X,
 } from 'lucide-react';
-import { useProducts, normalizeProduct, normalizeOthersDetails } from '../hooks/useProducts';
+import { normalizeProduct, normalizeOthersDetails } from '../hooks/useProducts';
 import { productsAPI } from '../api/products.api';
 import { variantsAPI } from '../api/variants.api';
 import { useCategories } from '../hooks/useCategories';
@@ -534,43 +534,37 @@ const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }
 const ProductDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { products, loading: productsLoading } = useProducts();
     const { categories } = useCategories();
     const { toast } = useToast();
 
     const [activeIndex, setActiveIndex] = useState(0);
     const [idCopied, setIdCopied] = useState(false);
-    const [productFromDetail, setProductFromDetail] = useState(null);
+    const [product, setProduct] = useState(null);
+    const [productLoading, setProductLoading] = useState(true);
     const [resolvedVariants, setResolvedVariants] = useState([]);
     const [savingVariantIds, setSavingVariantIds] = useState([]);
-
-    const productFromList = useMemo(
-        () => products.find(p => String(p.id) === String(id)) ?? null,
-        [products, id],
-    );
-    // Priorise la source la plus fraîche (detail fetch / patch variante)
-    const product = productFromDetail ?? productFromList;
-
-    const needsDetailFetch =
-        !!id && !productsLoading && !productFromList;
 
     useEffect(() => {
         if (product) document.title = `Admin Tokia-Loh | ${product.name}`;
     }, [product]);
 
     useEffect(() => {
-        if (!needsDetailFetch) return;
+        if (!id) return;
         let cancelled = false;
+        setProductLoading(true);
+        setProduct(null);
         (async () => {
             try {
                 const { data } = await productsAPI.detail(id);
-                if (!cancelled) setProductFromDetail(normalizeProduct(data));
+                if (!cancelled) setProduct(normalizeProduct(data));
             } catch {
                 if (!cancelled) navigate('/products', { replace: true });
+            } finally {
+                if (!cancelled) setProductLoading(false);
             }
         })();
         return () => { cancelled = true; };
-    }, [needsDetailFetch, id, navigate]);
+    }, [id, navigate]);
 
     useEffect(() => { setActiveIndex(0); }, [id]);
     useEffect(() => { setIdCopied(false); }, [id]);
@@ -584,7 +578,7 @@ const ProductDetailPage = () => {
         setResolvedVariants(embedded);
     }, [product]);
 
-    if (productsLoading || (needsDetailFetch && !productFromDetail)) {
+    if (productLoading) {
         return (
             <div className="flex items-center justify-center h-64">
                 <Loader2 size={24} className="animate-spin text-primary-1" />
@@ -662,7 +656,7 @@ const ProductDetailPage = () => {
             setResolvedVariants((prev) =>
                 updateVariantInTreeById(prev, variantId, patchedVariant),
             );
-            setProductFromDetail((prev) => {
+            setProduct((prev) => {
                 if (!prev || !Array.isArray(prev.variants)) return prev;
                 return {
                     ...prev,

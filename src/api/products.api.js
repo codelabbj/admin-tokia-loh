@@ -61,7 +61,7 @@ class ProductsAPI {
    */
   list(params = {}) {
     return api.get("/shop/v2/products/", {
-      params: { ...ADMIN_VARIANT_PARAMS, ...params },
+      params: { omit_variants: true, ...params },
     });
   }
 
