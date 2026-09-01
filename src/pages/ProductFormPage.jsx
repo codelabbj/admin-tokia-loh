@@ -213,6 +213,14 @@ const variantTreeHasUiType = (variants, uiType) => {
     return walk(variants);
 };
 
+const collectVariantIds = (list, acc = new Set()) => {
+    (list || []).forEach((v) => {
+        if (v?.id) acc.add(String(v.id));
+        collectVariantIds(v?.sub_variants, acc);
+    });
+    return acc;
+};
+
 const buildAllowedVariantAttributes = (form, customDetails) => {
     const map = new Map();
     if (form?.hasSizes && Array.isArray(form?.sizes) && form.sizes.length > 0) {
@@ -402,7 +410,7 @@ const ProductFormPage = () => {
 
     if (isEdit && !product) return null;
 
-    const persistDeclinaisons = async (nextVariants, nextForm, nextCustom = customDetails) => {
+    const persistDeclinaisons = async (nextVariants, nextForm, nextCustom = customDetails, message = 'Déclinaisons mises à jour.') => {
         if (!isEdit || !product?.id) return;
         try {
             await update(product.id, {
@@ -415,9 +423,19 @@ const ProductFormPage = () => {
                 unlimited_stock: nextForm.unlimited_stock,
             });
             setProduct((prev) => (prev ? { ...prev, variants: nextVariants } : prev));
-            toast.success('Les déclinaisons ont été retirées du site.');
+            if (message) toast.success(message);
         } catch (err) {
             toast.error(err?.message ?? 'Impossible de mettre à jour les déclinaisons.');
+        }
+    };
+
+    const handleVariantsChange = (nextVariants) => {
+        const removed = [...collectVariantIds(variantsDraft)].some(
+            (id) => !collectVariantIds(nextVariants).has(id),
+        );
+        setVariantsDraft(nextVariants);
+        if (isEdit && removed) {
+            void persistDeclinaisons(nextVariants, form, customDetails);
         }
     };
 
@@ -603,9 +621,14 @@ const ProductFormPage = () => {
         }
     };
     const handleRemoveSize = (size) => {
-        setForm(prev => ({ ...prev, sizes: prev.sizes.filter(s => s !== size) }));
-        if (form.hasSizes) {
-            setVariantsDraft(prev => prev.filter(v => v.sku !== size));
+        const nextForm = { ...form, sizes: form.sizes.filter(s => s !== size) };
+        const nextVariants = form.hasSizes
+            ? variantsDraft.filter(v => v.sku !== size)
+            : variantsDraft;
+        setForm(nextForm);
+        if (form.hasSizes) setVariantsDraft(nextVariants);
+        if (isEdit && form.hasSizes) {
+            void persistDeclinaisons(nextVariants, nextForm);
         }
     };
 
@@ -619,11 +642,15 @@ const ProductFormPage = () => {
     const handleRemoveColor = (index, colorObj) => {
         const colorName = colorObj ? colorObj.name : form.colors[index]?.name;
         const actualIndex = index !== undefined ? index : form.colors.findIndex(c => c.name === colorName);
-        if (actualIndex >= 0) {
-            setForm(prev => ({ ...prev, colors: prev.colors.filter((_, i) => i !== actualIndex) }));
-        }
-        if (form.hasColors && colorName) {
-            setVariantsDraft(prev => prev.filter(v => v.sku !== colorName));
+        if (actualIndex < 0) return;
+        const nextForm = { ...form, colors: form.colors.filter((_, i) => i !== actualIndex) };
+        const nextVariants = form.hasColors && colorName
+            ? variantsDraft.filter(v => v.sku !== colorName)
+            : variantsDraft;
+        setForm(nextForm);
+        if (form.hasColors && colorName) setVariantsDraft(nextVariants);
+        if (isEdit && form.hasColors) {
+            void persistDeclinaisons(nextVariants, nextForm);
         }
     };
 
@@ -642,9 +669,14 @@ const ProductFormPage = () => {
 
     const handleRemoveCustomDetail = (index) => {
         const detail = customDetails[index];
-        setCustomDetails(prev => prev.filter((_, i) => i !== index));
-        if (!form.hasSizes && !form.hasColors && detail) {
-            setVariantsDraft(prev => prev.filter(v => v.sku !== (detail.value || detail.key)));
+        const nextCustom = customDetails.filter((_, i) => i !== index);
+        const nextVariants = (!form.hasSizes && !form.hasColors && detail)
+            ? variantsDraft.filter(v => v.sku !== (detail.value || detail.key))
+            : variantsDraft;
+        setCustomDetails(nextCustom);
+        if (!form.hasSizes && !form.hasColors && detail) setVariantsDraft(nextVariants);
+        if (isEdit) {
+            void persistDeclinaisons(nextVariants, form, nextCustom);
         }
     };
 
@@ -809,7 +841,7 @@ const ProductFormPage = () => {
         <FormSection title={VARIANT_TERM.plural} overflowVisible={true}>
             <VariantsEditorTree
                 variants={variantsDraft}
-                onChange={setVariantsDraft}
+                onChange={handleVariantsChange}
                 productPrice={form.sale_price || form.price}
                 globalUnlimitedStock={!!form.unlimited_stock}
                 rootType={form.hasSizes ? 'Taille' : (form.hasColors ? 'Couleur' : 'Autre')}
@@ -1174,7 +1206,7 @@ const ProductFormPage = () => {
                                                 const nextForm = { ...form, hasSizes: false, sizes: [] };
                                                 setForm(nextForm);
                                                 setVariantsDraft([]);
-                                                void persistDeclinaisons([], nextForm);
+                                                void persistDeclinaisons([], nextForm, customDetails, 'Les déclinaisons de taille ont été retirées du site.');
                                                 return;
                                             }
                                             setForm(prev => ({ ...prev, hasSizes: true }));
@@ -1251,7 +1283,7 @@ const ProductFormPage = () => {
                                                 const nextForm = { ...form, hasColors: false, colors: [] };
                                                 setForm(nextForm);
                                                 setVariantsDraft([]);
-                                                void persistDeclinaisons([], nextForm);
+                                                void persistDeclinaisons([], nextForm, customDetails, 'Les déclinaisons de couleur ont été retirées du site.');
                                                 return;
                                             }
                                             setForm(prev => ({ ...prev, hasColors: true }));
