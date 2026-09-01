@@ -365,6 +365,7 @@ const VariantNode = ({
                                 </div>
                             </div>
                         ) : (
+                            <>
                             <div className="grid grid-cols-2 gap-3">
                                 <InputField
                                     label="Clé caractéristique"
@@ -386,6 +387,7 @@ const VariantNode = ({
                                     Masquée du site (visible admin uniquement)
                                 </p>
                             )}
+                            </>
                         )}
                     </div>
 
