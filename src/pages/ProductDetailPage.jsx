@@ -14,6 +14,7 @@ import { variantsAPI } from '../api/variants.api';
 import { useCategories } from '../hooks/useCategories';
 import Button from '../components/Button';
 import ProductBadge from '../components/products/ProductBadge';
+import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { useToast } from '../components/ui/ToastProvider';
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -154,6 +155,22 @@ const updateVariantInTreeById = (variants, variantId, patchData) => {
     });
 };
 
+const removeVariantFromTreeById = (variants, variantId) => {
+    if (!Array.isArray(variants)) return [];
+    const idStr = String(variantId);
+    return variants
+        .filter((item) => String(item?.id) !== idStr)
+        .map((item) => {
+            if (!Array.isArray(item?.sub_variants) || item.sub_variants.length === 0) {
+                return item;
+            }
+            return {
+                ...item,
+                sub_variants: removeVariantFromTreeById(item.sub_variants, variantId),
+            };
+        });
+};
+
 const variantStockBadgeType = (v) => {
     if (v.unlimited_stock === true) return 'unlimited-stock';
     const s = v.stock;
@@ -177,7 +194,7 @@ const Section = ({ title, children }) => (
 );
 
 // ── Noeud d'arbre récursif pour les déclinaisons ────────────────────
-const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }) => {
+const VariantTreeNode = ({ variant: v, level, onUpdateVariant, onDeleteVariant, isVariantSaving }) => {
     const [open, setOpen] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [viewerOpen, setViewerOpen] = useState(false);
@@ -351,16 +368,29 @@ const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }
                         {vStockBadge && <ProductBadge type={vStockBadge} />}
                     </div>
                     {canEdit && (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setIsEditing((prev) => !prev);
-                            }}
-                            className="px-2 py-1 rounded-lg border border-neutral-4 dark:border-neutral-6 bg-neutral-0 dark:bg-neutral-2 text-[11px] font-poppins text-neutral-7 dark:text-white/90 hover:text-primary-1 hover:border-primary-3 transition-colors cursor-pointer"
-                        >
-                            {isEditing ? 'Fermer' : 'Modifier'}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsEditing((prev) => !prev);
+                                }}
+                                className="px-2 py-1 rounded-lg border border-neutral-4 dark:border-neutral-6 bg-neutral-0 dark:bg-neutral-2 text-[11px] font-poppins text-neutral-7 dark:text-white/90 hover:text-primary-1 hover:border-primary-3 transition-colors cursor-pointer"
+                            >
+                                {isEditing ? 'Fermer' : 'Modifier'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteVariant?.(v);
+                                }}
+                                disabled={savingThisVariant}
+                                className="px-2 py-1 rounded-lg border border-danger-1/40 bg-neutral-0 dark:bg-neutral-2 text-[11px] font-poppins text-danger-1 hover:bg-danger-2 transition-colors cursor-pointer disabled:opacity-60"
+                            >
+                                Supprimer
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -521,6 +551,7 @@ const VariantTreeNode = ({ variant: v, level, onUpdateVariant, isVariantSaving }
                             variant={sub}
                             level={level + 1}
                             onUpdateVariant={onUpdateVariant}
+                            onDeleteVariant={onDeleteVariant}
                             isVariantSaving={isVariantSaving}
                         />
                     ))}
@@ -543,6 +574,7 @@ const ProductDetailPage = () => {
     const [productLoading, setProductLoading] = useState(true);
     const [resolvedVariants, setResolvedVariants] = useState([]);
     const [savingVariantIds, setSavingVariantIds] = useState([]);
+    const [variantToDelete, setVariantToDelete] = useState(null);
 
     useEffect(() => {
         if (product) document.title = `Admin Tokia-Loh | ${product.name}`;
@@ -672,7 +704,27 @@ const ProductDetailPage = () => {
         }
     };
 
+    const handleDeleteVariant = async () => {
+        const variantId = variantToDelete?.id;
+        if (!variantId) return;
+        try {
+            await variantsAPI.delete(variantId);
+            setResolvedVariants((prev) => removeVariantFromTreeById(prev, variantId));
+            setProduct((prev) => {
+                if (!prev || !Array.isArray(prev.variants)) return prev;
+                return {
+                    ...prev,
+                    variants: removeVariantFromTreeById(prev.variants, variantId),
+                };
+            });
+            setVariantToDelete(null);
+        } catch (err) {
+            throw new Error(err?.message ?? 'Impossible de supprimer cette déclinaison.');
+        }
+    };
+
     return (
+        <>
         <div className="flex flex-col gap-6">
 
             {/* ── En-tête ── */}
@@ -972,6 +1024,7 @@ const ProductDetailPage = () => {
                                         variant={v}
                                         level={0}
                                         onUpdateVariant={handleUpdateVariant}
+                                        onDeleteVariant={setVariantToDelete}
                                         isVariantSaving={isVariantSaving}
                                     />
                                 ))}
@@ -999,6 +1052,20 @@ const ProductDetailPage = () => {
                 </div>
             </div>
         </div>
+        <DeleteConfirmModal
+            isOpen={!!variantToDelete}
+            onCancel={() => setVariantToDelete(null)}
+            onConfirm={handleDeleteVariant}
+            title="Supprimer la déclinaison"
+            message={
+                Array.isArray(variantToDelete?.sub_variants) && variantToDelete.sub_variants.length > 0
+                    ? `Voulez-vous vraiment supprimer « ${variantToDelete?.name ?? 'cette déclinaison'} » ? Toutes ses sous-déclinaisons seront aussi supprimées. Elle disparaîtra du site.`
+                    : `Voulez-vous vraiment supprimer « ${variantToDelete?.name ?? 'cette déclinaison'} » ? Elle disparaîtra du site.`
+            }
+            confirmLabel="Supprimer"
+            successMessage="Déclinaison supprimée."
+        />
+        </>
     );
 };
 
