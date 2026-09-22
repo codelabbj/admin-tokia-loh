@@ -9,6 +9,7 @@ import {
     normalizeProduct,
     normalizeOthersDetails,
 } from '../hooks/useProducts';
+import { restoreProductsListQuery } from '../hooks/useProductsList';
 import { productsAPI } from '../api/products.api';
 import { useCategories } from '../hooks/useCategories';
 import { useToast } from '../components/ui/ToastProvider';
@@ -18,6 +19,12 @@ import MediaPickerModal from '../components/media/MediaPickerModal';
 import VariantsEditorTree, { VARIANT_TERM } from '../components/products/VariantsEditorTree';
 import { PRESET_COLORS } from '../constants/productPresetColors';
 // ── Helpers vidéo ─────────────────────────────────────────────
+const productsListBackUrl = () => {
+    const query = restoreProductsListQuery();
+    if (query?.page && query.page > 1) return `/products?page=${query.page}`;
+    return '/products';
+};
+
 const getYouTubeThumbnail = (url) => {
     const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
     const match = url.match(regExp);
@@ -795,7 +802,7 @@ const ProductFormPage = () => {
             }
 
             toast.success(isEdit ? 'Produit mis à jour avec succès' : 'Produit créé avec succès');
-            navigate('/products');
+            navigate(productsListBackUrl());
 
         } catch (err) {
             if (err.response?.data?.file?.[0]?.includes('filename has at most 100 characters')) {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { productsAPI } from "../api/products.api";
 import { ORDERING_NEWEST_FIRST } from "../constants/listOrdering";
 
@@ -6,6 +6,30 @@ import { fetchAllPaginatedPages } from "../utils/fetchAllPages";
 
 /** Taille de page alignée avec la pagination liste produits (admin). */
 export const PRODUCTS_LIST_PAGE_SIZE = 25;
+
+/** Clé sessionStorage pour mémoriser la pagination/recherche de la liste produits. */
+const PRODUCTS_LIST_STORAGE_KEY = "products_list_query";
+
+export const restoreProductsListQuery = () => {
+  try {
+    const raw = sessionStorage.getItem(PRODUCTS_LIST_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
+const saveProductsListQuery = (page, search, categoryId) => {
+  try {
+    sessionStorage.setItem(
+      PRODUCTS_LIST_STORAGE_KEY,
+      JSON.stringify({ page, search, categoryId }),
+    );
+  } catch {
+    // stockage indisponible : on ignore silencieusement
+  }
+};
 
 /**
  * Normalise les données venant de l'API → format frontend
@@ -51,16 +75,23 @@ const normalizeProduct = (p) => ({
  * Liste produits paginée (API DRF : count, next, results).
  * Recherche et catégorie sont envoyées au backend.
  */
-export const useProductsList = () => {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [searchDebounced, setSearchDebounced] = useState("");
-  const [categoryId, setCategoryId] = useState(null);
+export const useProductsList = (options = {}) => {
+  const restored = options.initialQuery ?? null;
+
+  const [page, setPage] = useState(restored?.page ?? 1);
+  const [search, setSearch] = useState(restored?.search ?? "");
+  const [searchDebounced, setSearchDebounced] = useState(
+    typeof restored?.search === "string" ? restored.search.trim() : "",
+  );
+  const [categoryId, setCategoryId] = useState(restored?.categoryId ?? null);
   const [products, setProducts] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reloadNonce, setReloadNonce] = useState(0);
+
+  const initialSearchRef = useRef(searchDebounced);
+  const initialCategoryIdRef = useRef(categoryId);
 
   useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(search.trim()), 350);
@@ -68,6 +99,16 @@ export const useProductsList = () => {
   }, [search]);
 
   useEffect(() => {
+    saveProductsListQuery(page, search, categoryId);
+  }, [page, search, categoryId]);
+
+  useEffect(() => {
+    if (
+      searchDebounced === initialSearchRef.current &&
+      categoryId === initialCategoryIdRef.current
+    ) {
+      return;
+    }
     setPage(1);
   }, [searchDebounced, categoryId]);
 

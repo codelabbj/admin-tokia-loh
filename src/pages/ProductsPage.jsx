@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import { Plus, Package } from 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
-import { useProductsList } from '../hooks/useProductsList';
+import { useProductsList, restoreProductsListQuery } from '../hooks/useProductsList';
 import { useCategories } from '../hooks/useCategories';
 import Button from '../components/Button';
 import ProductsTable from '../components/products/ProductsTable';
@@ -10,7 +10,7 @@ import StatCard from '../components/dashboard/StatCard';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 
 const ProductsPage = () => {
-    const list = useProductsList();
+    const list = useProductsList({ initialQuery: restoreProductsListQuery() });
     const { update, remove } = useProducts({ skipInitialFetch: true });
     const { categories } = useCategories();
     const navigate = useNavigate();
