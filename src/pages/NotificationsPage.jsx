@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Settings } from 'lucide-react';
+import { Bell, Settings, Send } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import NotificationsList from '../components/notifications/NotificationsList';
 import NotificationsSettings from '../components/notifications/NotificationsSettings';
 import { useNotifications } from '../hooks/useNotifications';
+import Button from '../components/Button';
 
 const TABS = [
     { key: 'history', label: 'Historique', icon: Bell },
@@ -12,6 +14,7 @@ const TABS = [
 const NotificationsPage = () => {
     const [activeTab, setActiveTab] = useState('history');
     const { unreadCount } = useNotifications();
+    const navigate = useNavigate();
 
     useEffect(() => {
         document.title = 'Admin Tokia-Loh | Notifications';
@@ -37,6 +40,10 @@ const NotificationsPage = () => {
                         Historique et configuration de vos alertes
                     </p>
                 </div>
+                <Button variant="primary" size="normal" onClick={() => navigate('/notifications/send')}>
+                    <Send size={15} />
+                    Envoyer une notification
+                </Button>
             </div>
 
             {/* ── Onglets ── */}

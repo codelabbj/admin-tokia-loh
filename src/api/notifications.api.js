@@ -24,6 +24,15 @@ class NotificationsAPI {
   delete(id) {
     return api.delete(`/shop/dashboard-notifications/${id}/remove/`);
   }
+
+  /**
+   * Envoie une notification push en masse.
+   * @param {{ title: string, content?: string, notification_type?: string, client_ids?: string[] }} data
+   *   client_ids absent → tous les clients actifs (broadcast).
+   */
+  sendPush(data) {
+    return api.post("/shop/dashboard-notifications/send/", data);
+  }
 }
 
 export const notificationsAPI = new NotificationsAPI();

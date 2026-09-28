@@ -26,6 +26,7 @@ const ClientDetailPage   = lazy(() => import('./pages/ClientDetailPage'));
 const VillesPage         = lazy(() => import('./pages/VillesPage'));
 const VilleDetailPage    = lazy(() => import('./pages/VilleDetailPage'));
 const NotificationsPage  = lazy(() => import('./pages/NotificationsPage'));
+const PushNotificationPage = lazy(() => import('./pages/PushNotificationPage'));
 const ReportsPage        = lazy(() => import('./pages/ReportsPage'));
 const SettingsPage       = lazy(() => import('./pages/SettingsPage'));
 const PublishPage        = lazy(() => import('./pages/PublishPage'));
@@ -110,6 +111,7 @@ const App = () => (
                     <Route path="/cities/:id" element={<PrivatePage page={VilleDetailPage} showSearch={false} />} />
 
                     <Route path="/notifications" element={<PrivatePage page={NotificationsPage} showSearch={false} />} />
+                    <Route path="/notifications/send" element={<PrivatePage page={PushNotificationPage} showSearch={false} />} />
                     <Route path="/reports" element={<PrivatePage page={ReportsPage} showSearch={false} />} />
                     <Route path="/settings" element={<PrivatePage page={SettingsPage} showSearch={false} />} />
                     <Route path="/publish" element={<PrivatePage page={PublishPage} showSearch={false} />} />
