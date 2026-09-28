@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Settings, Send } from 'lucide-react';
+import { Bell, Send } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import NotificationsList from '../components/notifications/NotificationsList';
 import NotificationsSettings from '../components/notifications/NotificationsSettings';
-import { useNotifications } from '../hooks/useNotifications';
 import Button from '../components/Button';
+import { useNotifications } from '../hooks/useNotifications';
 
 const TABS = [
     { key: 'history', label: 'Historique', icon: Bell },

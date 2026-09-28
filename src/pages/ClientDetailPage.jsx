@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router';
 import {
     ArrowLeft, User, Phone, MapPin, Calendar, Clock,
     ShoppingCart, CheckCircle, TrendingUp,
-    PauseCircle, UserCheck, Loader2, AlertCircle
+    PauseCircle, UserCheck, Loader2, AlertCircle, Send
 } from 'lucide-react';
 import { useClients } from '../hooks/useClients';
 import { useOnlineClients, ONLINE_CLIENTS_POLL_MS } from '../hooks/useOnlineClients';
@@ -14,6 +14,7 @@ import ClientStatusBadge from '../components/clients/ClientStatusBadge';
 import ClientOnlineBadge from '../components/clients/ClientOnlineBadge';
 import StatCard from '../components/dashboard/StatCard';
 import OrdersTable from '../components/orders/OrdersTable';
+import SendPushNotificationModal from '../components/notifications/SendPushNotificationModal';
 
 const formatPrice = (p) => `${Number(p).toLocaleString('fr-FR')} F`;
 const formatDate = (iso) => iso ? new Date(iso).toLocaleDateString('fr-FR') : '—';
@@ -57,6 +58,7 @@ const ClientDetailPage = () => {
     const navigate = useNavigate();
     const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
     const [reactivateConfirmOpen, setReactivateConfirmOpen] = useState(false);
+    const [pushModalOpen, setPushModalOpen] = useState(false);
 
     const { client, loading: clientLoading, error: clientError, deactivate, reactivate } = useClients(id);
     const { onlineIds } = useOnlineClients({ enabled: !!id, pollMs: ONLINE_CLIENTS_POLL_MS });
@@ -168,28 +170,55 @@ const ClientDetailPage = () => {
                     </div>
                 </div>
 
-                {!isDeactivated ? (
-                    <Button
-                        variant="dangerOutline"
-                        size="normal"
-                        icon={<PauseCircle size={14} />}
-                        iconPosition="left"
-                        onClick={() => setDeactivateConfirmOpen(true)}
-                    >
-                        Désactiver le client
-                    </Button>
-                ) : (
-                    <Button
-                        variant="outline"
-                        size="normal"
-                        icon={<UserCheck size={14} />}
-                        iconPosition="left"
-                        onClick={() => setReactivateConfirmOpen(true)}
-                    >
-                        Réactiver le client
-                    </Button>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                    {!isDeactivated && (
+                        <Button
+                            variant="primary"
+                            size="normal"
+                            icon={<Send size={14} />}
+                            iconPosition="left"
+                            onClick={() => setPushModalOpen(true)}
+                            title={client?.has_fcm_token === false
+                                ? "Ce client n'a pas encore de token push : la notification sera visible dans l'app mais pas délivrée en push"
+                                : ''}
+                        >
+                            Envoyer une push
+                        </Button>
+                    )}
+                    {!isDeactivated ? (
+                        <Button
+                            variant="dangerOutline"
+                            size="normal"
+                            icon={<PauseCircle size={14} />}
+                            iconPosition="left"
+                            onClick={() => setDeactivateConfirmOpen(true)}
+                        >
+                            Désactiver le client
+                        </Button>
+                    ) : (
+                        <Button
+                            variant="outline"
+                            size="normal"
+                            icon={<UserCheck size={14} />}
+                            iconPosition="left"
+                            onClick={() => setReactivateConfirmOpen(true)}
+                        >
+                            Réactiver le client
+                        </Button>
+                    )}
+                </div>
             </div>
+
+            <SendPushNotificationModal
+                isOpen={pushModalOpen}
+                onClose={() => setPushModalOpen(false)}
+                initialClients={client ? [{
+                    id: client.id,
+                    first_name: client.first_name,
+                    last_name: client.last_name,
+                    phone: client.phone,
+                }] : []}
+            />
 
             {/* ── Fiche client ── */}
             <div className="bg-neutral-0 dark:bg-neutral-0 border border-neutral-4 dark:border-neutral-4 rounded-3 p-5
