@@ -166,7 +166,7 @@ const SendPushNotificationModal = ({ isOpen, onClose, initialClients = [] }) => 
                     : { client_ids: selectedClients.map(c => c.id) }),
             };
 
-            const { data } = await notificationsAPI.sendPushToDevices(payload);
+            const { data } = await notificationsAPI.sendPush(payload);
             setResult(data);
             if (data?.success) {
                 toast.success(data?.message ?? 'Notification envoyée.');
