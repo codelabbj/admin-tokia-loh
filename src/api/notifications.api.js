@@ -37,6 +37,14 @@ class NotificationsAPI {
   sendPush(payload) {
     return api.post("/accounts/push-notifications/send/", payload);
   }
+
+  /**
+   * État de la config FCM côté serveur + nombre de clients joignables.
+   * → { success, data: { configured: boolean, reachable_clients: number } }
+   */
+  pushStatus() {
+    return api.get("/accounts/push-notifications/status/");
+  }
 }
 
 export const notificationsAPI = new NotificationsAPI();
